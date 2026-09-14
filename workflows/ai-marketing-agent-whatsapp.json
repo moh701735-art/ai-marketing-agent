@@ -1,0 +1,2191 @@
+{
+  "name": "AI Marketing Agent - WhatsApp (مصحح)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\nlet msg = null;\nif (Array.isArray(body.messages) && body.messages[0]) {\n  msg = body.messages[0];\n} else if (Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages?.[0]) {\n  msg = body.entry[0].changes[0].value.messages[0];\n} else {\n  msg = body;\n}\nconst text = (msg?.text?.body || msg?.button?.text || msg?.interactive?.button_reply?.title || '').trim();\nconst from = msg?.from || '';\nconst messageId = msg?.id || '';\nconst timestamp = msg?.timestamp || '';\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
+      },
+      "id": "93693ef5-1777-4965-9909-c216d76663af",
+      "name": "قراءة نص الرسالة",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3136,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.hasText}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "240d4c7c-dd7b-457d-af1a-28a00607ff09",
+      "name": "فيه نص رسالة؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2912,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟",
+        "additionalFields": {}
+      },
+      "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
+      "name": "رد: ما فيه نص رسالة",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -2688,
+        1568
+      ],
+      "webhookId": "01c851dd-6652-41f7-80bf-90f70a39178d",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.authorized}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "71923198-d5f2-4c49-af4f-e8f27bf94405",
+      "name": "تحقق من الصلاحية",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2688,
+        1376
+      ],
+      "notes": "الآن يعتمد على عمود authorized المحسوب بالنود 'تحقق الرقم من القائمة' اعتماداً على شيت 'المستخدمين المصرح لهم' — بدل قائمة أرقام كانت مكتوبة يدوياً جوة الأتمتة. لإضافة زبون جديد: أضف صف بالشيت وخلص، بدون تعديل الأتمتة."
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.",
+        "additionalFields": {}
+      },
+      "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
+      "name": "رد: غير مصرح",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -2464,
+        1472
+      ],
+      "webhookId": "75e6f3ba-91db-4155-b6cd-e01063056616",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "الحالة المعلقة"
+        }
+      },
+      "id": "b1994a50-bd3e-45f3-8882-00451d6ef568",
+      "name": "جلب الحالة المعلقة",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2464,
+        1280
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "Resource: Sheet, Operation: Search, Sheet: 'الحالة المعلقة'. يجيب كل الصفوف بدون فلتر عمداً — الفلترة على رقم الهاتف صايرة بالنود التالي 'تجهيز سياق الـAI' حتى ما نعتمد على شكل فلتر داخلي بواجهة جوجل شيتس قد يختلف بين النسخ. Always Output Data مفعّل."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst prevRow = rows.find(r => normalizePhone(r.phone) === fromNorm) || {};\nconst previousDraftJson = prevRow.draft_json || null;\nreturn [{ json: { text: incoming.text, from: incoming.from, previousDraftJson } }];"
+      },
+      "id": "9e57a1eb-63a3-4e45-a9ee-61f5016c0541",
+      "name": "تجهيز سياق الـAI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2240,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({\n  model: 'claude-sonnet-5',\n  max_tokens: 800,\n  system: \"\\u0623\\u0646\\u062a \\u0645\\u0633\\u0627\\u0639\\u062f \\u064a\\u0641\\u0647\\u0645 \\u0623\\u0648\\u0627\\u0645\\u0631 \\u062a\\u0633\\u0648\\u064a\\u0642\\u064a\\u0629 \\u0645\\u0643\\u062a\\u0648\\u0628\\u0629 \\u0628\\u0627\\u0644\\u0639\\u0631\\u0628\\u064a \\u0623\\u0648 \\u0627\\u0644\\u0644\\u0647\\u062c\\u0629 \\u0627\\u0644\\u0639\\u0631\\u0627\\u0642\\u064a\\u0629 \\u0648\\u064a\\u062d\\u0648\\u0651\\u0644\\u0647\\u0627 \\u0625\\u0644\\u0649 JSON \\u0645\\u0646\\u0638\\u0645 \\u0641\\u0642\\u0637 \\u0628\\u062f\\u0648\\u0646 \\u0623\\u064a \\u0634\\u0631\\u062d \\u0648\\u062f\\u0648\\u0646 \\u0623\\u064a \\u0646\\u0635 \\u062e\\u0627\\u0631\\u062c \\u0643\\u0627\\u0626\\u0646 JSON \\u0648\\u0627\\u062d\\u062f.\\n\\u0627\\u0633\\u062a\\u062e\\u0631\\u062c: action (create/activate/pause/update_budget/report/list/list_paused/delete)\\u060c platform\\u060c platforms (array \\u062a\\u062d\\u062a\\u0648\\u064a meta \\u0648/\\u0623\\u0648 tiktok)\\u060c client\\u060c ad_account_id\\u060c campaign_name\\u060c budget\\u060c currency\\u060c objective\\u060c audience\\u060c location\\u060c status\\u060c campaign_id\\u060c date_range.\\n\\u0645\\u0647\\u0645 \\u062c\\u062f\\u0627\\u064b: \\u0644\\u0627 \\u062a\\u062d\\u0637 action='none' \\u0625\\u0644\\u0627 \\u0625\\u0630\\u0627 \\u0643\\u0627\\u0646\\u062a \\u0646\\u064a\\u0629 \\u0627\\u0644\\u0645\\u0633\\u062a\\u062e\\u062f\\u0645 \\u063a\\u0627\\u0645\\u0636\\u0629 \\u0641\\u0639\\u0644\\u0627\\u064b \\u0628\\u0634\\u0643\\u0644 \\u0643\\u0627\\u0645\\u0644. \\u0644\\u0648 \\u0627\\u0644\\u0631\\u0633\\u0627\\u0644\\u0629 \\u062a\\u062d\\u062a\\u0648\\u064a \\u0641\\u0639\\u0644 \\u0648\\u0627\\u0636\\u062d \\u0645\\u062b\\u0644 (\\u0633\\u0648\\u0651\\u064a/\\u0623\\u0646\\u0634\\u0626/\\u0641\\u0639\\u0651\\u0644/\\u0634\\u063a\\u0651\\u0644/\\u0648\\u0642\\u0641/\\u0623\\u0648\\u0642\\u0641/\\u063a\\u064a\\u0651\\u0631/\\u0639\\u062f\\u0651\\u0644/\\u0627\\u062d\\u0630\\u0641/\\u0634\\u0643\\u062f/\\u0634\\u0648\\u0641\\u0644\\u064a/\\u0627\\u0639\\u0631\\u0636\\u0644\\u064a)\\u060c \\u0627\\u0633\\u062a\\u0646\\u062a\\u062c \\u0627\\u0644\\u0640action \\u0627\\u0644\\u0645\\u0646\\u0627\\u0633\\u0628 \\u0645\\u0628\\u0627\\u0634\\u0631\\u0629.\\n\\u0625\\u0630\\u0627 \\u0642\\u0627\\u0644 \\u0627\\u0644\\u0645\\u0633\\u062a\\u062e\\u062f\\u0645 \\u0641\\u064a\\u0633\\u0628\\u0648\\u0643 \\u0648\\u062a\\u064a\\u0643 \\u062a\\u0648\\u0643 \\u0633\\u0648\\u0627\\u060c \\u062d\\u0637 \\u0627\\u0644\\u0627\\u062b\\u0646\\u064a\\u0646 \\u0628\\u0645\\u0635\\u0641\\u0648\\u0641\\u0629 platforms.\\n\\u0645\\u0647\\u0645 \\u062c\\u062f\\u0627\\u064b \\u0644\\u0644\\u062a\\u0623\\u0643\\u064a\\u062f: \\u0625\\u0630\\u0627 previousDraftJson \\u0645\\u0648\\u062c\\u0648\\u062f\\u060c \\u0627\\u062f\\u0645\\u062c \\u0643\\u0644 \\u062d\\u0642\\u0648\\u0644\\u0647 (campaign_name, budget, platforms, ad_account_id, client, campaign_id...) \\u0645\\u0639 \\u0627\\u0644\\u0631\\u0633\\u0627\\u0644\\u0629 \\u0627\\u0644\\u062c\\u062f\\u064a\\u062f\\u0629 \\u0648\\u0644\\u0627 \\u062a\\u0641\\u0642\\u062f \\u0648\\u0644\\u0627 \\u062d\\u0642\\u0644 \\u2014 \\u0631\\u0633\\u0627\\u0644\\u0629 \\u062a\\u0623\\u0643\\u064a\\u062f \\u0642\\u0635\\u064a\\u0631\\u0629 \\u0645\\u062b\\u0644 '\\u062a\\u0623\\u0643\\u064a\\u062f' \\u0644\\u0627 \\u062a\\u062d\\u062a\\u0648\\u064a \\u062a\\u0641\\u0627\\u0635\\u064a\\u0644 \\u0627\\u0644\\u062d\\u0645\\u0644\\u0629\\u060c \\u0641\\u0644\\u0627\\u0632\\u0645 \\u062a\\u062c\\u064a\\u0628 \\u0627\\u0644\\u062a\\u0641\\u0627\\u0635\\u064a\\u0644 \\u0645\\u0646 previousDraftJson.\\n\\u0625\\u0630\\u0627 \\u0643\\u0627\\u0646\\u062a \\u0627\\u0644\\u0645\\u0639\\u0644\\u0648\\u0645\\u0627\\u062a \\u0646\\u0627\\u0642\\u0635\\u0629 \\u0644\\u062a\\u0646\\u0641\\u064a\\u0630 action \\u0627\\u0644\\u0645\\u0637\\u0644\\u0648\\u0628 (create \\u064a\\u062d\\u062a\\u0627\\u062c campaign_name \\u0648budget \\u0648platforms \\u0639\\u0644\\u0649 \\u0627\\u0644\\u0623\\u0642\\u0644\\u061b activate/pause/delete/update_budget \\u064a\\u062d\\u062a\\u0627\\u062c campaign_id\\u061b update_budget \\u064a\\u062d\\u062a\\u0627\\u062c budget \\u0623\\u064a\\u0636\\u0627\\u064b)\\u060c \\u0623\\u0631\\u062c\\u0639 missing_info \\u0643\\u0645\\u0635\\u0641\\u0648\\u0641\\u0629 \\u0628\\u0623\\u0633\\u0645\\u0627\\u0621 \\u0627\\u0644\\u062d\\u0642\\u0648\\u0644 \\u0627\\u0644\\u0646\\u0627\\u0642\\u0635\\u0629\\u060c \\u0648reply_message_if_incomplete \\u0628\\u0633\\u0624\\u0627\\u0644 \\u0642\\u0635\\u064a\\u0631 \\u0648\\u0648\\u0627\\u0636\\u062d \\u0628\\u0627\\u0644\\u0644\\u0647\\u062c\\u0629 \\u0627\\u0644\\u0639\\u0631\\u0627\\u0642\\u064a\\u0629.\\n\\u0627\\u0644\\u0639\\u0645\\u0644\\u064a\\u0627\\u062a \\u0627\\u0644\\u062e\\u0637\\u0631\\u0629 (delete \\u0648activate) \\u062a\\u0639\\u062a\\u0628\\u0631 \\u062f\\u0627\\u0626\\u0645\\u0627\\u064b needs_confirmation=true. \\u0644\\u0627 \\u062a\\u062d\\u0637 confirmed=true \\u0625\\u0644\\u0627 \\u0625\\u0630\\u0627 \\u0643\\u0627\\u0646\\u062a \\u0631\\u0633\\u0627\\u0644\\u0629 \\u0627\\u0644\\u0645\\u0633\\u062a\\u062e\\u062f\\u0645 \\u0627\\u0644\\u062d\\u0627\\u0644\\u064a\\u0629 \\u062a\\u062d\\u062a\\u0648\\u064a \\u0639\\u0644\\u0649 \\u0643\\u0644\\u0645\\u0629 '\\u062a\\u0623\\u0643\\u064a\\u062f' \\u0628\\u0627\\u0644\\u0636\\u0628\\u0637 (\\u0645\\u062b\\u0644 '\\u062a\\u0623\\u0643\\u064a\\u062f' \\u0623\\u0648 '\\u062a\\u0623\\u0643\\u064a\\u062f \\u0646\\u0639\\u0645') \\u2014 \\u0644\\u0627 \\u062a\\u0639\\u062a\\u0628\\u0631 \\u0623\\u064a \\u0643\\u0644\\u0645\\u0629 \\u0645\\u0648\\u0627\\u0641\\u0642\\u0629 \\u0639\\u0627\\u062f\\u064a\\u0629 \\u0623\\u062e\\u0631\\u0649 \\u0643\\u0627\\u0641\\u064a\\u0629 \\u0648\\u062d\\u062f\\u0647\\u0627.\\n\\u0623\\u0631\\u062c\\u0639 \\u0641\\u0642\\u0637 \\u0643\\u0627\\u0626\\u0646 JSON \\u0635\\u062d\\u064a\\u062d \\u0628\\u0647\\u0630\\u0627 \\u0627\\u0644\\u0634\\u0643\\u0644 \\u0628\\u0627\\u0644\\u0636\\u0628\\u0637 \\u0648\\u0644\\u0627 \\u0634\\u064a \\u063a\\u064a\\u0631\\u0647:\\n{\\\"action\\\":\\\"\\\",\\\"platform\\\":\\\"\\\",\\\"platforms\\\":[],\\\"client\\\":\\\"\\\",\\\"ad_account_id\\\":\\\"\\\",\\\"campaign_name\\\":\\\"\\\",\\\"budget\\\":\\\"\\\",\\\"currency\\\":\\\"USD\\\",\\\"objective\\\":\\\"\\\",\\\"audience\\\":\\\"\\\",\\\"location\\\":\\\"\\\",\\\"status\\\":\\\"\\\",\\\"campaign_id\\\":\\\"\\\",\\\"date_range\\\":\\\"\\\",\\\"missing_info\\\":[],\\\"needs_confirmation\\\":false,\\\"confirmed\\\":false,\\\"reply_message_if_incomplete\\\":\\\"\\\"}\",\n  messages: [\n    { role: 'user', content: 'previousDraftJson: ' + JSON.stringify($json.previousDraftJson) + '\\nرسالة المستخدم الحالية: ' + $json.text }\n  ]\n})}}",
+        "options": {}
+      },
+      "id": "b3459282-be19-456f-972b-b1c244a95409",
+      "name": "AI Agent - فهم الأمر",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2016,
+        1280
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      },
+      "notes": "Credential: Header Auth باسم 'Anthropic API' — Header: x-api-key. لا يوجد أي مفتاح مكتوب هنا."
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nlet text = '';\nif (Array.isArray(resp.content)) {\n  const block = resp.content.find(c => c.type === 'text') || resp.content[0];\n  text = (block && block.text) || '';\n} else if (typeof resp.content === 'string') {\n  text = resp.content;\n} else if (resp.text) {\n  text = resp.text;\n}\ntext = (text || '').trim();\nconst fence = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\nif (fence) text = fence[1].trim();\nconst bs = text.indexOf('{'); const be = text.lastIndexOf('}');\nif (bs !== -1 && be !== -1 && be > bs) text = text.slice(bs, be + 1);\nlet parsed;\ntry { parsed = JSON.parse(text); } catch (e) {\n  parsed = { action: 'none', missing_info: ['فهم الرسالة'], reply_message_if_incomplete: 'ما فهمت الطلب زين، تكدر تعيد الصياغة؟' };\n}\nparsed.action = parsed.action || 'none';\nparsed.platform = parsed.platform || '';\nparsed.platforms = (Array.isArray(parsed.platforms) && parsed.platforms.length) ? parsed.platforms : (parsed.platform ? [parsed.platform] : []);\nparsed.client = parsed.client || '';\nparsed.ad_account_id = parsed.ad_account_id || '';\nparsed.campaign_name = parsed.campaign_name || '';\nparsed.budget = parsed.budget || '';\nparsed.currency = parsed.currency || 'USD';\nparsed.objective = parsed.objective || '';\nparsed.audience = parsed.audience || '';\nparsed.location = parsed.location || '';\nparsed.status = parsed.status || '';\nparsed.campaign_id = parsed.campaign_id || '';\nparsed.date_range = parsed.date_range || '';\nparsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\nconst ctx = $('تجهيز سياق الـAI').item.json;\nconst rawText = (ctx.text || '');\n// إذا كانت هذه رسالة تأكيد، ندمج مسودة الطلب السابقة المحفوظة بالشيت\nif (ctx.previousDraftJson && rawText.includes('تأكيد')) {\n  try {\n    const draft = typeof ctx.previousDraftJson === 'string' ? JSON.parse(ctx.previousDraftJson) : ctx.previousDraftJson;\n    parsed = { ...draft, ...parsed };\n    parsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\n  } catch (e) {}\n}\nparsed.needs_confirmation = parsed.needs_confirmation === true || parsed.needs_confirmation === 'true' || ['delete','activate'].includes(parsed.action);\nparsed.confirmed = rawText.includes('تأكيد');\nparsed.reply_message_if_incomplete = parsed.reply_message_if_incomplete || 'تمام، بس ناقصني بعض التفاصيل، تكدر توضحلي أكثر؟';\nreturn [{ json: { ...parsed, from: $('تجهيز سياق الـAI').item.json.from, rawText } }];"
+      },
+      "id": "8f52aa80-3545-452c-934f-5af475171e1d",
+      "name": "استخراج نتيجة الـAI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1792,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{($json.missing_info || []).length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "882febe6-6d1a-4985-86a4-c89a59055884",
+      "name": "هل المعلومات مكتملة؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1568,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "الحالة المعلقة"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{$json.from}}",
+            "draft_json": "={{JSON.stringify($json)}}",
+            "updated_at": "={{$now.toISO()}}"
+          },
+          "matchingColumns": [
+            "phone"
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5ad4ee0-deb4-4fbc-aa22-fd093574508d",
+      "name": "حفظ الحالة المعلقة (ناقص)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1344,
+        1088
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "={{$json.reply_message_if_incomplete}}",
+        "additionalFields": {}
+      },
+      "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
+      "name": "رد: اطلب المعلومات الناقصة",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -1120,
+        1088
+      ],
+      "webhookId": "11bcd6a3-31f0-43a7-bb0d-3b7d66482fb0",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.needs_confirmation}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "leftValue": "={{$json.confirmed}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "0e330a25-2f60-4fa6-bef2-59e9975dc991",
+      "name": "هل يحتاج تأكيد ولم يتأكد؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1344,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "الحالة المعلقة"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{$json.from}}",
+            "draft_json": "={{JSON.stringify($json)}}",
+            "updated_at": "={{$now.toISO()}}"
+          },
+          "matchingColumns": [
+            "phone"
+          ]
+        },
+        "options": {}
+      },
+      "id": "5227f0ef-aea2-4dd9-b1ca-7d9395e88fea",
+      "name": "حفظ الحالة المعلقة (بانتظار تأكيد)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1120,
+        1760
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "=⚠️ تريد تنفيذ: {{$json.action}}\nالحملة: {{$json.campaign_name || $json.campaign_id}}\nالمنصة: {{($json.platforms||[]).join('+')}}\nالميزانية: {{$json.budget || '-'}}\n\nرد بكلمة (تأكيد) بالضبط للمتابعة.",
+        "additionalFields": {}
+      },
+      "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
+      "name": "رد: اطلب تأكيد",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -896,
+        1760
+      ],
+      "webhookId": "e6b59a30-c5d5-4b9d-b569-988546cc4c5f",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "الحالة المعلقة"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{$json.from}}",
+            "draft_json": "",
+            "updated_at": "={{$now.toISO()}}"
+          },
+          "matchingColumns": [
+            "phone"
+          ]
+        },
+        "options": {}
+      },
+      "id": "10668a68-3c27-4bf8-80b5-7070d40e249f",
+      "name": "تصفير الحالة المعلقة",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1120,
+        1568
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "تم تحويل هذا النود من Delete إلى appendOrUpdate: كان Delete بدون أي فلتر على الصف، وهذا خطر حقيقي لأنه يقدر يمسح كل صفوف شيت 'الحالة المعلقة' مو صف المستخدم بس. الحل الآمن: نصفّر عمود draft_json لنفس رقم الهاتف (matchingColumns=phone) بدل الحذف."
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "العملاء"
+        }
+      },
+      "id": "b4202268-0170-410d-a951-ffbcbb4a30d1",
+      "name": "جلب حساب العميل",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -896,
+        1568
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "شيت 'العملاء' بأعمدة: client, meta_ad_account_id, tiktok_advertiser_id, phone. يرجع كل صفوف الشيت عمداً بدون فلتر هنا — الفلترة الآمنة (نفس رقم الهاتف، وبعدها اسم العميل إذا انذكر) صايرة بالنود التالي 'تحقق قبل التنفيذ' لمنع تسريب حسابات عملاء ثانين لمستخدم غير مرتبط فيهم."
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai = $('استخراج نتيجة الـAI').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(ai.from);\nconst allRows = $input.all().map(i => i.json).filter(r => r && r.client);\n// أمان: نقصر الحسابات على العملاء المرتبطين برقم واتساب المرسل فقط (يمنع تسريب حسابات عملاء ثانين)\nlet rows = allRows.filter(r => normalizePhone(r.phone) === fromNorm);\nif (ai.client) {\n  const byClient = rows.filter(r => String(r.client || '').trim() === String(ai.client).trim());\n  if (byClient.length) rows = byClient;\n}\nconst errors = [];\nconst platforms = ai.platforms;\nconst action = ai.action;\n\nif (!platforms || !platforms.length) errors.push('المنصة (فيسبوك أو تيك توك) غير محددة');\nif (!action || action === 'none') errors.push('نوع العملية غير واضح');\nif (action === 'create') {\n  if (!ai.campaign_name) errors.push('اسم الحملة');\n  if (!ai.budget) errors.push('الميزانية');\n}\nif (['activate','pause','delete','update_budget'].includes(action) && !ai.campaign_id) errors.push('رقم الحملة (campaign_id)');\nif (action === 'update_budget' && !ai.budget) errors.push('الميزانية الجديدة');\n\nlet metaAccountId = platforms.includes('meta') ? (ai.ad_account_id || '') : '';\nlet tiktokAdvertiserId = platforms.includes('tiktok') ? (ai.ad_account_id || '') : '';\n\nif (!ai.ad_account_id) {\n  if (rows.length > 1) {\n    const options = rows.map(r => `${r.client}: Meta=${r.meta_ad_account_id||'-'} / TikTok=${r.tiktok_advertiser_id||'-'}`).join('\\n');\n    errors.push('فيه أكثر من حساب مرتبط برقمك، حدد اسم العميل بالضبط:\\n' + options);\n  } else if (rows.length === 1) {\n    metaAccountId = rows[0].meta_ad_account_id || '';\n    tiktokAdvertiserId = rows[0].tiktok_advertiser_id || '';\n  } else {\n    // ما فيه عميل مرتبط بهذا الرقم ولا حساب صريح — ممنوع نفترض حساب افتراضي\n    if (platforms.includes('meta')) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب Meta الإعلاني');\n    if (platforms.includes('tiktok')) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب TikTok الإعلاني');\n  }\n}\n\nif (platforms.includes('tiktok') && !tiktokAdvertiserId && rows.length <= 1) {\n  if (!errors.some(e => e.includes('TikTok'))) errors.push('ما لقيت حساب TikTok الإعلاني لهذا العميل');\n}\n\nconst valid = errors.length === 0;\nreturn [{ json: { ...ai, metaAccountId, tiktokAdvertiserId, valid, validationErrors: errors,\n  validationMessage: valid ? '' : ('❌ ما كدرت أنفذ الطلب.\\n' + errors.join('\\n')) } }];"
+      },
+      "id": "1a72cb9d-b42b-42b5-ae89-d849e1b6a7ef",
+      "name": "تحقق قبل التنفيذ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.valid}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "6b930dd6-516f-4f51-a949-a616e2a21d32",
+      "name": "هل التحقق ناجح؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -448,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "={{$json.validationMessage}}",
+        "additionalFields": {}
+      },
+      "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
+      "name": "رد: خطأ في التحقق",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        1856
+      ],
+      "webhookId": "0e83b9db-ef4e-4ff5-99a7-11d1b2866ccf",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{($json.platforms || []).includes('meta')}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "e09d8b9e-fe61-455f-94ed-383f4d741004",
+      "name": "يشمل Meta؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        704
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{($json.platforms || []).includes('tiktok')}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "5ad8ac3e-4a78-460e-be6c-284dba2f58a1",
+      "name": "يشمل TikTok؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "activate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "pause",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "update_budget",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "report",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "list_paused",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "87104156-2199-4471-9031-cc683ef09db9",
+      "name": "نوع العملية - Meta",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        0,
+        640
+      ],
+      "notes": "تمت إضافة مخرج fallback يوصل لرسالة 'إجراء Meta غير معروف' — كانت هذي الرسالة موجودة بالأتمتة الأصلية لكن غير موصولة بأي مكان إطلاقاً، فأي إجراء غير متوقع كان يخلي الأتمتة تتوقف بصمت بدون أي رد للمستخدم."
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "=❌ نوع العملية '{{$json.action}}' غير مدعوم حالياً.",
+        "additionalFields": {}
+      },
+      "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
+      "name": "رد: إجراء Meta غير معروف",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -3808,
+        0
+      ],
+      "webhookId": "021cc4fc-f00c-4ba4-a276-5038d418f2f4",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/act_{{$json.metaAccountId}}/campaigns",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ name: $json.campaign_name, objective: $json.objective || 'OUTCOME_ENGAGEMENT', status: 'PAUSED', special_ad_categories: [] })}}",
+        "options": {}
+      },
+      "id": "07d948b9-242c-4229-9bee-73e29f5081b4",
+      "name": "Meta: إنشاء حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        224
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$json.campaign_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"status\":\"ACTIVE\"}",
+        "options": {}
+      },
+      "id": "1a7f1c39-b8c6-4021-945c-a0ad52d4f073",
+      "name": "Meta: تفعيل حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        416
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$json.campaign_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"status\":\"PAUSED\"}",
+        "options": {}
+      },
+      "id": "81c1db1d-cf06-4770-b435-c84b5ea6c6f4",
+      "name": "Meta: إيقاف حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        608
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$json.campaign_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ daily_budget: Math.round(Number($json.budget) * 100) })}}",
+        "options": {}
+      },
+      "id": "77694cf2-1154-4d28-a9af-1adc1314b290",
+      "name": "Meta: تعديل الميزانية",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        800
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{$json.campaign_id}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"status\":\"ARCHIVED\"}",
+        "options": {}
+      },
+      "id": "fbcfa7f0-91e6-4505-9a8f-70f150348a1e",
+      "name": "Meta: حذف حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        992
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      },
+      "notes": "حذف آمن عبر POST بحالة ARCHIVED (الطريقة الصحيحة والمدعومة فعلياً بواجهة Meta، بدل استخدام method مع URL). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد'."
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v20.0/act_{{$json.metaAccountId}}/campaigns",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,name,status,daily_budget"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "17f3a788-18bf-494f-ac1a-44605ec9929e",
+      "name": "Meta: تقرير/قائمة الحملات",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1184
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "csMEOVermkuAbciJ",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "create",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "activate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "pause",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "update_budget",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "delete",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "report",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "list_paused",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "or",
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "3a580093-9b21-47ae-b1b0-feb3682ecc5a",
+      "name": "نوع العملية - TikTok",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        0,
+        1632
+      ],
+      "notes": "تمت إضافة قاعدتي update_budget و delete اللي كانتا ناقصتين بالكامل (لا نود ولا رد لهما)، بالإضافة لمخرج fallback إضافي يوصل لرسالة 'إجراء TikTok غير معروف' بدل ما تسكت الأتمتة تماماً بدون أي رد."
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "=❌ نوع العملية '{{$json.action}}' غير مدعوم حالياً على TikTok.",
+        "additionalFields": {}
+      },
+      "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
+      "name": "رد: إجراء TikTok غير معروف",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -3808,
+        2176
+      ],
+      "webhookId": "02b00da1-63c8-47de-8a0d-efbc33286b19",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/create/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_name: $json.campaign_name, objective_type: 'ENGAGEMENT', operation_status: 'DISABLE' })}}",
+        "options": {}
+      },
+      "id": "dd46173b-cc2d-4235-8a04-d98dc8ea98bf",
+      "name": "TikTok: إنشاء حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1376
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      },
+      "notes": "Credential: Header Auth باسم 'TikTok Marketing API' — Header: Access-Token. لا يوجد توكن مكتوب هنا."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/status/update/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'ENABLE' })}}",
+        "options": {}
+      },
+      "id": "3369050c-04fa-4bb8-88ab-0f8739cfcff3",
+      "name": "TikTok: تفعيل حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1568
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/status/update/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'DISABLE' })}}",
+        "options": {}
+      },
+      "id": "64f1db27-55a5-414b-b672-23701b381c0e",
+      "name": "TikTok: إيقاف حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1760
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, report_type: 'BASIC', dimensions: ['campaign_id'], metrics: ['spend','impressions','clicks'], data_level: 'AUCTION_CAMPAIGN' })}}",
+        "options": {}
+      },
+      "id": "74ce1338-3697-4dbb-ba5e-d2955fbf5cc3",
+      "name": "TikTok: تقرير/قائمة الحملات",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        1952
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\nconst body = j.body || j;\nlet error = '';\nif (body && body.error) { error = body.error.message || (typeof body.error === 'string' ? body.error : JSON.stringify(body.error)); }\nelse if (j.error) { error = (typeof j.error === 'string') ? j.error : (j.error.message || JSON.stringify(j.error)); }\nelse if (body && body.message && body.success === false) { error = body.message; }\nconst success = !error;\nconst result = {\n  id: body.id || j.campaign_id || '',\n  status: body.status || j.status || 'PAUSED',\n  platform: (Array.isArray(j.platforms) && j.platforms.length) ? j.platforms.join('+') : (j.platform || ''),\n  name: j.campaign_name || '',\n  budget: j.budget || '',\n  from: j.from || '',\n  campaign_id: body.id || j.campaign_id || '',\n  client: j.client || '',\n  created_at: new Date().toISOString(),\n  action: j.action || '',\n  success,\n  error\n};\nreturn [{ json: result }];"
+      },
+      "id": "19d8a995-a0ce-4a5e-8359-a3e7876f535c",
+      "name": "تجهيز نتيجة الحملة النهائية",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "سجل الحملات"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{$json.id}}",
+            "status": "={{$json.status}}",
+            "platform": "={{$json.platform}}",
+            "name": "={{$json.name}}",
+            "budget": "={{$json.budget}}",
+            "from": "={{$json.from}}",
+            "campaign_id": "={{$json.campaign_id}}",
+            "client": "={{$json.client}}",
+            "created_at": "={{$json.created_at}}",
+            "success": "={{$json.success}}",
+            "error": "={{$json.error}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "f660c8b6-5fd9-4527-b312-5b84673bcbc6",
+      "name": "حفظ النتيجة",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        1184
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "وسّع أعمدة تبويب 'سجل الحملات' لتشمل: id, status, platform, name, budget, from, campaign_id, client, created_at, success, error"
+    },
+    {
+      "parameters": {
+        "jsCode": "const j = $json;\nlet msg;\nif (j.success) {\n  msg = `✅ تم ${j.action === 'create' ? 'إنشاء' : 'تنفيذ'} حملة ${j.name || j.campaign_id}\\nالمنصة: ${j.platform}\\nCampaign ID: ${j.campaign_id}\\nالميزانية: $${j.budget || '-'}\\nالحالة: ${j.status}`;\n} else {\n  msg = `❌ ما تم تنفيذ الطلب.\\nالسبب: ${j.error || 'خطأ غير معروف من المنصة'}`;\n}\nreturn [{ json: { ...j, finalMessage: msg } }];"
+      },
+      "id": "4116aa29-b5ab-4ed3-8e86-6bd1696fec5e",
+      "name": "صياغة رد واتساب النهائي",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "1291099024092511",
+        "recipientPhoneNumber": "={{$json.from}}",
+        "textBody": "={{$json.finalMessage}}",
+        "additionalFields": {}
+      },
+      "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
+      "name": "الرد النهائي على واتساب",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        1184
+      ],
+      "webhookId": "545dfe01-c501-4b71-ba5d-b36f8f8a51bd",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "G5NjAl0hVWMzWzxb",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "wa-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "21dafd73-635c-4dd9-a052-158a1f56823a",
+      "name": "استقبال واتساب (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3808,
+        1280
+      ],
+      "webhookId": "e1e64100-fc84-4854-96f0-7ba851f282fa",
+      "notes": "بديل WhatsApp Trigger المعطوب. رابط الإنتاج الجديد بعد الاستيراد يطلع بنفس شكل Webhook URLs. Verify Token بميتا يجب أن يكون بالضبط: wa_trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.query['hub.mode']}}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "de8e7cbf-023e-4262-b42b-a2e0bc31e3ab"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e644aa1a-b11d-4331-9656-ab7b5d3ce1c6",
+      "name": "هل هذا طلب تحقق من ميتا؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3584,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.query['hub.verify_token']}}",
+              "rightValue": "wa_trigger",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "0b8352a9-6b3a-424f-b2f2-377956622dc0",
+      "name": "التحقق من تطابق الرمز",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3360,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{$json.query['hub.challenge']}}",
+        "options": {}
+      },
+      "id": "53d6f471-bd55-4b48-bdd8-18dd6061bf9f",
+      "name": "رد: Challenge صحيح",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -3136,
+        1088
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Verification token mismatch",
+        "options": {}
+      },
+      "id": "cc6ff51d-7057-43f8-84a8-92385afd2034",
+      "name": "رد: رمز غير مطابق",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -3136,
+        1280
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"received\"}",
+        "options": {}
+      },
+      "id": "b5ae02bc-2efa-43ba-a734-934205206995",
+      "name": "رد فوري: تم الاستلام",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -3360,
+        1472
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+        },
+        "sheetName": {
+          "value": "المستخدمين المصرح لهم"
+        }
+      },
+      "id": "2b82913e-23c3-4db1-871a-7eb4d95dfdf9",
+      "name": "جلب قائمة المصرح لهم",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -2860,
+        1440
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Y51yN04GJBfe399b",
+          "name": "Google Sheets account 2"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "شيت جديد 'المستخدمين المصرح لهم' بأعمدة: phone, name, active. بديل عن كتابة الأرقام يدوياً جوة الأتمتة — أضف/احذف زبون بس من الشيت بدون تعديل الأتمتة نفسها. عمود active اختياري: خليه فاضي أو true للتفعيل، واكتب false لتعطيل رقم مؤقتاً بدون حذف صفه."
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nconst authorized = !!match && active;\nreturn [{ json: { ...incoming, authorized } }];"
+      },
+      "id": "f82a8a2c-afcf-4fc5-a54a-c0923e8bb914",
+      "name": "تحقق الرقم من القائمة",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2780,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/update/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_id: $json.campaign_id, budget: Number($json.budget) })}}",
+        "options": {}
+      },
+      "id": "147b6485-f512-4327-a99b-87876def7146",
+      "name": "TikTok: تعديل الميزانية",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        2144
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      },
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'عدّل ميزانية حملة TikTok' ما كان يسوي أي شي). يستخدم endpoint campaign/update لتعديل الميزانية على مستوى الحملة (Campaign Budget Optimization). تحقق من توثيق TikTok Business API الحالي إذا حسابك يدير الميزانية على مستوى Ad Group بدل الحملة."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/campaign/status/update/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'DELETE' })}}",
+        "options": {}
+      },
+      "id": "181d2ac1-6fd5-440c-bf96-f537d882eb2a",
+      "name": "TikTok: حذف حملة",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        2336
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "b3Pv3fKspLPeelyn",
+          "name": "Header Auth account 2"
+        }
+      },
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "قراءة نص الرسالة": {
+      "main": [
+        [
+          {
+            "node": "فيه نص رسالة؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "فيه نص رسالة؟": {
+      "main": [
+        [
+          {
+            "node": "جلب قائمة المصرح لهم",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: ما فيه نص رسالة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحقق من الصلاحية": {
+      "main": [
+        [
+          {
+            "node": "جلب الحالة المعلقة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: غير مصرح",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "جلب الحالة المعلقة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز سياق الـAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تجهيز سياق الـAI": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - فهم الأمر",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - فهم الأمر": {
+      "main": [
+        [
+          {
+            "node": "استخراج نتيجة الـAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "استخراج نتيجة الـAI": {
+      "main": [
+        [
+          {
+            "node": "هل المعلومات مكتملة؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "هل المعلومات مكتملة؟": {
+      "main": [
+        [
+          {
+            "node": "هل يحتاج تأكيد ولم يتأكد؟",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "حفظ الحالة المعلقة (ناقص)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "حفظ الحالة المعلقة (ناقص)": {
+      "main": [
+        [
+          {
+            "node": "رد: اطلب المعلومات الناقصة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "هل يحتاج تأكيد ولم يتأكد؟": {
+      "main": [
+        [
+          {
+            "node": "حفظ الحالة المعلقة (بانتظار تأكيد)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "تصفير الحالة المعلقة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "حفظ الحالة المعلقة (بانتظار تأكيد)": {
+      "main": [
+        [
+          {
+            "node": "رد: اطلب تأكيد",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "جلب حساب العميل": {
+      "main": [
+        [
+          {
+            "node": "تحقق قبل التنفيذ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحقق قبل التنفيذ": {
+      "main": [
+        [
+          {
+            "node": "هل التحقق ناجح؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "هل التحقق ناجح؟": {
+      "main": [
+        [
+          {
+            "node": "يشمل Meta؟",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "يشمل TikTok؟",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: خطأ في التحقق",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "يشمل Meta؟": {
+      "main": [
+        [
+          {
+            "node": "نوع العملية - Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "يشمل TikTok؟": {
+      "main": [
+        [
+          {
+            "node": "نوع العملية - TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "نوع العملية - Meta": {
+      "main": [
+        [
+          {
+            "node": "Meta: إنشاء حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: تفعيل حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: إيقاف حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: تعديل الميزانية",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: حذف حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta: تقرير/قائمة الحملات",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: إجراء Meta غير معروف",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: إنشاء حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: تفعيل حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: إيقاف حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: تعديل الميزانية": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: حذف حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta: تقرير/قائمة الحملات": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "نوع العملية - TikTok": {
+      "main": [
+        [
+          {
+            "node": "TikTok: إنشاء حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok: تفعيل حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok: إيقاف حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok: تعديل الميزانية",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok: حذف حملة",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok: تقرير/قائمة الحملات",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: إجراء TikTok غير معروف",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: إنشاء حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: تفعيل حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: إيقاف حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: تقرير/قائمة الحملات": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تجهيز نتيجة الحملة النهائية": {
+      "main": [
+        [
+          {
+            "node": "حفظ النتيجة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "حفظ النتيجة": {
+      "main": [
+        [
+          {
+            "node": "صياغة رد واتساب النهائي",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "صياغة رد واتساب النهائي": {
+      "main": [
+        [
+          {
+            "node": "الرد النهائي على واتساب",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "استقبال واتساب (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "هل هذا طلب تحقق من ميتا؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "هل هذا طلب تحقق من ميتا؟": {
+      "main": [
+        [
+          {
+            "node": "التحقق من تطابق الرمز",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد فوري: تم الاستلام",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "التحقق من تطابق الرمز": {
+      "main": [
+        [
+          {
+            "node": "رد: Challenge صحيح",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: رمز غير مطابق",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "رد فوري: تم الاستلام": {
+      "main": [
+        [
+          {
+            "node": "قراءة نص الرسالة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تصفير الحالة المعلقة": {
+      "main": [
+        [
+          {
+            "node": "جلب حساب العميل",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "جلب قائمة المصرح لهم": {
+      "main": [
+        [
+          {
+            "node": "تحقق الرقم من القائمة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحقق الرقم من القائمة": {
+      "main": [
+        [
+          {
+            "node": "تحقق من الصلاحية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: تعديل الميزانية": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: حذف حملة": {
+      "main": [
+        [
+          {
+            "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "82142078-37b5-4165-bb79-e670abbac39d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fa61a682250ba580bf43c9a3fea35dd384cd858c03c53e0274b37c6a5d65404f"
+  },
+  "nodeGroups": [],
+  "id": "tsVYE3kBPnwaRGio",
+  "tags": []
+}
