@@ -131,33 +131,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "documentId": {
+        "operation": "get",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "q30w6ociqli2Vk59",
+          "mode": "list",
+          "cachedResultName": "الحالة المعلقة",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
         },
-        "sheetName": {
-          "value": "الحالة المعلقة"
-        }
+        "returnAll": true
       },
       "id": "b1994a50-bd3e-45f3-8882-00451d6ef568",
       "name": "جلب الحالة المعلقة",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -2464,
         1280
       ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "Resource: Sheet, Operation: Search, Sheet: 'الحالة المعلقة'. يجيب كل الصفوف بدون فلتر عمداً — الفلترة على رقم الهاتف صايرة بالنود التالي 'تجهيز سياق الـAI' حتى ما نعتمد على شكل فلتر داخلي بواجهة جوجل شيتس قد يختلف بين النسخ. Always Output Data مفعّل."
+      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي."
     },
     {
       "parameters": {
@@ -259,43 +251,65 @@
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
+        "operation": "upsert",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "q30w6ociqli2Vk59",
+          "mode": "list",
+          "cachedResultName": "الحالة المعلقة",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
         },
-        "sheetName": {
-          "value": "الحالة المعلقة"
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{$json.from}}"
+            }
+          ]
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "phone": "={{$json.from}}",
-            "draft_json": "={{JSON.stringify($json)}}",
-            "updated_at": "={{$now.toISO()}}"
+            "draft_json": "={{JSON.stringify($json)}}"
           },
-          "matchingColumns": [
-            "phone"
-          ]
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "draft_json",
+              "displayName": "draft_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
       "id": "e5ad4ee0-deb4-4fbc-aa22-fd093574508d",
       "name": "حفظ الحالة المعلقة (ناقص)",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -1344,
         1088
       ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
     },
     {
       "parameters": {
@@ -365,43 +379,65 @@
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
+        "operation": "upsert",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "q30w6ociqli2Vk59",
+          "mode": "list",
+          "cachedResultName": "الحالة المعلقة",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
         },
-        "sheetName": {
-          "value": "الحالة المعلقة"
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{$json.from}}"
+            }
+          ]
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "phone": "={{$json.from}}",
-            "draft_json": "={{JSON.stringify($json)}}",
-            "updated_at": "={{$now.toISO()}}"
+            "draft_json": "={{JSON.stringify($json)}}"
           },
-          "matchingColumns": [
-            "phone"
-          ]
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "draft_json",
+              "displayName": "draft_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
       "id": "5227f0ef-aea2-4dd9-b1ca-7d9395e88fea",
       "name": "حفظ الحالة المعلقة (بانتظار تأكيد)",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -1120,
         1760
       ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput"
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
     },
     {
       "parameters": {
@@ -429,74 +465,87 @@
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
+        "operation": "upsert",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "q30w6ociqli2Vk59",
+          "mode": "list",
+          "cachedResultName": "الحالة المعلقة",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
         },
-        "sheetName": {
-          "value": "الحالة المعلقة"
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{$json.from}}"
+            }
+          ]
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "phone": "={{$json.from}}",
-            "draft_json": "",
-            "updated_at": "={{$now.toISO()}}"
+            "draft_json": ""
           },
-          "matchingColumns": [
-            "phone"
-          ]
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "draft_json",
+              "displayName": "draft_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
       "id": "10668a68-3c27-4bf8-80b5-7070d40e249f",
       "name": "تصفير الحالة المعلقة",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -1120,
         1568
       ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "تم تحويل هذا النود من Delete إلى appendOrUpdate: كان Delete بدون أي فلتر على الصف، وهذا خطر حقيقي لأنه يقدر يمسح كل صفوف شيت 'الحالة المعلقة' مو صف المستخدم بس. الحل الآمن: نصفّر عمود draft_json لنفس رقم الهاتف (matchingColumns=phone) بدل الحذف."
+      "notes": "Data Table Upsert — يصفّر عمود draft_json لنفس رقم الهاتف فقط (آمن، ما يمسح صفوف ثانية)."
     },
     {
       "parameters": {
-        "operation": "search",
-        "documentId": {
+        "operation": "get",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "LXxpQThgm0HrU8Dl",
+          "mode": "list",
+          "cachedResultName": "العملاء",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/LXxpQThgm0HrU8Dl"
         },
-        "sheetName": {
-          "value": "العملاء"
-        }
+        "returnAll": true
       },
       "id": "b4202268-0170-410d-a951-ffbcbb4a30d1",
       "name": "جلب حساب العميل",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -896,
         1568
       ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "شيت 'العملاء' بأعمدة: client, meta_ad_account_id, tiktok_advertiser_id, phone. يرجع كل صفوف الشيت عمداً بدون فلتر هنا — الفلترة الآمنة (نفس رقم الهاتف، وبعدها اسم العميل إذا انذكر) صايرة بالنود التالي 'تحقق قبل التنفيذ' لمنع تسريب حسابات عملاء ثانين لمستخدم غير مرتبط فيهم."
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف جدول العملاء، والفلترة الآمنة (رقم الهاتف ثم اسم العميل) صايرة بنود 'تحقق قبل التنفيذ' التالي."
     },
     {
       "parameters": {
@@ -1288,19 +1337,17 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
+        "operation": "insert",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
-        },
-        "sheetName": {
-          "value": "سجل الحملات"
+          "value": "TvZ6FFNqGafvC1ZC",
+          "mode": "list",
+          "cachedResultName": "سجل الحملات",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/TvZ6FFNqGafvC1ZC"
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "id": "={{$json.id}}",
             "status": "={{$json.status}}",
             "platform": "={{$json.platform}}",
             "name": "={{$json.name}}",
@@ -1308,29 +1355,116 @@
             "from": "={{$json.from}}",
             "campaign_id": "={{$json.campaign_id}}",
             "client": "={{$json.client}}",
-            "created_at": "={{$json.created_at}}",
             "success": "={{$json.success}}",
             "error": "={{$json.error}}"
-          }
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "platform",
+              "displayName": "platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "budget",
+              "displayName": "budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "from",
+              "displayName": "from",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "campaign_id",
+              "displayName": "campaign_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "client",
+              "displayName": "client",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "success",
+              "displayName": "success",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "error",
+              "displayName": "error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
       "id": "f660c8b6-5fd9-4527-b312-5b84673bcbc6",
       "name": "حفظ النتيجة",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         672,
         1184
       ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "وسّع أعمدة تبويب 'سجل الحملات' لتشمل: id, status, platform, name, budget, from, campaign_id, client, created_at, success, error"
+      "notes": "Data Table Insert — رقم الصف (id) والتاريخ (createdAt) يتولدون تلقائياً، عمود campaign_id فيه رقم الحملة الحقيقي."
     },
     {
       "parameters": {
@@ -1498,33 +1632,25 @@
     },
     {
       "parameters": {
-        "operation": "search",
-        "documentId": {
+        "operation": "get",
+        "dataTableId": {
           "__rl": true,
-          "mode": "url",
-          "value": "https://docs.google.com/spreadsheets/d/1KKOVFiw0d95pOKG8jFeRSrKoOCago6BmMFHH5FC2nEM/edit?gid=0#gid=0"
+          "value": "SXg9SBV6HIZH1Hfl",
+          "mode": "list",
+          "cachedResultName": "المستخدمين المصرح لهم",
+          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/SXg9SBV6HIZH1Hfl"
         },
-        "sheetName": {
-          "value": "المستخدمين المصرح لهم"
-        }
+        "returnAll": true
       },
       "id": "2b82913e-23c3-4db1-871a-7eb4d95dfdf9",
       "name": "جلب قائمة المصرح لهم",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
       "position": [
         -2860,
         1440
       ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "Y51yN04GJBfe399b",
-          "name": "Google Sheets account 2"
-        }
-      },
-      "onError": "continueRegularOutput",
-      "notes": "شيت جديد 'المستخدمين المصرح لهم' بأعمدة: phone, name, active. بديل عن كتابة الأرقام يدوياً جوة الأتمتة — أضف/احذف زبون بس من الشيت بدون تعديل الأتمتة نفسها. عمود active اختياري: خليه فاضي أو true للتفعيل، واكتب false لتعطيل رقم مؤقتاً بدون حذف صفه."
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف شيت المستخدمين، والتحقق من الرقم صاير بنود 'تحقق الرقم من القائمة' التالي."
     },
     {
       "parameters": {
