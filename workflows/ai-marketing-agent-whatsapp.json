@@ -1680,7 +1680,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nlet authorized = !!match && active;\n\n// بعض جهات الاتصال يظهر رقمها لواتساب/واها كمعرّف مخفي (@lid) بدل الرقم\n// الحقيقي (خاصية خصوصية جديدة من واتساب نفسه) فما نكدر نطابقها مع الجدول\n// إطلاقاً. الحل: أي رسالة تبدأ برمز سري متفق عليه تعتبر مصرح لها. غيّر\n// SECRET_CODE لكلمة/رقم سري تختاره انته وشاركه بس مع اللي تثق فيهم.\nconst SECRET_CODE = 'كود1234';\nlet text = incoming.text || '';\nif (!authorized && text.trim().startsWith(SECRET_CODE)) {\n  authorized = true;\n  text = text.trim().slice(SECRET_CODE.length).trim();\n}\n\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, text, authorized } }];"
+        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nlet authorized = !!match && active;\n\n// بعض جهات الاتصال يظهر رقمها لواتساب/واها كمعرّف مخفي (@lid) بدل الرقم\n// الحقيقي (خاصية خصوصية جديدة من واتساب نفسه) فما نكدر نطابقها مع الجدول\n// إطلاقاً. الحل: أي رسالة تبدأ برمز سري متفق عليه تعتبر مصرح لها (نتقبل\n// وجود أو عدم وجود مسافة بين الكلمة والرقم، مثل \"كود1234\" أو \"كود 1234\").\nlet text = incoming.text || '';\nconst codeMatch = text.trim().match(/^كود\\s*1234\\s*/);\nif (!authorized && codeMatch) {\n  authorized = true;\n  text = text.trim().slice(codeMatch[0].length).trim();\n}\n\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, text, authorized } }];"
       },
       "id": "f82a8a2c-afcf-4fc5-a54a-c0923e8bb914",
       "name": "تحقق الرقم من القائمة",
@@ -1690,7 +1690,7 @@
         -2780,
         1440
       ],
-      "notes": "يطابق رقم الهاتف بالجدول كالمعتاد. إضافياً: أي رسالة تبدأ برمز سري (SECRET_CODE بالكود) تعتبر مصرح لها حتى لو رقم المرسل يظهر كمعرّف lid مخفي بدل رقم حقيقي (حالة شائعة بواتساب لبعض الحسابات)."
+      "notes": "يطابق رقم الهاتف بالجدول كالمعتاد. إضافياً: أي رسالة تبدأ بـ \"كود1234\" أو \"كود 1234\" (بمسافة أو بدونها) تعتبر مصرح لها حتى لو رقم المرسل يظهر كمعرّف lid مخفي بدل رقم حقيقي."
     },
     {
       "parameters": {
