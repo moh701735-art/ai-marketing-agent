@@ -69,8 +69,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -130,8 +130,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -141,10 +141,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "q30w6ociqli2Vk59",
-          "mode": "list",
-          "cachedResultName": "الحالة المعلقة",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
         },
         "returnAll": true
       },
@@ -156,7 +154,8 @@
         -2464,
         1280
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي."
+      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -261,10 +260,8 @@
         "operation": "upsert",
         "dataTableId": {
           "__rl": true,
-          "value": "q30w6ociqli2Vk59",
-          "mode": "list",
-          "cachedResultName": "الحالة المعلقة",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
         },
         "filters": {
           "conditions": [
@@ -339,8 +336,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -392,10 +389,8 @@
         "operation": "upsert",
         "dataTableId": {
           "__rl": true,
-          "value": "q30w6ociqli2Vk59",
-          "mode": "list",
-          "cachedResultName": "الحالة المعلقة",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
         },
         "filters": {
           "conditions": [
@@ -470,8 +465,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -481,10 +476,8 @@
         "operation": "upsert",
         "dataTableId": {
           "__rl": true,
-          "value": "q30w6ociqli2Vk59",
-          "mode": "list",
-          "cachedResultName": "الحالة المعلقة",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/q30w6ociqli2Vk59"
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
         },
         "filters": {
           "conditions": [
@@ -543,10 +536,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "LXxpQThgm0HrU8Dl",
-          "mode": "list",
-          "cachedResultName": "العملاء",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/LXxpQThgm0HrU8Dl"
+          "mode": "id",
+          "value": "LXxpQThgm0HrU8Dl"
         },
         "returnAll": true
       },
@@ -558,7 +549,8 @@
         -896,
         1568
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف جدول العملاء، والفلترة الآمنة (رقم الهاتف ثم اسم العميل) صايرة بنود 'تحقق قبل التنفيذ' التالي."
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف جدول العملاء، والفلترة الآمنة (رقم الهاتف ثم اسم العميل) صايرة بنود 'تحقق قبل التنفيذ' التالي.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -627,8 +619,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -882,8 +874,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -1233,8 +1225,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -1362,10 +1354,8 @@
         "operation": "insert",
         "dataTableId": {
           "__rl": true,
-          "value": "TvZ6FFNqGafvC1ZC",
-          "mode": "list",
-          "cachedResultName": "سجل الحملات",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/TvZ6FFNqGafvC1ZC"
+          "mode": "id",
+          "value": "TvZ6FFNqGafvC1ZC"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -1522,8 +1512,8 @@
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "WAHA_CRED_PLACEHOLDER",
-          "name": "WAHA API"
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
         }
       },
       "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
@@ -1661,10 +1651,8 @@
         "operation": "get",
         "dataTableId": {
           "__rl": true,
-          "value": "SXg9SBV6HIZH1Hfl",
-          "mode": "list",
-          "cachedResultName": "المستخدمين المصرح لهم",
-          "cachedResultUrl": "/projects/rJ1vCCTZzwusOzwI/datatables/SXg9SBV6HIZH1Hfl"
+          "mode": "id",
+          "value": "SXg9SBV6HIZH1Hfl"
         },
         "returnAll": true
       },
@@ -1676,7 +1664,8 @@
         -2860,
         1440
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف شيت المستخدمين، والتحقق من الرقم صاير بنود 'تحقق الرقم من القائمة' التالي."
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف شيت المستخدمين، والتحقق من الرقم صاير بنود 'تحقق الرقم من القائمة' التالي.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
