@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>دليل تشغيل الوكيل</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f8f6;
+    --surface: #ffffff;
+    --surface-alt: #edf3ef;
+    --border: #dbe4de;
+    --text: #14201b;
+    --text-muted: #55665d;
+    --accent: #0c8577;
+    --accent-strong: #086157;
+    --accent-soft: #e2f2ee;
+    --warn: #a3590a;
+    --warn-soft: #fbeddc;
+    --danger: #b32323;
+    --danger-soft: #fbe6e4;
+    --success: #157a40;
+    --success-soft: #e2f3e8;
+    --code-bg: #101815;
+    --code-text: #d9ede6;
+    --code-accent: #6fe3c4;
+    --shadow: 0 1px 2px rgba(20, 32, 27, 0.06), 0 8px 24px -12px rgba(20, 32, 27, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1512;
+      --surface: #141d19;
+      --surface-alt: #1b2622;
+      --border: #2a3a34;
+      --text: #e7efec;
+      --text-muted: #9fb0a9;
+      --accent: #33d6ab;
+      --accent-strong: #6fe8c9;
+      --accent-soft: #163029;
+      --warn: #f0a53c;
+      --warn-soft: #2e2412;
+      --danger: #f2867f;
+      --danger-soft: #341c1a;
+      --success: #4fd786;
+      --success-soft: #123322;
+      --code-bg: #0a100d;
+      --code-text: #d9ede6;
+      --code-accent: #6fe3c4;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px -12px rgba(0, 0, 0, 0.55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1512;
+    --surface: #141d19;
+    --surface-alt: #1b2622;
+    --border: #2a3a34;
+    --text: #e7efec;
+    --text-muted: #9fb0a9;
+    --accent: #33d6ab;
+    --accent-strong: #6fe8c9;
+    --accent-soft: #163029;
+    --warn: #f0a53c;
+    --warn-soft: #2e2412;
+    --danger: #f2867f;
+    --danger-soft: #341c1a;
+    --success: #4fd786;
+    --success-soft: #123322;
+    --code-bg: #0a100d;
+    --code-text: #d9ede6;
+    --code-accent: #6fe3c4;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px -12px rgba(0, 0, 0, 0.55);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    padding-inline: 20px;
+    padding-block: calc(28px + env(safe-area-inset-top, 0px)) calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+  h1, h2, h3 { font-family: "Cairo", "IBM Plex Sans Arabic", sans-serif; text-wrap: balance; margin: 0; }
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  /* ---------- Header ---------- */
+  header.hero {
+    background: linear-gradient(155deg, var(--accent-soft), var(--surface) 65%);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px 26px;
+    box-shadow: var(--shadow);
+    margin-bottom: 22px;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--accent-strong); text-transform: uppercase;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 14px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  header.hero h1 { font-size: clamp(24px, 5vw, 32px); font-weight: 800; color: var(--text); }
+  header.hero p.sub { color: var(--text-muted); margin-top: 10px; font-size: 15.5px; max-width: 60ch; }
+
+  .status-row {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 20px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 9px 13px; font-size: 13.5px; font-weight: 600;
+    flex: 1 1 150px;
+  }
+  .status-pill .ico { font-size: 15px; flex-shrink: 0; }
+  .status-pill.ok { color: var(--success); }
+  .status-pill.ok .ico::before { content: "✓"; }
+  .status-pill.pending { color: var(--warn); }
+  .status-pill.pending .ico::before { content: "◐"; }
+
+  /* ---------- Nav ---------- */
+  nav.toc {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 30px;
+  }
+  nav.toc a {
+    font-size: 13.5px; font-weight: 600; color: var(--text-muted);
+    text-decoration: none; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 7px 12px; transition: color .15s, border-color .15s;
+  }
+  nav.toc a:hover { color: var(--accent-strong); border-color: var(--accent); }
+
+  /* ---------- Stage cards ---------- */
+  section.stage {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; padding: 24px 22px; margin-bottom: 18px;
+    box-shadow: var(--shadow); scroll-margin-top: 20px;
+  }
+  .stage-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 6px; }
+  .stage-num {
+    flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px;
+    background: var(--accent-soft); color: var(--accent-strong);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Cairo", sans-serif; font-weight: 800; font-size: 17px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stage-head h2 { font-size: 19px; font-weight: 800; padding-top: 6px; }
+  .stage-desc { color: var(--text-muted); font-size: 14.5px; margin: 6px 0 18px 52px; }
+
+  ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  ol.steps li {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--surface-alt); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 14px;
+  }
+  .chk {
+    flex-shrink: 0; width: 21px; height: 21px; margin-top: 2px;
+    border-radius: 6px; border: 2px solid var(--border);
+    background: var(--surface); cursor: pointer; appearance: none;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .chk:checked { background: var(--accent); border-color: var(--accent); }
+  .chk:checked::after { content: "✓"; color: white; font-size: 13px; font-weight: 700; }
+  .step-text { flex: 1; font-size: 14.5px; }
+  .step-text b { font-weight: 700; }
+  li:has(.chk:checked) .step-text { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--border); }
+
+  .codebox {
+    background: var(--code-bg); color: var(--code-text);
+    border-radius: 10px; padding: 11px 14px; margin-top: 8px;
+    font-family: "IBM Plex Mono", monospace; font-size: 13.5px;
+    overflow-x: auto; white-space: pre; direction: ltr; text-align: left;
+    position: relative;
+  }
+  .codebox .copy-btn {
+    position: absolute; left: 8px; top: 8px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18);
+    color: var(--code-accent); font-family: "IBM Plex Sans Arabic", sans-serif;
+    font-size: 11px; border-radius: 6px; padding: 3px 8px; cursor: pointer;
+  }
+  .codebox .copy-btn:hover { background: rgba(255,255,255,0.16); }
+  .codebox pre { margin: 0; padding-top: 2px; }
+
+  .callout {
+    border-radius: 12px; padding: 12px 15px; font-size: 14px; margin-top: 14px;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .callout.warn { background: var(--warn-soft); color: var(--warn); }
+  .callout.danger { background: var(--danger-soft); color: var(--danger); }
+  .callout.ok { background: var(--success-soft); color: var(--success); }
+  .callout .ico { flex-shrink: 0; font-size: 16px; }
+
+  /* ---------- Troubleshooting table ---------- */
+  .trbl { display: flex; flex-direction: column; gap: 10px; }
+  .trbl-item {
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    background: var(--surface-alt);
+  }
+  .trbl-item summary {
+    cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: 14px;
+    display: flex; align-items: center; gap: 10px; list-style: none;
+  }
+  .trbl-item summary::-webkit-details-marker { display: none; }
+  .trbl-item summary::before {
+    content: "‹"; transform: rotate(-90deg); transition: transform .15s;
+    color: var(--accent); font-weight: 800; font-size: 16px; flex-shrink:0;
+  }
+  .trbl-item[open] summary::before { transform: rotate(0deg); }
+  .trbl-item .body { padding: 0 14px 14px; font-size: 13.8px; color: var(--text-muted); }
+  .trbl-item .body b { color: var(--text); }
+  .err-tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+    background: var(--danger-soft); color: var(--danger);
+    padding: 2px 7px; border-radius: 6px; direction: ltr;
+  }
+
+  /* ---------- Reference chips ---------- */
+  .refgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .refcard {
+    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .refcard .label { font-size: 12px; color: var(--text-muted); font-weight: 600; margin-bottom: 5px; }
+  .refcard .val { font-family: "IBM Plex Mono", monospace; font-size: 13px; direction: ltr; text-align: left; word-break: break-all; }
+
+  footer {
+    text-align: center; color: var(--text-muted); font-size: 12.5px; margin-top: 30px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow"><span class="dot"></span>حالة المشروع اليوم</span>
+    <h1>دليل تشغيل وكيل التسويق عبر واتساب</h1>
+    <p class="sub">مرجع واحد يجمع كل شي — وين وصلنا، شنو المتبقي بالضبط، وحل كل خطأ واجهناه. اتبع المراحل بالترتيب وحط علامة صح على كل خطوة تخلصها (تنحفظ تلقائياً بمتصفحك).</p>
+
+    <div class="status-row">
+      <div class="status-pill ok"><span class="ico"></span> استقبال الرسائل يشتغل</div>
+      <div class="status-pill ok"><span class="ico"></span> فهم الأمر بالذكاء الاصطناعي جاهز</div>
+      <div class="status-pill ok"><span class="ico"></span> الرمز السري للتفويض يشتغل</div>
+      <div class="status-pill pending"><span class="ico"></span> تأكيد إرسال الرد عبر NOWEB</div>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <a href="#stage1">١. جلسة واها</a>
+    <a href="#stage2">٢. أتمتة n8n</a>
+    <a href="#stage3">٣. اختبار نظيف</a>
+    <a href="#stage4">٤. دليل الأخطاء</a>
+    <a href="#stage5">٥. بعد النجاح</a>
+    <a href="#ref">مرجع القيم</a>
+  </nav>
+
+  <section class="stage" id="stage1">
+    <div class="stage-head">
+      <div class="stage-num">١</div>
+      <h2>تأكيد جلسة واها (WAHA)</h2>
+    </div>
+    <p class="stage-desc">تأكد الجلسة الجديدة مضبوطة صح قبل أي اختبار.</p>
+    <ol class="steps">
+      <li><input type="checkbox" class="chk" data-id="s1-1"><span class="step-text">افتح لوحة واها → <b>Sessions</b> → تأكد اسم الجلسة <b>default</b> وحالتها <b>WORKING</b> (خضراء).</span></li>
+      <li><input type="checkbox" class="chk" data-id="s1-2"><span class="step-text">افتح إعدادات الجلسة (⚙️) → قسم <b>Engine Settings</b> → تأكد المحرك <b>NOWEB</b> مو WEBJS.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s1-3"><span class="step-text">بنفس الإعدادات، قسم <b>Webhooks</b> → تأكد الرابط بالضبط:
+        <div class="codebox"><button class="copy-btn" onclick="copyText(this)">نسخ</button><pre>https://moh701735.app.n8n.cloud/webhook/wa-webhook</pre></div>
+      </span></li>
+      <li><input type="checkbox" class="chk" data-id="s1-4"><span class="step-text">بنفس الويبهوك، حقل <b>Events</b> → لازم يكون محدد <b>message</b> بس (شيل أي حدث ثاني مثل message.any أو session.status).</span></li>
+    </ol>
+    <div class="callout danger"><span class="ico">⚠</span> إذا لقيت رابط الويبهوك تغيّر لموقع غريب (مثل httpbin.org)، رجّعه فوراً للرابط الصحيح فوق — هذا صار قبل واتضح إنه يوقف كل شي.</div>
+  </section>
+
+  <section class="stage" id="stage2">
+    <div class="stage-head">
+      <div class="stage-num">٢</div>
+      <h2>تأكيد أتمتة n8n</h2>
+    </div>
+    <p class="stage-desc">افتح الـ Workflow الصحيح (اسمه "AI Marketing Agent - WhatsApp (مصحح)") وتأكد من هذي النقاط.</p>
+    <ol class="steps">
+      <li><input type="checkbox" class="chk" data-id="s2-1"><span class="step-text">تأكد رابط الصفحة نفسه:
+        <div class="codebox"><button class="copy-btn" onclick="copyText(this)">نسخ</button><pre>moh701735.app.n8n.cloud/workflow/1yckixfivAY9L3J5</pre></div>
+        (هذا الوحيد المرتبط بجداول البيانات الصحيحة — أي رابط ثاني يعطي خطأ "Data table not found")
+      </span></li>
+      <li><input type="checkbox" class="chk" data-id="s2-2"><span class="step-text">نود <b>"استقبال واتساب (Webhook)"</b>: Path = <code>wa-webhook</code>, Method = <code>POST</code>.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s2-3"><span class="step-text">أي نود من نودات الرد الثمانية (تبدأ بكلمة "رد:") → Credential = <b>Header Auth account 5</b>.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s2-4"><span class="step-text">نودات Data Table (7 نودات) → حقل Data table لازم يبين <b>By ID</b> مو "From list".</span></li>
+      <li><input type="checkbox" class="chk" data-id="s2-5"><span class="step-text">الزر فوق يمين مكتوب <b>Published</b> (منشور)، لو مكتوب "Publish" اضغطه.</span></li>
+    </ol>
+  </section>
+
+  <section class="stage" id="stage3">
+    <div class="stage-head">
+      <div class="stage-num">٣</div>
+      <h2>اختبار نظيف واحد</h2>
+    </div>
+    <p class="stage-desc">اختبار وحد مركّز، بدون تشتت، حتى نعرف بالضبط الوضع الحالي.</p>
+    <ol class="steps">
+      <li><input type="checkbox" class="chk" data-id="s3-1"><span class="step-text">من رقم <b>غير</b> رقم واها، أرسل بالضبط:
+        <div class="codebox"><button class="copy-btn" onclick="copyText(this)">نسخ</button><pre>كود 1234 سوي تقرير عن الحملات</pre></div>
+      </span></li>
+      <li><input type="checkbox" class="chk" data-id="s3-2"><span class="step-text">انتظر ٥ ثواني، افتح واتساب وشوف هل وصل رد.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s3-3"><span class="step-text">بنفس الوقت بـ n8n → تبويب <b>Executions</b> → اضغط F5 → افتح آخر تنفيذ.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s3-4"><span class="step-text">لو "Succeeded" بالكامل ورد وصل فعلاً → خلص، انتقل للمرحلة ٥. لو صار خطأ، دور اسم النود والرسالة بقائمة "دليل الأخطاء" تحت.</span></li>
+    </ol>
+  </section>
+
+  <section class="stage" id="stage4">
+    <div class="stage-head">
+      <div class="stage-num">٤</div>
+      <h2>دليل الأخطاء الشائعة</h2>
+    </div>
+    <p class="stage-desc">كل خطأ واجهناه فعلياً أثناء الإعداد، وسببه وحله. اضغط على أي سطر لتفتحه.</p>
+    <div class="trbl">
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">Data table … could not be found in this project</span></summary>
+        <div class="body">السبب الأشيع: تكون فاتح <b>Workflow مختلف</b> (نسخة استوردتها جديدة) مو الأصلي. تحقق من رابط الصفحة يطابق النقطة ٢.١ بالضبط. لو نفس الرابط وصار الخطأ بس أحياناً، فعّل "By ID" بدل "From list" بنفس النود (موجود بالنسخة الأخيرة أصلاً).</div>
+      </details>
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">isStatusRankingEnabled is not a function</span></summary>
+        <div class="body">علة بمكتبة <b>WEBJS</b> نفسها (كسرها تحديث واتساب ويب). الحل: جلسة واها لازم تكون بمحرك <b>NOWEB</b> مو WEBJS — راجع المرحلة ١.</div>
+      </details>
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">No LID for user / فشل الإرسال لرقم يظهر بصيغة lid</span></summary>
+        <div class="body">بعض الأرقام يخفي واتساب هويتها الحقيقية (خاصية lid) ولا تقدر ترسل لها إلا بنفس المعرّف المخفي كما وصل بالضبط، بدون إضافة أو حذف أي لاحقة. هذا مطبّق أصلاً بالكود الحالي.</div>
+      </details>
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">رد مكرر (نفس الرسالة توصل مرتين)</span></summary>
+        <div class="body">راجع حقل Events بويبهوك واها (المرحلة ١.٤) — لازم يكون <b>message</b> بس، بدون message.any معاها بنفس الوقت.</div>
+      </details>
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">"غير مصرح" أو ولا رد على رقمك الشخصي</span></summary>
+        <div class="body">رقمك الشخصي هو نفسه رقم واها، فرسالة "لنفسك" تُحسب صادرة منك ويتجاهلها النظام عمداً (منعاً لحلقة ردود). لازم تراسل من رقم ثاني، أو تستخدم الرمز السري <code>كود 1234</code> بأول الرسالة.</div>
+      </details>
+
+      <details class="trbl-item">
+        <summary><span class="err-tag">Editing in another tab</span></summary>
+        <div class="body">نفس الـ Workflow مفتوح بتبويب متصفح ثاني بنفس الوقت. اضغط "Edit here" وسكر التبويبات الزايدة.</div>
+      </details>
+
+    </div>
+  </section>
+
+  <section class="stage" id="stage5">
+    <div class="stage-head">
+      <div class="stage-num">٥</div>
+      <h2>بعد ما يشتغل واتساب بالكامل</h2>
+    </div>
+    <p class="stage-desc">هذي الخطوات التالية بعد ما يوصلك رد ناجح، حتى تكتمل الدورة كاملة (فيسبوك + تيك توك).</p>
+    <ol class="steps">
+      <li><input type="checkbox" class="chk" data-id="s5-1"><span class="step-text">ربط <b>Meta Ads</b>: التأكد إن Credential "Facebook Graph account" مفعّل وله صلاحية على حسابك الإعلاني الحقيقي.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s5-2"><span class="step-text">ربط <b>TikTok Business API</b>: إنشاء Credential جديد وربطه بنودات TikTok (تستخدم نفس Header Auth account 2 حالياً كمكان مؤقت — تحتاج مفتاح TikTok الحقيقي).</span></li>
+      <li><input type="checkbox" class="chk" data-id="s5-3"><span class="step-text">اختبار أمر حقيقي كامل: "أنشئ حملة فيسبوك اسمها كذا بميزانية كذا" ومتابعتها لين التنفيذ الفعلي.</span></li>
+      <li><input type="checkbox" class="chk" data-id="s5-4"><span class="step-text">حذف نسخ الـ Workflow المكررة القديمة من n8n (Overview → Workflows) — إبقاء وحدة بس نشطة.</span></li>
+    </ol>
+  </section>
+
+  <section class="stage" id="ref">
+    <div class="stage-head">
+      <div class="stage-num">✳</div>
+      <h2>مرجع القيم السريع</h2>
+    </div>
+    <div class="refgrid">
+      <div class="refcard"><div class="label">رابط الـ Workflow الصحيح</div><div class="val">moh701735.app.n8n.cloud/workflow/1yckixfivAY9L3J5</div></div>
+      <div class="refcard"><div class="label">رابط الويبهوك</div><div class="val">https://moh701735.app.n8n.cloud/webhook/wa-webhook</div></div>
+      <div class="refcard"><div class="label">الرمز السري للتفويض</div><div class="val">كود 1234</div></div>
+      <div class="refcard"><div class="label">Credential الرد على واتساب</div><div class="val">Header Auth account 5</div></div>
+      <div class="refcard"><div class="label">جدول: المستخدمين المصرح لهم</div><div class="val">SXg9SBV6HIZH1Hfl</div></div>
+      <div class="refcard"><div class="label">جدول: الحالة المعلقة</div><div class="val">q30w6ociqli2Vk59</div></div>
+      <div class="refcard"><div class="label">جدول: العملاء</div><div class="val">LXxpQThgm0HrU8Dl</div></div>
+      <div class="refcard"><div class="label">جدول: سجل الحملات</div><div class="val">TvZ6FFNqGafvC1ZC</div></div>
+    </div>
+  </section>
+
+  <footer>آخر تحديث لهذا الدليل يطابق ملف الأتمتة بالريبو — إذا صار تعديل جديد بالكود، اطلب نسخة محدثة.</footer>
+</div>
+
+<script>
+(function () {
+  var KEY = 'wa-guide-checks-v1';
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { state = {}; }
+  document.querySelectorAll('.chk').forEach(function (el) {
+    var id = el.getAttribute('data-id');
+    if (state[id]) el.checked = true;
+    el.addEventListener('change', function () {
+      state[id] = el.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    });
+  });
+})();
+
+function copyText(btn) {
+  var pre = btn.parentElement.querySelector('pre');
+  var text = pre.textContent;
+  var done = function () {
+    var old = btn.textContent;
+    btn.textContent = 'نسخ ✓';
+    setTimeout(function () { btn.textContent = old; }, 1400);
+  };
+  try {
+    navigator.clipboard.writeText(text).then(done).catch(function () { fallbackCopy(text, done); });
+  } catch (e) {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, done) {
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  done();
+}
+</script>
+</body>
+</html>
