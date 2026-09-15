@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\nlet text = '', from = '', messageId = '', timestamp = '', fromMe = false;\n\nif (body && body.payload && (body.event === 'message' || body.event === 'message.any')) {\n  // شكل WAHA\n  const p = body.payload;\n  text = (p.body || '').trim();\n  from = String(p.from || '').split('@')[0];\n  messageId = p.id || '';\n  timestamp = p.timestamp || '';\n  fromMe = !!p.fromMe;\n} else {\n  // شكل Meta Cloud API (احتياطي، لو رجعنا نستخدمه بالمستقبل)\n  let msg = null;\n  if (Array.isArray(body.messages) && body.messages[0]) {\n    msg = body.messages[0];\n  } else if (Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages?.[0]) {\n    msg = body.entry[0].changes[0].value.messages[0];\n  } else {\n    msg = body;\n  }\n  text = (msg?.text?.body || msg?.button?.text || msg?.interactive?.button_reply?.title || '').trim();\n  from = msg?.from || '';\n  messageId = msg?.id || '';\n  timestamp = msg?.timestamp || '';\n}\n\n// تجاهل أي رسالة صادرة من رقمنا نفسه (ردودنا التلقائية) حتى ما تدخل بحلقة لا نهائية\nif (fromMe) {\n  return [{ json: { text: '', from: '', messageId, timestamp, hasText: false, ignored: true } }];\n}\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
+        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\nlet text = '', from = '', messageId = '', timestamp = '', fromMe = false;\n\nif (body && body.payload && (body.event === 'message' || body.event === 'message.any')) {\n  // شكل WAHA\n  const p = body.payload;\n  text = (p.body || '').trim();\n  from = String(p.from || '');  // نحافظ على اللاحقة (c.us أو lid) كاملة\n  messageId = p.id || '';\n  timestamp = p.timestamp || '';\n  fromMe = !!p.fromMe;\n} else {\n  // شكل Meta Cloud API (احتياطي، لو رجعنا نستخدمه بالمستقبل)\n  let msg = null;\n  if (Array.isArray(body.messages) && body.messages[0]) {\n    msg = body.messages[0];\n  } else if (Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages?.[0]) {\n    msg = body.entry[0].changes[0].value.messages[0];\n  } else {\n    msg = body;\n  }\n  text = (msg?.text?.body || msg?.button?.text || msg?.interactive?.button_reply?.title || '').trim();\n  from = msg?.from || '';\n  messageId = msg?.id || '';\n  timestamp = msg?.timestamp || '';\n}\n\n// تجاهل أي رسالة صادرة من رقمنا نفسه (ردودنا التلقائية) حتى ما تدخل بحلقة لا نهائية\nif (fromMe) {\n  return [{ json: { text: '', from: '', messageId, timestamp, hasText: false, ignored: true } }];\n}\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
       },
       "id": "93693ef5-1777-4965-9909-c216d76663af",
       "name": "قراءة نص الرسالة",
@@ -13,7 +13,7 @@
         -3136,
         1472
       ],
-      "notes": "يفهم شكل بيانات WAHA (event.payload) الآن، مع إبقاء فهم شكل ميتا كاحتياطي. مهم جداً: يتجاهل رسائل fromMe=true (ردودنا نفسها) لمنع حلقة لا نهائية — واها يرسل حدث 'message' لكل رسالة بما فيها الصادرة، مو بس الواردة متل ميتا."
+      "notes": "يفهم شكل بيانات WAHA (event.payload) الآن، مع إبقاء فهم شكل ميتا كاحتياطي. مهم جداً: يتجاهل رسائل fromMe=true (ردودنا نفسها) لمنع حلقة لا نهائية — واها يرسل حدث 'message' لكل رسالة بما فيها الصادرة، مو بس الواردة متل ميتا. تحديث: نحافظ على المعرّف الكامل (بلاحقته c.us/lid) بدل شيلها، لأن الرد لازم يستخدم نفس نوع المعرّف بالضبط."
     },
     {
       "parameters": {
@@ -56,7 +56,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
         "options": {}
       },
       "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
@@ -117,7 +117,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
         "options": {}
       },
       "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
@@ -326,7 +326,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.reply_message_if_incomplete, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
@@ -457,7 +457,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
@@ -614,7 +614,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.validationMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.validationMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
@@ -869,7 +869,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
         "options": {}
       },
       "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
@@ -1220,7 +1220,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
         "options": {}
       },
       "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
@@ -1509,7 +1509,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.finalMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.finalMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
