@@ -313,7 +313,8 @@
         -1344,
         1088
       ],
-      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -442,7 +443,8 @@
         -1120,
         1760
       ],
-      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -529,7 +531,8 @@
         -1120,
         1568
       ],
-      "notes": "Data Table Upsert — يصفّر عمود draft_json لنفس رقم الهاتف فقط (آمن، ما يمسح صفوف ثانية)."
+      "notes": "Data Table Upsert — يصفّر عمود draft_json لنفس رقم الهاتف فقط (آمن، ما يمسح صفوف ثانية).",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1476,7 +1479,8 @@
         672,
         1184
       ],
-      "notes": "Data Table Insert — رقم الصف (id) والتاريخ (createdAt) يتولدون تلقائياً، عمود campaign_id فيه رقم الحملة الحقيقي."
+      "notes": "Data Table Insert — رقم الصف (id) والتاريخ (createdAt) يتولدون تلقائياً، عمود campaign_id فيه رقم الحملة الحقيقي.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
