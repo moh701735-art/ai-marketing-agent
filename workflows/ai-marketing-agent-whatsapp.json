@@ -1680,7 +1680,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nconst authorized = !!match && active;\nreturn [{ json: { ...incoming, authorized } }];"
+        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nconst authorized = !!match && active;\n\n// أي رقم غير مصرح له (مو موجود بالقائمة أو موقوف) نتجاهله كلياً وبصمت تام،\n// بدون أي رد على واتساب — حتى ما يوصل رد آلي لأي شخص عادي يراسل رقمنا\n// الشخصي وما له علاقة بالنظام.\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, authorized } }];"
       },
       "id": "f82a8a2c-afcf-4fc5-a54a-c0923e8bb914",
       "name": "تحقق الرقم من القائمة",
@@ -1689,7 +1689,8 @@
       "position": [
         -2780,
         1440
-      ]
+      ],
+      "notes": "أي رقم غير مصرح له يوقف التنفيذ فوراً بإرجاع [] بدون أي رد — حتى يبقى واتساب صاحب الحساب طبيعي لأي شخص عادي يراسله، والنظام يتفاعل فقط مع الأرقام المصرح لها."
     },
     {
       "parameters": {
