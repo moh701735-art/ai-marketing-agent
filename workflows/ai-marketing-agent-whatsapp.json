@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\nlet msg = null;\nif (Array.isArray(body.messages) && body.messages[0]) {\n  msg = body.messages[0];\n} else if (Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages?.[0]) {\n  msg = body.entry[0].changes[0].value.messages[0];\n} else {\n  msg = body;\n}\nconst text = (msg?.text?.body || msg?.button?.text || msg?.interactive?.button_reply?.title || '').trim();\nconst from = msg?.from || '';\nconst messageId = msg?.id || '';\nconst timestamp = msg?.timestamp || '';\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
+        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\nlet text = '', from = '', messageId = '', timestamp = '', fromMe = false;\n\nif (body && body.payload && (body.event === 'message' || body.event === 'message.any')) {\n  // شكل WAHA\n  const p = body.payload;\n  text = (p.body || '').trim();\n  from = String(p.from || '').split('@')[0];\n  messageId = p.id || '';\n  timestamp = p.timestamp || '';\n  fromMe = !!p.fromMe;\n} else {\n  // شكل Meta Cloud API (احتياطي، لو رجعنا نستخدمه بالمستقبل)\n  let msg = null;\n  if (Array.isArray(body.messages) && body.messages[0]) {\n    msg = body.messages[0];\n  } else if (Array.isArray(body.entry) && body.entry[0]?.changes?.[0]?.value?.messages?.[0]) {\n    msg = body.entry[0].changes[0].value.messages[0];\n  } else {\n    msg = body;\n  }\n  text = (msg?.text?.body || msg?.button?.text || msg?.interactive?.button_reply?.title || '').trim();\n  from = msg?.from || '';\n  messageId = msg?.id || '';\n  timestamp = msg?.timestamp || '';\n}\n\n// تجاهل أي رسالة صادرة من رقمنا نفسه (ردودنا التلقائية) حتى ما تدخل بحلقة لا نهائية\nif (fromMe) {\n  return [{ json: { text: '', from: '', messageId, timestamp, hasText: false, ignored: true } }];\n}\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
       },
       "id": "93693ef5-1777-4965-9909-c216d76663af",
       "name": "قراءة نص الرسالة",
@@ -12,7 +12,8 @@
       "position": [
         -3136,
         1472
-      ]
+      ],
+      "notes": "يفهم شكل بيانات WAHA (event.payload) الآن، مع إبقاء فهم شكل ميتا كاحتياطي. مهم جداً: يتجاهل رسائل fromMe=true (ردودنا نفسها) لمنع حلقة لا نهائية — واها يرسل حدث 'message' لكل رسالة بما فيها الصادرة، مو بس الواردة متل ميتا."
     },
     {
       "parameters": {
@@ -49,27 +50,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
+        "options": {}
       },
       "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
       "name": "رد: ما فيه نص رسالة",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -2688,
         1568
       ],
-      "webhookId": "01c851dd-6652-41f7-80bf-90f70a39178d",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -107,27 +111,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
+        "options": {}
       },
       "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
       "name": "رد: غير مصرح",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -2464,
         1472
       ],
-      "webhookId": "75e6f3ba-91db-4155-b6cd-e01063056616",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -313,27 +320,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "={{$json.reply_message_if_incomplete}}",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.reply_message_if_incomplete, session: 'default' })}}",
+        "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
       "name": "رد: اطلب المعلومات الناقصة",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -1120,
         1088
       ],
-      "webhookId": "11bcd6a3-31f0-43a7-bb0d-3b7d66482fb0",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -441,27 +451,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "=⚠️ تريد تنفيذ: {{$json.action}}\nالحملة: {{$json.campaign_name || $json.campaign_id}}\nالمنصة: {{($json.platforms||[]).join('+')}}\nالميزانية: {{$json.budget || '-'}}\n\nرد بكلمة (تأكيد) بالضبط للمتابعة.",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
       "name": "رد: اطلب تأكيد",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -896,
         1760
       ],
-      "webhookId": "e6b59a30-c5d5-4b9d-b569-988546cc4c5f",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -595,27 +608,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "={{$json.validationMessage}}",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.validationMessage, session: 'default' })}}",
+        "options": {}
       },
       "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
       "name": "رد: خطأ في التحقق",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -224,
         1856
       ],
-      "webhookId": "0e83b9db-ef4e-4ff5-99a7-11d1b2866ccf",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -847,27 +863,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "=❌ نوع العملية '{{$json.action}}' غير مدعوم حالياً.",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
+        "options": {}
       },
       "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
       "name": "رد: إجراء Meta غير معروف",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -3808,
         0
       ],
-      "webhookId": "021cc4fc-f00c-4ba4-a276-5038d418f2f4",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -1195,27 +1214,30 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "=❌ نوع العملية '{{$json.action}}' غير مدعوم حالياً على TikTok.",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
+        "options": {}
       },
       "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
       "name": "رد: إجراء TikTok غير معروف",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         -3808,
         2176
       ],
-      "webhookId": "02b00da1-63c8-47de-8a0d-efbc33286b19",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
@@ -1481,33 +1503,37 @@
     },
     {
       "parameters": {
-        "operation": "send",
-        "phoneNumberId": "1291099024092511",
-        "recipientPhoneNumber": "={{$json.from}}",
-        "textBody": "={{$json.finalMessage}}",
-        "additionalFields": {}
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from + '@c.us', text: $json.finalMessage, session: 'default' })}}",
+        "options": {}
       },
       "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
       "name": "الرد النهائي على واتساب",
-      "type": "n8n-nodes-base.whatsApp",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         1120,
         1184
       ],
-      "webhookId": "545dfe01-c501-4b71-ba5d-b36f8f8a51bd",
       "credentials": {
-        "whatsAppApi": {
-          "id": "G5NjAl0hVWMzWzxb",
-          "name": "WhatsApp account"
+        "httpHeaderAuth": {
+          "id": "WAHA_CRED_PLACEHOLDER",
+          "name": "WAHA API"
         }
-      }
+      },
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
     },
     {
       "parameters": {
         "path": "wa-webhook",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {},
+        "httpMethod": "POST"
       },
       "id": "21dafd73-635c-4dd9-a052-158a1f56823a",
       "name": "استقبال واتساب (Webhook)",
@@ -1518,7 +1544,7 @@
         1280
       ],
       "webhookId": "e1e64100-fc84-4854-96f0-7ba851f282fa",
-      "notes": "بديل WhatsApp Trigger المعطوب. رابط الإنتاج الجديد بعد الاستيراد يطلع بنفس شكل Webhook URLs. Verify Token بميتا يجب أن يكون بالضبط: wa_trigger"
+      "notes": "إصلاح جذري: كان بدون httpMethod فيرجع افتراضياً لـ GET، فيمنع وصول أي رسالة حقيقية (POST) من واتساب — لا من ميتا ولا من واها — رغم نجاح اختبار GET اليدوي بالمتصفح. الآن httpMethod=POST صراحة، وهو المطلوب لكل من واها وميتا لتسليم الرسائل الفعلية."
     },
     {
       "parameters": {
