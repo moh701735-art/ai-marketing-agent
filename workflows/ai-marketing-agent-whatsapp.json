@@ -208,7 +208,8 @@
           "name": "Header Auth account 2"
         }
       },
-      "notes": "Credential: Header Auth باسم 'Anthropic API' — Header: x-api-key. لا يوجد أي مفتاح مكتوب هنا."
+      "notes": "Credential: Header Auth باسم 'Anthropic API' — Header: x-api-key. لا يوجد أي مفتاح مكتوب هنا.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -907,7 +908,8 @@
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -933,7 +935,8 @@
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -959,7 +962,8 @@
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -985,7 +989,8 @@
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1012,7 +1017,8 @@
           "name": "Facebook Graph account"
         }
       },
-      "notes": "حذف آمن عبر POST بحالة ARCHIVED (الطريقة الصحيحة والمدعومة فعلياً بواجهة Meta، بدل استخدام method مع URL). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد'."
+      "notes": "حذف آمن عبر POST بحالة ARCHIVED (الطريقة الصحيحة والمدعومة فعلياً بواجهة Meta، بدل استخدام method مع URL). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد'.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1043,7 +1049,8 @@
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1259,7 +1266,8 @@
           "name": "Header Auth account 2"
         }
       },
-      "notes": "Credential: Header Auth باسم 'TikTok Marketing API' — Header: Access-Token. لا يوجد توكن مكتوب هنا."
+      "notes": "Credential: Header Auth باسم 'TikTok Marketing API' — Header: Access-Token. لا يوجد توكن مكتوب هنا.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1285,7 +1293,8 @@
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1311,7 +1320,8 @@
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1337,7 +1347,8 @@
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1710,7 +1721,8 @@
           "name": "Header Auth account 2"
         }
       },
-      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'عدّل ميزانية حملة TikTok' ما كان يسوي أي شي). يستخدم endpoint campaign/update لتعديل الميزانية على مستوى الحملة (Campaign Budget Optimization). تحقق من توثيق TikTok Business API الحالي إذا حسابك يدير الميزانية على مستوى Ad Group بدل الحملة."
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'عدّل ميزانية حملة TikTok' ما كان يسوي أي شي). يستخدم endpoint campaign/update لتعديل الميزانية على مستوى الحملة (Campaign Budget Optimization). تحقق من توثيق TikTok Business API الحالي إذا حسابك يدير الميزانية على مستوى Ad Group بدل الحملة.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1737,7 +1749,8 @@
           "name": "Header Auth account 2"
         }
       },
-      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة."
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة.",
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
