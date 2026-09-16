@@ -1799,6 +1799,130 @@
         }
       },
       "notes": "رد مؤقت لأي رسالة فيها صورة/فيديو لحين إضافة ميزة تحليل/توليد الفيديو الفعلية."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.mediaType}}",
+              "rightValue": "video",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "9ef35598-1f08-406f-8814-627e50b5f726",
+      "name": "نوع الوسائط: فيديو؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3104,
+        1200
+      ],
+      "notes": "يفصل الفيديوهات (تروح لمسار التحليل الفعلي) عن الصور وباقي الأنواع (تبقى برد قيد التطوير)."
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('قراءة نص الرسالة').item.json.mediaUrl}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "c699b19b-fd29-402b-8b19-3f00bd35e64a",
+      "name": "تنزيل الفيديو",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2896,
+        1080
+      ],
+      "onError": "continueRegularOutput",
+      "notes": "ينزل ملف الفيديو من رابط واها (mediaUrl) كبيانات ثنائية (binary) للنود الجاي."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inline_data: { mime_type: $('قراءة نص الرسالة').item.json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
+        "options": {}
+      },
+      "id": "3c4d316f-cc06-478c-aa56-1ca8554af4a4",
+      "name": "تحليل الفيديو (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2688,
+        1080
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PLACEHOLDER_GEMINI_CRED",
+          "name": "Gemini API"
+        }
+      },
+      "notes": "يحتاج Credential باسم Gemini API من نوع Header Auth، Header Name: x-goog-api-key، والقيمة مفتاح Gemini."
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json;\nconst text = res?.candidates?.[0]?.content?.parts?.[0]?.text;\nconst analysis = text\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
+      },
+      "id": "27c26cca-481a-4375-9cbe-882641e887dd",
+      "name": "استخراج نتيجة التحليل",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2480,
+        1080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '🎬 تحليل الفيديو:\n\n' + $json.analysis, session: 'default' })}}",
+        "options": {}
+      },
+      "id": "05d61656-be9a-4183-a8b4-0e21432dd2f3",
+      "name": "رد: نتيجة تحليل الفيديو",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2272,
+        1080
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
+        }
+      },
+      "notes": "يرسل نتيجة تحليل الفيديو لصاحب الرسالة بواتساب."
     }
   ],
   "pinData": {},
@@ -2385,7 +2509,7 @@
       "main": [
         [
           {
-            "node": "رد: استلام وسائط (قيد التطوير)",
+            "node": "نوع الوسائط: فيديو؟",
             "type": "main",
             "index": 0
           }
@@ -2393,6 +2517,57 @@
         [
           {
             "node": "فيه نص رسالة؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "نوع الوسائط: فيديو؟": {
+      "main": [
+        [
+          {
+            "node": "تنزيل الفيديو",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "رد: استلام وسائط (قيد التطوير)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تنزيل الفيديو": {
+      "main": [
+        [
+          {
+            "node": "تحليل الفيديو (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحليل الفيديو (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "استخراج نتيجة التحليل",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "استخراج نتيجة التحليل": {
+      "main": [
+        [
+          {
+            "node": "رد: نتيجة تحليل الفيديو",
             "type": "main",
             "index": 0
           }
