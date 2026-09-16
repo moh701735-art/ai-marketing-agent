@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\n\n// نتعامل فقط مع أحداث رسالة واردة فعلية من واها — أي حدث ثاني (تأكيد استلام،\n// تغيير حالة، إلخ) نتجاهله كلياً بإرجاع مصفوفة فاضية عشان يوقف التنفيذ فوراً\n// بدون أي رد (منعاً لحلقة لا نهائية).\nconst KNOWN_MESSAGE_EVENTS = ['message'];\nif (!body || !KNOWN_MESSAGE_EVENTS.includes(body.event) || !body.payload) {\n  return [];\n}\n\nconst p = body.payload;\n\n// رسالة صادرة منا احنا (رد آلي سبق أرسلناه، واها يرجع يبعتها كحدث) — نتجاهلها\n// كلياً بإرجاع مصفوفة فاضية، حتى ما تدخل بحلقة لا نهائية.\nif (p.fromMe) {\n  return [];\n}\n\nconst text = (p.body || '').trim();\nconst from = String(p.from || '');\nconst messageId = p.id || '';\nconst timestamp = p.timestamp || '';\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text } }];"
+        "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\n\n// نتعامل فقط مع أحداث رسالة واردة فعلية من واها — أي حدث ثاني (تأكيد استلام،\n// تغيير حالة، إلخ) نتجاهله كلياً بإرجاع مصفوفة فاضية عشان يوقف التنفيذ فوراً\n// بدون أي رد (منعاً لحلقة لا نهائية).\nconst KNOWN_MESSAGE_EVENTS = ['message'];\nif (!body || !KNOWN_MESSAGE_EVENTS.includes(body.event) || !body.payload) {\n  return [];\n}\n\nconst p = body.payload;\n\n// رسالة صادرة منا احنا (رد آلي سبق أرسلناه، واها يرجع يبعتها كحدث) — نتجاهلها\n// كلياً بإرجاع مصفوفة فاضية، حتى ما تدخل بحلقة لا نهائية.\nif (p.fromMe) {\n  return [];\n}\n\nconst text = (p.body || '').trim();\nconst from = String(p.from || '');\nconst messageId = p.id || '';\nconst timestamp = p.timestamp || '';\n\n// دعم الوسائط (صور/فيديوهات) — واها يرسل hasMedia:true وكائن media فيه\n// تفاصيل الملف (الرابط/النوع) لما تكون الرسالة صورة أو فيديو أو غيرها.\nconst hasMedia = !!p.hasMedia;\nconst media = p.media || null;\nconst mediaUrl = media ? (media.url || media.link || '') : '';\nconst mediaMimetype = media ? (media.mimetype || media.mimeType || '') : '';\nlet mediaType = '';\nif (hasMedia) {\n  if (mediaMimetype.startsWith('image/')) mediaType = 'image';\n  else if (mediaMimetype.startsWith('video/')) mediaType = 'video';\n  else if (mediaMimetype.startsWith('audio/')) mediaType = 'audio';\n  else mediaType = 'other';\n}\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text, hasMedia, mediaType, mediaUrl, mediaMimetype } }];"
       },
       "id": "93693ef5-1777-4965-9909-c216d76663af",
       "name": "قراءة نص الرسالة",
@@ -13,7 +13,7 @@
         -3136,
         1472
       ],
-      "notes": "يفهم شكل بيانات WAHA فقط (event.payload). أي حدث غير message/message.any، أو رسالة fromMe=true (رد سبق أرسلناه)، يوقف التنفيذ فوراً بإرجاع [] بدون أي رد — هذا يمنع حلقة لا نهائية كانت تصير لأن الخطوة الجاية كانت تفهم hasText:false على إنها رسالة ناقصة النص وترد تلقائياً، فيدخل الرد نفسه كحدث جديد ويتكرر."
+      "notes": "يفهم شكل بيانات WAHA فقط (event.payload). يتجاهل الأحداث غير message ورسائل fromMe=true بإرجاع [] فوراً (منع حلقة لا نهائية). يستخرج أيضاً معلومات الوسائط (hasMedia/mediaType/mediaUrl) لدعم الصور والفيديوهات."
     },
     {
       "parameters": {
@@ -1738,6 +1738,67 @@
         }
       },
       "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$json.hasMedia}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "c119c7f0-687c-4cde-98a8-fdfc2b797cb2",
+      "name": "فيه وسائط (صورة/فيديو)؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3104,
+        1360
+      ],
+      "notes": "يتحقق هل الرسالة تحتوي صورة أو فيديو (hasMedia). إذا نعم، يرد برسالة قيد التطوير بدل ما يكمل لمسار فهم النص العادي."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://devlikeaprowaha-production-c7e8.up.railway.app/api/sendText",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
+        "options": {}
+      },
+      "id": "35179d13-fbb7-4295-b10e-9729d7547944",
+      "name": "رد: استلام وسائط (قيد التطوير)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2896,
+        1248
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dkXyS0fe3LEk0alg",
+          "name": "Header Auth account 5"
+        }
+      },
+      "notes": "رد مؤقت لأي رسالة فيها صورة/فيديو لحين إضافة ميزة تحليل/توليد الفيديو الفعلية."
     }
   ],
   "pinData": {},
@@ -2291,7 +2352,7 @@
       "main": [
         [
           {
-            "node": "فيه نص رسالة؟",
+            "node": "فيه وسائط (صورة/فيديو)؟",
             "type": "main",
             "index": 0
           }
@@ -2314,6 +2375,24 @@
         [
           {
             "node": "تجهيز نتيجة الحملة النهائية",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "فيه وسائط (صورة/فيديو)؟": {
+      "main": [
+        [
+          {
+            "node": "رد: استلام وسائط (قيد التطوير)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "فيه نص رسالة؟",
             "type": "main",
             "index": 0
           }
