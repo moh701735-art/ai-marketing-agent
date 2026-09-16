@@ -1872,7 +1872,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inline_data: { mime_type: $('قراءة نص الرسالة').item.json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inlineData: { mimeType: $('قراءة نص الرسالة').item.json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
         "options": {}
       },
       "id": "3c4d316f-cc06-478c-aa56-1ca8554af4a4",
