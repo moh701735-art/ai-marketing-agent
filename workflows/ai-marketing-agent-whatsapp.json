@@ -56,7 +56,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
         "options": {}
       },
       "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
@@ -117,7 +117,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
         "options": {}
       },
       "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
@@ -324,7 +324,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.reply_message_if_incomplete, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
@@ -454,7 +454,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
@@ -609,7 +609,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.validationMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.validationMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
@@ -864,7 +864,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
         "options": {}
       },
       "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
@@ -1215,7 +1215,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
         "options": {}
       },
       "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
@@ -1503,7 +1503,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: $json.finalMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.finalMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
@@ -1781,7 +1781,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
         "options": {}
       },
       "id": "35179d13-fbb7-4295-b10e-9729d7547944",
