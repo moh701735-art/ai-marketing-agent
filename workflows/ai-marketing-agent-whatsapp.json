@@ -1905,7 +1905,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '🎬 تحليل الفيديو:\n\n' + $json.analysis, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '🎬 تحليل الفيديو:\\n\\n' + $json.analysis, session: 'default' })}}",
         "options": {}
       },
       "id": "05d61656-be9a-4183-a8b4-0e21432dd2f3",
