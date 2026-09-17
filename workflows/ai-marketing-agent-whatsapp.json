@@ -2037,6 +2037,39 @@
         1760
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{$('قراءة نص الرسالة').first().json.hasText}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "defea7e1-660d-4430-8d95-5632bc632505",
+      "name": "فيه نص مع الوسائط؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2244,
+        1760
+      ]
     }
   ],
   "pinData": {},
@@ -2623,11 +2656,6 @@
       "main": [
         [
           {
-            "node": "نوع الوسائط: فيديو؟",
-            "type": "main",
-            "index": 0
-          },
-          {
             "node": "جلب الحالة المعلقة (وسائط)",
             "type": "main",
             "index": 0
@@ -2709,6 +2737,35 @@
         [
           {
             "node": "حفظ الوسائط بالمسودة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "حفظ الوسائط بالمسودة": {
+      "main": [
+        [
+          {
+            "node": "فيه نص مع الوسائط؟",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "فيه نص مع الوسائط؟": {
+      "main": [
+        [
+          {
+            "node": "تجهيز سياق الـAI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "نوع الوسائط: فيديو؟",
             "type": "main",
             "index": 0
           }
