@@ -2846,7 +2846,18 @@
     "templateCredsSetupCompleted": true,
     "instanceId": "fa61a682250ba580bf43c9a3fea35dd384cd858c03c53e0274b37c6a5d65404f"
   },
-  "nodeGroups": [],
+  "nodeGroups": [
+    {
+      "id": "80729b2a-3dcb-46ba-b571-150a2b510177",
+      "name": "8. الرد النهائي وحفظ السجل",
+      "nodeNames": [
+        "تجهيز نتيجة الحملة النهائية",
+        "حفظ النتيجة",
+        "صياغة رد واتساب النهائي",
+        "الرد النهائي على واتساب"
+      ]
+    }
+  ],
   "id": "tsVYE3kBPnwaRGio",
   "tags": []
 }
