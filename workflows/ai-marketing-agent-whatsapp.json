@@ -1818,7 +1818,7 @@
         "conditions": {
           "conditions": [
             {
-              "leftValue": "={{$json.mediaType}}",
+              "leftValue": "={{$('قراءة نص الرسالة').first().json.mediaType}}",
               "rightValue": "video",
               "operator": {
                 "type": "string",
