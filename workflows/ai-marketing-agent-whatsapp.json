@@ -2060,7 +2060,8 @@
           "id": "hnxWgFPUTMlnvMhH",
           "name": "Google Gemini(PaLM) Api account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
