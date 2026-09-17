@@ -191,7 +191,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({\n  model: 'claude-sonnet-5',\n  max_tokens: 800,\n  system: \"أنت مساعد يفهم أوامر تسويقية مكتوبة بالعربي أو اللهجة العراقية ويحوّلها إلى JSON منظم فقط بدون أي شرح ودون أي نص خارج كائن JSON واحد.\\nاستخرج: action (create/activate/pause/update_budget/report/list/list_paused/delete/none)، platform، platforms (array تحتوي meta و/أو tiktok)، client، ad_account_id، campaign_name، budget، currency، objective، audience، location، status، campaign_id، date_range.\\nمهم جداً: لا تحط action='none' إلا إذا كانت نية المستخدم غامضة فعلاً بشكل كامل، أو كانت الرسالة أصلاً مو متعلقة بإدارة حملات إعلانية (سؤال عام، سلام، دردشة عادية، استفسار). لو الرسالة تحتوي فعل واضح مثل (سوّي/أنشئ/فعّل/شغّل/وقف/أوقف/غيّر/عدّل/احذف/شكد/شوفلي/اعرضلي)، استنتج الـaction المناسب مباشرة.\\nإذا قال المستخدم فيسبوك وتيك توك سوا، حط الاثنين بمصفوفة platforms.\\nمهم جداً جداً للذاكرة: إذا previousDraftJson موجود وفيه حقول (campaign_name, budget, platforms, ad_account_id, client, campaign_id, action...)، اعتبر إنه سياق المحادثة السابقة، وادمجه دائماً مع أي معلومة جديدة بالرسالة الحالية (مو بس لما تحتوي كلمة 'تأكيد') — يعني لو المستخدم أول رسالة قال 'اريد اسوي حملة' وبعدها برسالة ثانية قال بس اسم الحملة، لازم تجمع الاسم الجديد مع باقي التفاصيل الي جاية من previousDraftJson ولا تفقد ولا حقل موجود فيه. لا تعتبر previousDraftJson صالح إلا إذا كان يخص نفس الموضوع (لو المستخدم بدأ طلب جديد كلياً مختلف بوضوح، تجاهل previousDraftJson القديم).\\nإذا كانت المعلومات ناقصة لتنفيذ action المطلوب (create يحتاج campaign_name وbudget وplatforms على الأقل؛ activate/pause/delete/update_budget يحتاج campaign_id؛ update_budget يحتاج budget أيضاً)، أرجع missing_info كمصفوفة بأسماء الحقول الناقصة، وreply_message_if_incomplete بسؤال قصير وواضح باللهجة العراقية.\\nمهم جداً: إذا كانت رسالة المستخدم أصلاً مو محاولة لإدارة حملة إعلانية إطلاقاً (سؤال عام، سلام، دردشة، استفسار عن أي شيء ثاني)، خل action='none' وplatforms=[] ولا تحط أي شي بmissing_info، وجاوب على المستخدم مباشرة بأسلوب طبيعي ومفيد ومختصر بحقل general_reply (بنفس لهجة المستخدم إذا ممكن). إذا كانت الرسالة فعلاً محاولة حملة إعلانية (حتى لو ناقصة معلومات)، اترك general_reply فاضي.\\nالعمليات الخطرة (delete وactivate) تعتبر دائماً needs_confirmation=true. لا تحط confirmed=true إلا إذا كانت رسالة المستخدم الحالية تحتوي على كلمة 'تأكيد' بالضبط (مثل 'تأكيد' أو 'تأكيد نعم') — لا تعتبر أي كلمة موافقة عادية أخرى كافية وحدها.\\nأرجع فقط كائن JSON صحيح بهذا الشكل بالضبط ولا شي غيره:\\n{\\\"action\\\":\\\"\\\",\\\"platform\\\":\\\"\\\",\\\"platforms\\\":[],\\\"client\\\":\\\"\\\",\\\"ad_account_id\\\":\\\"\\\",\\\"campaign_name\\\":\\\"\\\",\\\"budget\\\":\\\"\\\",\\\"currency\\\":\\\"USD\\\",\\\"objective\\\":\\\"\\\",\\\"audience\\\":\\\"\\\",\\\"location\\\":\\\"\\\",\\\"status\\\":\\\"\\\",\\\"campaign_id\\\":\\\"\\\",\\\"date_range\\\":\\\"\\\",\\\"general_reply\\\":\\\"\\\",\\\"missing_info\\\":[],\\\"needs_confirmation\\\":false,\\\"confirmed\\\":false,\\\"reply_message_if_incomplete\\\":\\\"\\\"}\",\n  messages: [\n    { role: 'user', content: 'previousDraftJson: ' + JSON.stringify($json.previousDraftJson) + '\\nرسالة المستخدم الحالية: ' + $json.text }\n  ]\n})}}",
+        "jsonBody": "={{JSON.stringify({\n  model: 'claude-sonnet-5',\n  max_tokens: 800,\n  system: \"أنت مساعد يفهم أوامر تسويقية مكتوبة بالعربي أو اللهجة العراقية ويحوّلها إلى JSON منظم فقط بدون أي شرح ودون أي نص خارج كائن JSON واحد.\\nاستخرج: action (create/activate/pause/update_budget/report/list/list_paused/delete/none)، platform، platforms (array تحتوي meta و/أو tiktok)، client، ad_account_id، campaign_name، budget، currency، objective، audience، location، status، campaign_id، date_range.\\nمهم جداً: لا تحط action='none' إلا إذا كانت نية المستخدم غامضة فعلاً بشكل كامل، أو كانت الرسالة أصلاً مو متعلقة بإدارة حملات إعلانية (سؤال عام، سلام، دردشة عادية، استفسار). لو الرسالة تحتوي فعل واضح مثل (سوّي/أنشئ/فعّل/شغّل/وقف/أوقف/غيّر/عدّل/احذف/شكد/شوفلي/اعرضلي)، استنتج الـaction المناسب مباشرة.\\nإذا قال المستخدم فيسبوك وتيك توك سوا، حط الاثنين بمصفوفة platforms.\\nمهم جداً جداً للذاكرة: إذا previousDraftJson موجود وفيه حقول (campaign_name, budget, platforms, ad_account_id, client, campaign_id, action...)، اعتبر إنه سياق المحادثة السابقة، وادمجه دائماً مع أي معلومة جديدة بالرسالة الحالية (مو بس لما تحتوي كلمة 'تأكيد') — يعني لو المستخدم أول رسالة قال 'اريد اسوي حملة' وبعدها برسالة ثانية قال بس اسم الحملة، لازم تجمع الاسم الجديد مع باقي التفاصيل الي جاية من previousDraftJson ولا تفقد ولا حقل موجود فيه. لا تعتبر previousDraftJson صالح إلا إذا كان يخص نفس الموضوع (لو المستخدم بدأ طلب جديد كلياً مختلف بوضوح، تجاهل previousDraftJson القديم).\\nإذا كانت المعلومات ناقصة لتنفيذ action المطلوب (create يحتاج campaign_name وbudget وplatforms وصورة أو فيديو الإعلان على الأقل؛ activate/pause/delete/update_budget يحتاج campaign_id؛ update_budget يحتاج budget أيضاً)، أرجع missing_info كمصفوفة بأسماء الحقول الناقصة، وreply_message_if_incomplete بسؤال قصير وواضح باللهجة العراقية.\\nمهم جداً بخصوص الوسائط: previousDraftJson.has_media (أو previousDraftJson.media_url) يعني المستخدم already أرسل صورة أو فيديو بمحادثة سابقة لنفس هذي الحملة — اعتبر شرط الوسائط متحقق ولا تطلبه مرة ثانية. إذا كان action='create' وما فيه previousDraftJson.has_media ولا previousDraftJson.media_url، ضيف 'صورة أو فيديو الإعلان' لمصفوفة missing_info واسأل المستخدم يرسل صورة أو فيديو المنتج/الإعلان.\\nمهم جداً: إذا كانت رسالة المستخدم أصلاً مو محاولة لإدارة حملة إعلانية إطلاقاً (سؤال عام، سلام، دردشة، استفسار عن أي شيء ثاني)، خل action='none' وplatforms=[] ولا تحط أي شي بmissing_info، وجاوب على المستخدم مباشرة بأسلوب طبيعي ومفيد ومختصر بحقل general_reply (بنفس لهجة المستخدم إذا ممكن). إذا كانت الرسالة فعلاً محاولة حملة إعلانية (حتى لو ناقصة معلومات)، اترك general_reply فاضي.\\nالعمليات الخطرة (delete وactivate) تعتبر دائماً needs_confirmation=true. لا تحط confirmed=true إلا إذا كانت رسالة المستخدم الحالية تحتوي على كلمة 'تأكيد' بالضبط (مثل 'تأكيد' أو 'تأكيد نعم') — لا تعتبر أي كلمة موافقة عادية أخرى كافية وحدها.\\nأرجع فقط كائن JSON صحيح بهذا الشكل بالضبط ولا شي غيره:\\n{\\\"action\\\":\\\"\\\",\\\"platform\\\":\\\"\\\",\\\"platforms\\\":[],\\\"client\\\":\\\"\\\",\\\"ad_account_id\\\":\\\"\\\",\\\"campaign_name\\\":\\\"\\\",\\\"budget\\\":\\\"\\\",\\\"currency\\\":\\\"USD\\\",\\\"objective\\\":\\\"\\\",\\\"audience\\\":\\\"\\\",\\\"location\\\":\\\"\\\",\\\"status\\\":\\\"\\\",\\\"campaign_id\\\":\\\"\\\",\\\"date_range\\\":\\\"\\\",\\\"general_reply\\\":\\\"\\\",\\\"missing_info\\\":[],\\\"needs_confirmation\\\":false,\\\"confirmed\\\":false,\\\"reply_message_if_incomplete\\\":\\\"\\\"}\",\n  messages: [\n    { role: 'user', content: 'previousDraftJson: ' + JSON.stringify($json.previousDraftJson) + '\\nرسالة المستخدم الحالية: ' + $json.text }\n  ]\n})}}",
         "options": {}
       },
       "id": "b3459282-be19-456f-972b-b1c244a95409",
@@ -1944,6 +1944,99 @@
         }
       },
       "notes": "يرسل نتيجة تحليل الفيديو لصاحب الرسالة بواتساب."
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
+        },
+        "returnAll": true
+      },
+      "id": "d4c972aa-1c56-466b-92ce-d080873d61b1",
+      "name": "جلب الحالة المعلقة (وسائط)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -2904,
+        1760
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nlet draft = {};\nif (match && match.draft_json) {\n  try { draft = JSON.parse(match.draft_json) || {}; } catch (e) { draft = {}; }\n}\ndraft.media_url = incoming.mediaUrl || '';\ndraft.media_type = incoming.mediaType || '';\ndraft.has_media = true;\nreturn [{ json: { from: incoming.from, draft_json: JSON.stringify(draft) } }];"
+      },
+      "id": "a0a29154-9ac1-4ab3-bef2-6d94ca7196cb",
+      "name": "دمج الوسائط بالمسودة",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2684,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "q30w6ociqli2Vk59"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{$json.from}}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone": "={{$json.from}}",
+            "draft_json": "={{$json.draft_json}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "draft_json",
+              "displayName": "draft_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "e576ae99-c057-41be-bf0b-498feecf06dc",
+      "name": "حفظ الوسائط بالمسودة",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -2464,
+        1760
+      ],
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
@@ -2533,6 +2626,11 @@
             "node": "نوع الوسائط: فيديو؟",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "جلب الحالة المعلقة (وسائط)",
+            "type": "main",
+            "index": 0
           }
         ],
         [
@@ -2589,6 +2687,28 @@
         [
           {
             "node": "رد: نتيجة تحليل الفيديو",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "جلب الحالة المعلقة (وسائط)": {
+      "main": [
+        [
+          {
+            "node": "دمج الوسائط بالمسودة",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "دمج الوسائط بالمسودة": {
+      "main": [
+        [
+          {
+            "node": "حفظ الوسائط بالمسودة",
             "type": "main",
             "index": 0
           }
