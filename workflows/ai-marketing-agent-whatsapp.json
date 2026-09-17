@@ -2006,9 +2006,9 @@
         "inputType": "url",
         "modelId": {
           "__rl": true,
-          "cachedResultName": "models/gemini-3.1-pro-preview",
           "mode": "list",
-          "value": "models/gemini-3.1-pro-preview"
+          "value": "models/gemini-2.5-flash",
+          "cachedResultName": "models/gemini-2.5-flash"
         },
         "operation": "analyze",
         "resource": "video",
