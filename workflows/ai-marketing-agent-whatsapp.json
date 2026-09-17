@@ -325,7 +325,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $('تحقق قبل التنفيذ').first().json.reply_message_if_incomplete, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $('استخراج نتيجة الـAI').first().json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
@@ -455,7 +455,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: ('⚠️ تريد تنفيذ: ' + $('تحقق قبل التنفيذ').first().json.action + '\\n' + 'الحملة: ' + ($('تحقق قبل التنفيذ').first().json.campaign_name || $('تحقق قبل التنفيذ').first().json.campaign_id) + '\\n' + 'المنصة: ' + (($('تحقق قبل التنفيذ').first().json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('تحقق قبل التنفيذ').first().json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: ('⚠️ تريد تنفيذ: ' + $('استخراج نتيجة الـAI').first().json.action + '\\n' + 'الحملة: ' + ($('استخراج نتيجة الـAI').first().json.campaign_name || $('استخراج نتيجة الـAI').first().json.campaign_id) + '\\n' + 'المنصة: ' + (($('استخراج نتيجة الـAI').first().json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('استخراج نتيجة الـAI').first().json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
