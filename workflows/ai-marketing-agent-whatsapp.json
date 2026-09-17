@@ -1807,7 +1807,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const res = $input.first().json;\nlet text = res?.content ?? res?.text ?? res?.response ?? res?.output;\nif (Array.isArray(text)) text = text.map(t => (t && t.text) || t).join('\\n');\nif (text && typeof text === 'object' && text.text) text = text.text;\nconst analysis = (typeof text === 'string' && text.trim())\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
+        "jsCode": "const res = $input.first().json;\nlet text = res?.candidates?.[0]?.content?.parts?.[0]?.text;\nconst analysis = (typeof text === 'string' && text.trim())\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
       },
       "id": "d4e2ed5e-10a2-4d0c-9f3d-3f8cf833cc90",
       "name": "استخراج نتيجة التحليل",
@@ -1994,37 +1994,6 @@
       "alwaysOutputData": true
     },
     {
-      "id": "5f0043e6-fbf0-4c41-b141-78b9f76f389b",
-      "name": "تحليل الفيديو (Gemini الرسمي)",
-      "type": "@n8n/n8n-nodes-langchain.googleGemini",
-      "typeVersion": 1.2,
-      "position": [
-        -2688,
-        1080
-      ],
-      "parameters": {
-        "inputType": "url",
-        "modelId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "models/gemini-2.5-flash",
-          "cachedResultName": "models/gemini-2.5-flash"
-        },
-        "operation": "analyze",
-        "resource": "video",
-        "simplify": true,
-        "text": "حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.",
-        "videoUrls": "={{ $('قراءة نص الرسالة').first().json.mediaUrl }}"
-      },
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "hnxWgFPUTMlnvMhH",
-          "name": "Google Gemini(PaLM) Api account"
-        }
-      }
-    },
-    {
       "id": "02e7be11-eab3-407e-b626-f15de202b435",
       "name": "AI Agent - فهم الأمر",
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -2098,6 +2067,69 @@
       "parameters": {
         "jsonSchemaExample": "{\"action\":\"create\",\"platform\":\"meta\",\"platforms\":[\"meta\"],\"client\":\"\",\"ad_account_id\":\"\",\"campaign_name\":\"\",\"budget\":\"\",\"currency\":\"USD\",\"objective\":\"\",\"audience\":\"\",\"location\":\"\",\"status\":\"\",\"campaign_id\":\"\",\"date_range\":\"\",\"general_reply\":\"\",\"missing_info\":[],\"needs_confirmation\":false,\"confirmed\":false,\"reply_message_if_incomplete\":\"\"}",
         "schemaType": "fromJson"
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('قراءة نص الرسالة').first().json.mediaUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "d1a1e1f1-0000-4000-8000-000000000001",
+      "name": "تنزيل الفيديو",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2850,
+        1000
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nif (!item.binary || !item.binary.data) {\n  return [{ json: { error: 'no_binary' } }];\n}\nconst buf = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst mimeType = item.binary.data.mimeType || 'video/mp4';\nreturn [{ json: { base64: buf.toString('base64'), mimeType } }];"
+      },
+      "id": "d1a1e1f1-0000-4000-8000-000000000002",
+      "name": "تحويل الفيديو Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2850,
+        1080
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [ { parts: [ { inline_data: { mime_type: $json.mimeType, data: $json.base64 } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] } ] }) }}",
+        "options": {}
+      },
+      "id": "d1a1e1f1-0000-4000-8000-000000000003",
+      "name": "تحليل الفيديو (Gemini الرسمي)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2850,
+        1160
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "hnxWgFPUTMlnvMhH",
+          "name": "Google Gemini(PaLM) Api account"
+        }
       }
     }
   ],
@@ -2681,7 +2713,7 @@
       "main": [
         [
           {
-            "node": "تحليل الفيديو (Gemini الرسمي)",
+            "node": "تنزيل الفيديو",
             "type": "main",
             "index": 0
           }
@@ -2768,17 +2800,6 @@
         ]
       ]
     },
-    "تحليل الفيديو (Gemini الرسمي)": {
-      "main": [
-        [
-          {
-            "node": "استخراج نتيجة التحليل",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "تجهيز سياق الـAI": {
       "main": [
         [
@@ -2829,6 +2850,39 @@
           {
             "node": "AI Agent - فهم الأمر",
             "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تنزيل الفيديو": {
+      "main": [
+        [
+          {
+            "node": "تحويل الفيديو Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحويل الفيديو Base64": {
+      "main": [
+        [
+          {
+            "node": "تحليل الفيديو (Gemini الرسمي)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحليل الفيديو (Gemini الرسمي)": {
+      "main": [
+        [
+          {
+            "node": "استخراج نتيجة التحليل",
+            "type": "main",
             "index": 0
           }
         ]
