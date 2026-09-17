@@ -1848,66 +1848,7 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{$('قراءة نص الرسالة').first().json.mediaUrl}}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file"
-            }
-          }
-        },
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth"
-      },
-      "id": "c699b19b-fd29-402b-8b19-3f00bd35e64a",
-      "name": "تنزيل الفيديو",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -2896,
-        1080
-      ],
-      "onError": "continueRegularOutput",
-      "notes": "ينزل ملف الفيديو من رابط واها (mediaUrl) كبيانات ثنائية (binary) للنود الجاي.",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "dkXyS0fe3LEk0alg",
-          "name": "Header Auth account 5"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inlineData: { mimeType: $('قراءة نص الرسالة').first().json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
-        "options": {}
-      },
-      "id": "3c4d316f-cc06-478c-aa56-1ca8554af4a4",
-      "name": "تحليل الفيديو (Gemini)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -2688,
-        1080
-      ],
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "PLACEHOLDER_GEMINI_CRED",
-          "name": "Gemini API"
-        }
-      },
-      "notes": "يحتاج Credential باسم Gemini API من نوع Header Auth، Header Name: x-goog-api-key، والقيمة مفتاح Gemini."
-    },
-    {
-      "parameters": {
-        "jsCode": "const res = $input.first().json;\nconst text = res?.candidates?.[0]?.content?.parts?.[0]?.text;\nconst analysis = text\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
+        "jsCode": "const res = $input.first().json;\nlet text = res?.content ?? res?.text ?? res?.response ?? res?.output;\nif (Array.isArray(text)) text = text.map(t => (t && t.text) || t).join('\\n');\nif (text && typeof text === 'object' && text.text) text = text.text;\nconst analysis = (typeof text === 'string' && text.trim())\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
       },
       "id": "27c26cca-481a-4375-9cbe-882641e887dd",
       "name": "استخراج نتيجة التحليل",
@@ -2090,6 +2031,36 @@
         1420
       ],
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3.1-pro-preview",
+          "cachedResultName": "models/gemini-3.1-pro-preview"
+        },
+        "text": "حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.",
+        "inputType": "url",
+        "videoUrls": "={{ $('قراءة نص الرسالة').first().json.mediaUrl }}",
+        "simplify": true
+      },
+      "id": "de951d39-d942-4eec-b327-3aacc347b90d",
+      "name": "تحليل الفيديو (Gemini الرسمي)",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -2688,
+        1080
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "hnxWgFPUTMlnvMhH",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -2694,7 +2665,7 @@
       "main": [
         [
           {
-            "node": "تنزيل الفيديو",
+            "node": "تحليل الفيديو (Gemini الرسمي)",
             "type": "main",
             "index": 0
           }
@@ -2702,28 +2673,6 @@
         [
           {
             "node": "رد: استلام وسائط (قيد التطوير)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "تنزيل الفيديو": {
-      "main": [
-        [
-          {
-            "node": "تحليل الفيديو (Gemini)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "تحليل الفيديو (Gemini)": {
-      "main": [
-        [
-          {
-            "node": "استخراج نتيجة التحليل",
             "type": "main",
             "index": 0
           }
@@ -2797,6 +2746,17 @@
         [
           {
             "node": "تجهيز سياق الـAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "تحليل الفيديو (Gemini الرسمي)": {
+      "main": [
+        [
+          {
+            "node": "استخراج نتيجة التحليل",
             "type": "main",
             "index": 0
           }
