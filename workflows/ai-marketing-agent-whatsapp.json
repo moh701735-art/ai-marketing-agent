@@ -56,7 +56,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
         "options": {}
       },
       "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
@@ -117,7 +117,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
         "options": {}
       },
       "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
@@ -159,7 +159,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst prevRow = rows.find(r => normalizePhone(r.phone) === fromNorm) || {};\nconst previousDraftJson = prevRow.draft_json || null;\nreturn [{ json: { text: incoming.text, from: incoming.from, previousDraftJson } }];"
+        "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst prevRow = rows.find(r => normalizePhone(r.phone) === fromNorm) || {};\nconst previousDraftJson = prevRow.draft_json || null;\nreturn [{ json: { text: incoming.text, from: incoming.from, previousDraftJson } }];"
       },
       "id": "9e57a1eb-63a3-4e45-a9ee-61f5016c0541",
       "name": "تجهيز سياق الـAI",
@@ -213,7 +213,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const resp = $input.first().json;\nlet text = '';\nif (Array.isArray(resp.content)) {\n  const block = resp.content.find(c => c.type === 'text') || resp.content[0];\n  text = (block && block.text) || '';\n} else if (typeof resp.content === 'string') {\n  text = resp.content;\n} else if (resp.text) {\n  text = resp.text;\n}\ntext = (text || '').trim();\nconst fence = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\nif (fence) text = fence[1].trim();\nconst bs = text.indexOf('{'); const be = text.lastIndexOf('}');\nif (bs !== -1 && be !== -1 && be > bs) text = text.slice(bs, be + 1);\nlet parsed;\ntry { parsed = JSON.parse(text); } catch (e) {\n  parsed = { action: 'none', missing_info: ['فهم الرسالة'], reply_message_if_incomplete: 'ما فهمت الطلب زين، تكدر تعيد الصياغة؟' };\n}\nparsed.action = parsed.action || 'none';\nparsed.platform = parsed.platform || '';\nparsed.platforms = (Array.isArray(parsed.platforms) && parsed.platforms.length) ? parsed.platforms : (parsed.platform ? [parsed.platform] : []);\nparsed.client = parsed.client || '';\nparsed.ad_account_id = parsed.ad_account_id || '';\nparsed.campaign_name = parsed.campaign_name || '';\nparsed.budget = parsed.budget || '';\nparsed.currency = parsed.currency || 'USD';\nparsed.objective = parsed.objective || '';\nparsed.audience = parsed.audience || '';\nparsed.location = parsed.location || '';\nparsed.status = parsed.status || '';\nparsed.campaign_id = parsed.campaign_id || '';\nparsed.date_range = parsed.date_range || '';\nparsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\nparsed.general_reply = parsed.general_reply || '';\nconst ctx = $('تجهيز سياق الـAI').item.json;\nconst rawText = (ctx.text || '');\n// إذا كانت هذه رسالة تأكيد، ندمج مسودة الطلب السابقة المحفوظة بالشيت\nif (ctx.previousDraftJson && rawText.includes('تأكيد')) {\n  try {\n    const draft = typeof ctx.previousDraftJson === 'string' ? JSON.parse(ctx.previousDraftJson) : ctx.previousDraftJson;\n    parsed = { ...draft, ...parsed };\n    parsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\n  } catch (e) {}\n}\nparsed.needs_confirmation = parsed.needs_confirmation === true || parsed.needs_confirmation === 'true' || ['delete','activate'].includes(parsed.action);\nparsed.confirmed = rawText.includes('تأكيد');\nparsed.reply_message_if_incomplete = parsed.reply_message_if_incomplete || 'تمام، بس ناقصني بعض التفاصيل، تكدر توضحلي أكثر؟';\nreturn [{ json: { ...parsed, from: $('تجهيز سياق الـAI').item.json.from, rawText } }];"
+        "jsCode": "const resp = $input.first().json;\nlet text = '';\nif (Array.isArray(resp.content)) {\n  const block = resp.content.find(c => c.type === 'text') || resp.content[0];\n  text = (block && block.text) || '';\n} else if (typeof resp.content === 'string') {\n  text = resp.content;\n} else if (resp.text) {\n  text = resp.text;\n}\ntext = (text || '').trim();\nconst fence = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\nif (fence) text = fence[1].trim();\nconst bs = text.indexOf('{'); const be = text.lastIndexOf('}');\nif (bs !== -1 && be !== -1 && be > bs) text = text.slice(bs, be + 1);\nlet parsed;\ntry { parsed = JSON.parse(text); } catch (e) {\n  parsed = { action: 'none', missing_info: ['فهم الرسالة'], reply_message_if_incomplete: 'ما فهمت الطلب زين، تكدر تعيد الصياغة؟' };\n}\nparsed.action = parsed.action || 'none';\nparsed.platform = parsed.platform || '';\nparsed.platforms = (Array.isArray(parsed.platforms) && parsed.platforms.length) ? parsed.platforms : (parsed.platform ? [parsed.platform] : []);\nparsed.client = parsed.client || '';\nparsed.ad_account_id = parsed.ad_account_id || '';\nparsed.campaign_name = parsed.campaign_name || '';\nparsed.budget = parsed.budget || '';\nparsed.currency = parsed.currency || 'USD';\nparsed.objective = parsed.objective || '';\nparsed.audience = parsed.audience || '';\nparsed.location = parsed.location || '';\nparsed.status = parsed.status || '';\nparsed.campaign_id = parsed.campaign_id || '';\nparsed.date_range = parsed.date_range || '';\nparsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\nparsed.general_reply = parsed.general_reply || '';\nconst ctx = $('تجهيز سياق الـAI').first().json;\nconst rawText = (ctx.text || '');\n// إذا كانت هذه رسالة تأكيد، ندمج مسودة الطلب السابقة المحفوظة بالشيت\nif (ctx.previousDraftJson && rawText.includes('تأكيد')) {\n  try {\n    const draft = typeof ctx.previousDraftJson === 'string' ? JSON.parse(ctx.previousDraftJson) : ctx.previousDraftJson;\n    parsed = { ...draft, ...parsed };\n    parsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\n  } catch (e) {}\n}\nparsed.needs_confirmation = parsed.needs_confirmation === true || parsed.needs_confirmation === 'true' || ['delete','activate'].includes(parsed.action);\nparsed.confirmed = rawText.includes('تأكيد');\nparsed.reply_message_if_incomplete = parsed.reply_message_if_incomplete || 'تمام، بس ناقصني بعض التفاصيل، تكدر توضحلي أكثر؟';\nreturn [{ json: { ...parsed, from: $('تجهيز سياق الـAI').first().json.from, rawText } }];"
       },
       "id": "8f52aa80-3545-452c-934f-5af475171e1d",
       "name": "استخراج نتيجة الـAI",
@@ -325,7 +325,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $('تحقق قبل التنفيذ').item.json.reply_message_if_incomplete, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $('تحقق قبل التنفيذ').first().json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
@@ -455,7 +455,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: ('⚠️ تريد تنفيذ: ' + $('تحقق قبل التنفيذ').item.json.action + '\\n' + 'الحملة: ' + ($('تحقق قبل التنفيذ').item.json.campaign_name || $('تحقق قبل التنفيذ').item.json.campaign_id) + '\\n' + 'المنصة: ' + (($('تحقق قبل التنفيذ').item.json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('تحقق قبل التنفيذ').item.json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: ('⚠️ تريد تنفيذ: ' + $('تحقق قبل التنفيذ').first().json.action + '\\n' + 'الحملة: ' + ($('تحقق قبل التنفيذ').first().json.campaign_name || $('تحقق قبل التنفيذ').first().json.campaign_id) + '\\n' + 'المنصة: ' + (($('تحقق قبل التنفيذ').first().json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('تحقق قبل التنفيذ').first().json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
@@ -558,7 +558,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const ai = $('استخراج نتيجة الـAI').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(ai.from);\nconst allRows = $input.all().map(i => i.json).filter(r => r && r.client);\nlet rows = allRows.filter(r => normalizePhone(r.phone) === fromNorm);\nif (ai.client) {\n  const byClient = rows.filter(r => String(r.client || '').trim() === String(ai.client).trim());\n  if (byClient.length) rows = byClient;\n}\nconst errors = [];\nconst platforms = ai.platforms;\nconst action = ai.action;\n\n// محادثة عامة/سؤال عام مو متعلق بإدارة حملات — الذكاء الاصطناعي يرد مباشرة\n// بدل ما نطلب منصة/اسم حملة/ميزانية مالها معنى بهذا السياق.\nconst isGeneralChat = (!action || action === 'none') && !!ai.general_reply;\n\nif (!isGeneralChat) {\n  if (!platforms || !platforms.length) errors.push('المنصة (فيسبوك أو تيك توك) غير محددة');\n  if (!action || action === 'none') errors.push('نوع العملية غير واضح');\n  if (action === 'create') {\n    if (!ai.campaign_name) errors.push('اسم الحملة');\n    if (!ai.budget) errors.push('الميزانية');\n  }\n  if (['activate','pause','delete','update_budget'].includes(action) && !ai.campaign_id) errors.push('رقم الحملة (campaign_id)');\n  if (action === 'update_budget' && !ai.budget) errors.push('الميزانية الجديدة');\n}\n\nlet metaAccountId = '';\nlet tiktokAdvertiserId = '';\n\nif (!isGeneralChat) {\n  if (rows.length > 1) {\n    const options = rows.map(r => `${r.client}: Meta=${r.meta_ad_account_id||'-'} / TikTok=${r.tiktok_advertiser_id||'-'}`).join('\\n');\n    errors.push('فيه أكثر من حساب مرتبط برقمك، حدد اسم العميل بالضبط:\\n' + options);\n  } else if (rows.length === 1) {\n    metaAccountId = rows[0].meta_ad_account_id || '';\n    tiktokAdvertiserId = rows[0].tiktok_advertiser_id || '';\n  } else {\n    metaAccountId = platforms.includes('meta') ? (ai.ad_account_id || '') : '';\n    tiktokAdvertiserId = platforms.includes('tiktok') ? (ai.ad_account_id || '') : '';\n    if (platforms.includes('meta') && !metaAccountId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب Meta الإعلاني');\n    if (platforms.includes('tiktok') && !tiktokAdvertiserId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب TikTok الإعلاني');\n  }\n}\n\nconst valid = errors.length === 0 && !isGeneralChat;\nlet validationMessage = '';\nif (isGeneralChat) {\n  validationMessage = ai.general_reply;\n} else if (!valid) {\n  validationMessage = '❌ ما كدرت أنفذ الطلب.\\n' + errors.join('\\n');\n}\n\nreturn [{ json: { ...ai, metaAccountId, tiktokAdvertiserId, valid, validationErrors: errors, validationMessage } }];"
+        "jsCode": "const ai = $('استخراج نتيجة الـAI').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(ai.from);\nconst allRows = $input.all().map(i => i.json).filter(r => r && r.client);\nlet rows = allRows.filter(r => normalizePhone(r.phone) === fromNorm);\nif (ai.client) {\n  const byClient = rows.filter(r => String(r.client || '').trim() === String(ai.client).trim());\n  if (byClient.length) rows = byClient;\n}\nconst errors = [];\nconst platforms = ai.platforms;\nconst action = ai.action;\n\n// محادثة عامة/سؤال عام مو متعلق بإدارة حملات — الذكاء الاصطناعي يرد مباشرة\n// بدل ما نطلب منصة/اسم حملة/ميزانية مالها معنى بهذا السياق.\nconst isGeneralChat = (!action || action === 'none') && !!ai.general_reply;\n\nif (!isGeneralChat) {\n  if (!platforms || !platforms.length) errors.push('المنصة (فيسبوك أو تيك توك) غير محددة');\n  if (!action || action === 'none') errors.push('نوع العملية غير واضح');\n  if (action === 'create') {\n    if (!ai.campaign_name) errors.push('اسم الحملة');\n    if (!ai.budget) errors.push('الميزانية');\n  }\n  if (['activate','pause','delete','update_budget'].includes(action) && !ai.campaign_id) errors.push('رقم الحملة (campaign_id)');\n  if (action === 'update_budget' && !ai.budget) errors.push('الميزانية الجديدة');\n}\n\nlet metaAccountId = '';\nlet tiktokAdvertiserId = '';\n\nif (!isGeneralChat) {\n  if (rows.length > 1) {\n    const options = rows.map(r => `${r.client}: Meta=${r.meta_ad_account_id||'-'} / TikTok=${r.tiktok_advertiser_id||'-'}`).join('\\n');\n    errors.push('فيه أكثر من حساب مرتبط برقمك، حدد اسم العميل بالضبط:\\n' + options);\n  } else if (rows.length === 1) {\n    metaAccountId = rows[0].meta_ad_account_id || '';\n    tiktokAdvertiserId = rows[0].tiktok_advertiser_id || '';\n  } else {\n    metaAccountId = platforms.includes('meta') ? (ai.ad_account_id || '') : '';\n    tiktokAdvertiserId = platforms.includes('tiktok') ? (ai.ad_account_id || '') : '';\n    if (platforms.includes('meta') && !metaAccountId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب Meta الإعلاني');\n    if (platforms.includes('tiktok') && !tiktokAdvertiserId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب TikTok الإعلاني');\n  }\n}\n\nconst valid = errors.length === 0 && !isGeneralChat;\nlet validationMessage = '';\nif (isGeneralChat) {\n  validationMessage = ai.general_reply;\n} else if (!valid) {\n  validationMessage = '❌ ما كدرت أنفذ الطلب.\\n' + errors.join('\\n');\n}\n\nreturn [{ json: { ...ai, metaAccountId, tiktokAdvertiserId, valid, validationErrors: errors, validationMessage } }];"
       },
       "id": "1a72cb9d-b42b-42b5-ae89-d849e1b6a7ef",
       "name": "تحقق قبل التنفيذ",
@@ -610,7 +610,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.validationMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $json.validationMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
@@ -865,7 +865,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
         "options": {}
       },
       "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
@@ -1222,7 +1222,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
         "options": {}
       },
       "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
@@ -1352,7 +1352,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// استجابة API فيسبوك/تيك توك تستبدل بيانات العنصر بالكامل (يرجع بس id\n// مثلاً)، فنفقد باقي التفاصيل (اسم الحملة، الميزانية...). نجيبها من نود\n// \"تحقق قبل التنفيذ\" (قبل استدعاء المنصة) بدل الاعتماد على $json وحده.\nconst ctx = $('تحقق قبل التنفيذ').item.json;\nconst j = $json;\nconst body = j.body || j;\nlet error = '';\nif (body && body.error) { error = body.error.message || (typeof body.error === 'string' ? body.error : JSON.stringify(body.error)); }\nelse if (j.error) { error = (typeof j.error === 'string') ? j.error : (j.error.message || JSON.stringify(j.error)); }\nelse if (body && body.message && body.success === false) { error = body.message; }\nconst success = !error;\nconst result = {\n  id: body.id || ctx.campaign_id || '',\n  status: body.status || ctx.status || 'PAUSED',\n  platform: (Array.isArray(ctx.platforms) && ctx.platforms.length) ? ctx.platforms.join('+') : (ctx.platform || ''),\n  name: ctx.campaign_name || '',\n  budget: ctx.budget || '',\n  from: ctx.from || '',\n  campaign_id: body.id || ctx.campaign_id || '',\n  client: ctx.client || '',\n  created_at: new Date().toISOString(),\n  action: ctx.action || '',\n  success,\n  error\n};\nreturn [{ json: result }];"
+        "jsCode": "// استجابة API فيسبوك/تيك توك تستبدل بيانات العنصر بالكامل (يرجع بس id\n// مثلاً)، فنفقد باقي التفاصيل (اسم الحملة، الميزانية...). نجيبها من نود\n// \"تحقق قبل التنفيذ\" (قبل استدعاء المنصة) بدل الاعتماد على $json وحده.\nconst ctx = $('تحقق قبل التنفيذ').first().json;\nconst j = $json;\nconst body = j.body || j;\nlet error = '';\nif (body && body.error) { error = body.error.message || (typeof body.error === 'string' ? body.error : JSON.stringify(body.error)); }\nelse if (j.error) { error = (typeof j.error === 'string') ? j.error : (j.error.message || JSON.stringify(j.error)); }\nelse if (body && body.message && body.success === false) { error = body.message; }\nconst success = !error;\nconst result = {\n  id: body.id || ctx.campaign_id || '',\n  status: body.status || ctx.status || 'PAUSED',\n  platform: (Array.isArray(ctx.platforms) && ctx.platforms.length) ? ctx.platforms.join('+') : (ctx.platform || ''),\n  name: ctx.campaign_name || '',\n  budget: ctx.budget || '',\n  from: ctx.from || '',\n  campaign_id: body.id || ctx.campaign_id || '',\n  client: ctx.client || '',\n  created_at: new Date().toISOString(),\n  action: ctx.action || '',\n  success,\n  error\n};\nreturn [{ json: result }];"
       },
       "id": "19d8a995-a0ce-4a5e-8359-a3e7876f535c",
       "name": "تجهيز نتيجة الحملة النهائية",
@@ -1514,7 +1514,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.finalMessage, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $json.finalMessage, session: 'default' })}}",
         "options": {}
       },
       "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
@@ -1684,7 +1684,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const incoming = $('قراءة نص الرسالة').item.json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nlet authorized = !!match && active;\n\n// بعض جهات الاتصال يظهر رقمها لواتساب/واها كمعرّف مخفي (@lid) بدل الرقم\n// الحقيقي (خاصية خصوصية جديدة من واتساب نفسه) فما نكدر نطابقها مع الجدول\n// إطلاقاً. الحل: أي رسالة تبدأ برمز سري متفق عليه تعتبر مصرح لها (نتقبل\n// وجود أو عدم وجود مسافة بين الكلمة والرقم، مثل \"كود1234\" أو \"كود 1234\").\n// نحذف الرمز من النص دائماً لو موجود، سواء انصرح عن طريق الرمز أو عن طريق\n// تطابق الرقم مباشرة (حتى ما يوصل \"كود 1234\" للذكاء الاصطناعي ويلخبطه).\nlet text = incoming.text || '';\nconst codeMatch = text.trim().match(/^كود\\s*1234\\s*/);\nif (codeMatch) {\n  if (!authorized) authorized = true;\n  text = text.trim().slice(codeMatch[0].length).trim();\n}\n\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, text, authorized } }];"
+        "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nlet authorized = !!match && active;\n\n// بعض جهات الاتصال يظهر رقمها لواتساب/واها كمعرّف مخفي (@lid) بدل الرقم\n// الحقيقي (خاصية خصوصية جديدة من واتساب نفسه) فما نكدر نطابقها مع الجدول\n// إطلاقاً. الحل: أي رسالة تبدأ برمز سري متفق عليه تعتبر مصرح لها (نتقبل\n// وجود أو عدم وجود مسافة بين الكلمة والرقم، مثل \"كود1234\" أو \"كود 1234\").\n// نحذف الرمز من النص دائماً لو موجود، سواء انصرح عن طريق الرمز أو عن طريق\n// تطابق الرقم مباشرة (حتى ما يوصل \"كود 1234\" للذكاء الاصطناعي ويلخبطه).\nlet text = incoming.text || '';\nconst codeMatch = text.trim().match(/^كود\\s*1234\\s*/);\nif (codeMatch) {\n  if (!authorized) authorized = true;\n  text = text.trim().slice(codeMatch[0].length).trim();\n}\n\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, text, authorized } }];"
       },
       "id": "f82a8a2c-afcf-4fc5-a54a-c0923e8bb914",
       "name": "تحقق الرقم من القائمة",
@@ -1794,7 +1794,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
         "options": {}
       },
       "id": "35179d13-fbb7-4295-b10e-9729d7547944",
@@ -1849,7 +1849,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{$('قراءة نص الرسالة').item.json.mediaUrl}}",
+        "url": "={{$('قراءة نص الرسالة').first().json.mediaUrl}}",
         "options": {
           "response": {
             "response": {
@@ -1885,7 +1885,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inlineData: { mimeType: $('قراءة نص الرسالة').item.json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [ { inlineData: { mimeType: $('قراءة نص الرسالة').first().json.mediaMimetype || 'video/mp4', data: $binary.data.data } }, { text: 'حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.' } ] }] }) }}",
         "options": {}
       },
       "id": "3c4d316f-cc06-478c-aa56-1ca8554af4a4",
@@ -1926,7 +1926,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: '🎬 تحليل الفيديو:\\n\\n' + $json.analysis, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '🎬 تحليل الفيديو:\\n\\n' + $json.analysis, session: 'default' })}}",
         "options": {}
       },
       "id": "05d61656-be9a-4183-a8b4-0e21432dd2f3",
