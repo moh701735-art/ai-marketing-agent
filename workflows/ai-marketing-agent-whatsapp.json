@@ -5,13 +5,13 @@
       "parameters": {
         "jsCode": "const root = $input.first().json;\nconst body = root.body || root;\n\n// نتعامل فقط مع أحداث رسالة واردة فعلية من واها — أي حدث ثاني (تأكيد استلام،\n// تغيير حالة، إلخ) نتجاهله كلياً بإرجاع مصفوفة فاضية عشان يوقف التنفيذ فوراً\n// بدون أي رد (منعاً لحلقة لا نهائية).\nconst KNOWN_MESSAGE_EVENTS = ['message'];\nif (!body || !KNOWN_MESSAGE_EVENTS.includes(body.event) || !body.payload) {\n  return [];\n}\n\nconst p = body.payload;\n\n// رسالة صادرة منا احنا (رد آلي سبق أرسلناه، واها يرجع يبعتها كحدث) — نتجاهلها\n// كلياً بإرجاع مصفوفة فاضية، حتى ما تدخل بحلقة لا نهائية.\nif (p.fromMe) {\n  return [];\n}\n\nconst text = (p.body || '').trim();\nconst from = String(p.from || '');\nconst messageId = p.id || '';\nconst timestamp = p.timestamp || '';\n\n// دعم الوسائط (صور/فيديوهات) — واها يرسل hasMedia:true وكائن media فيه\n// تفاصيل الملف (الرابط/النوع) لما تكون الرسالة صورة أو فيديو أو غيرها.\nconst hasMedia = !!p.hasMedia;\nconst media = p.media || null;\nlet mediaUrl = media ? (media.url || media.link || '') : '';\n// واها أحياناً يرجع رابط داخلي خاص بشبكة Railway (railway.internal) ما تقدر\n// n8n توصله من برا. نستبدله بالرابط العام دائماً.\nif (mediaUrl) {\n  mediaUrl = mediaUrl.replace(/https?:\\/\\/[^\\/]*railway\\.internal(:\\d+)?/, 'https://devlikeaprowaha-production-c7e8.up.railway.app');\n}\nconst mediaMimetype = media ? (media.mimetype || media.mimeType || '') : '';\nlet mediaType = '';\nif (hasMedia) {\n  if (mediaMimetype.startsWith('image/')) mediaType = 'image';\n  else if (mediaMimetype.startsWith('video/')) mediaType = 'video';\n  else if (mediaMimetype.startsWith('audio/')) mediaType = 'audio';\n  else mediaType = 'other';\n}\n\nreturn [{ json: { text, from, messageId, timestamp, hasText: !!text, hasMedia, mediaType, mediaUrl, mediaMimetype } }];"
       },
-      "id": "93693ef5-1777-4965-9909-c216d76663af",
+      "id": "fae4b209-7e47-4487-8d01-462c0e8bfb33",
       "name": "قراءة نص الرسالة",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3136,
-        1472
+        -5072,
+        26224
       ],
       "notes": "يفهم شكل بيانات WAHA فقط (event.payload). يتجاهل الأحداث غير message ورسائل fromMe=true بإرجاع [] فوراً (منع حلقة لا نهائية). يستخرج أيضاً معلومات الوسائط (hasMedia/mediaType/mediaUrl) لدعم الصور والفيديوهات."
     },
@@ -39,13 +39,13 @@
         },
         "options": {}
       },
-      "id": "240d4c7c-dd7b-457d-af1a-28a00607ff09",
+      "id": "386c993d-30ae-41a8-85d1-8dec551f4e39",
       "name": "فيه نص رسالة؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -2912,
-        1472
+        -4816,
+        26320
       ]
     },
     {
@@ -59,21 +59,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'ما وصلتني رسالة نصية واضحة، تكدر ترسل طلبك كتابة؟', session: 'default' })}}",
         "options": {}
       },
-      "id": "109507cc-3d9b-4119-bdd0-3dbf17c93b60",
+      "id": "d70a537e-eb20-4d8e-8df1-350385ac21e3",
       "name": "رد: ما فيه نص رسالة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2688,
-        1568
+        -4624,
+        26320
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -99,13 +99,13 @@
         },
         "options": {}
       },
-      "id": "71923198-d5f2-4c49-af4f-e8f27bf94405",
+      "id": "4f73d8ad-c884-4c71-8c40-5c850889a75d",
       "name": "تحقق من الصلاحية",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -2688,
-        1376
+        -4592,
+        25984
       ],
       "notes": "الآن يعتمد على عمود authorized المحسوب بالنود 'تحقق الرقم من القائمة' اعتماداً على شيت 'المستخدمين المصرح لهم' — بدل قائمة أرقام كانت مكتوبة يدوياً جوة الأتمتة. لإضافة زبون جديد: أضف صف بالشيت وخلص، بدون تعديل الأتمتة."
     },
@@ -120,21 +120,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'عذراً، هذا الرقم غير مصرح له باستخدام هذا النظام.', session: 'default' })}}",
         "options": {}
       },
-      "id": "c9436a7e-28e4-4099-8a82-04cea9a0adf8",
+      "id": "72b9a775-e03b-44b9-94b1-c6dbc09ec83a",
       "name": "رد: غير مصرح",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2464,
-        1472
+        -4400,
+        26224
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -146,82 +146,41 @@
         },
         "returnAll": true
       },
-      "id": "b1994a50-bd3e-45f3-8882-00451d6ef568",
+      "id": "4f216192-b1bb-4868-94a9-fbefe1977075",
       "name": "جلب الحالة المعلقة",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -2464,
-        1280
+        -4400,
+        26032
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي."
     },
     {
       "parameters": {
         "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\n\nconst draftRows = $('جلب الحالة المعلقة').all().map(i => i.json).filter(r => r && r.phone);\nconst prevRow = draftRows.find(r => normalizePhone(r.phone) === fromNorm) || {};\nconst previousDraftJson = prevRow.draft_json || null;\n\nconst logRows = $('جلب سجل الحملات (للذاكرة)').all().map(i => i.json).filter(r => r && r.from);\nconst campaignHistory = logRows\n  .filter(r => normalizePhone(r.from) === fromNorm)\n  .map(r => ({\n    campaign_id: r.campaign_id,\n    name: r.name,\n    platform: r.platform,\n    budget: r.budget,\n    status: r.status,\n    client: r.client,\n    success: r.success,\n    created_at: r.createdAt || r.created_at || ''\n  }))\n  .slice(-30);\n\nreturn [{ json: { text: incoming.text, from: incoming.from, previousDraftJson, campaignHistory } }];"
       },
-      "id": "9e57a1eb-63a3-4e45-a9ee-61f5016c0541",
+      "id": "629fc574-ef7f-41c5-be41-a5cce5ed65b5",
       "name": "تجهيز سياق الـAI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2240,
-        1280
+        -4176,
+        26032
       ]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({\n  model: 'claude-sonnet-5',\n  max_tokens: 2000,\n  thinking: { type: 'disabled' },\n  system: \"أنت مساعد يفهم أوامر تسويقية مكتوبة بالعربي أو اللهجة العراقية ويحوّلها إلى JSON منظم فقط بدون أي شرح ودون أي نص خارج كائن JSON واحد.\\nاستخرج: action (create/activate/pause/update_budget/report/list/list_paused/delete/none)، platform، platforms (array تحتوي meta و/أو tiktok)، client، ad_account_id، campaign_name، budget، currency، objective، audience، location، status، campaign_id، date_range.\\nمهم جداً: لا تحط action='none' إلا إذا كانت نية المستخدم غامضة فعلاً بشكل كامل، أو كانت الرسالة أصلاً مو متعلقة بإدارة حملات إعلانية (سؤال عام، سلام، دردشة عادية، استفسار). لو الرسالة تحتوي فعل واضح مثل (سوّي/أنشئ/فعّل/شغّل/وقف/أوقف/غيّر/عدّل/احذف/شكد/شوفلي/اعرضلي)، استنتج الـaction المناسب مباشرة.\\nإذا قال المستخدم فيسبوك وتيك توك سوا، حط الاثنين بمصفوفة platforms.\\nمهم جداً جداً للذاكرة: إذا previousDraftJson موجود وفيه حقول (campaign_name, budget, platforms, ad_account_id, client, campaign_id, action...)، اعتبر إنه سياق المحادثة السابقة، وادمجه دائماً مع أي معلومة جديدة بالرسالة الحالية (مو بس لما تحتوي كلمة 'تأكيد') — يعني لو المستخدم أول رسالة قال 'اريد اسوي حملة' وبعدها برسالة ثانية قال بس اسم الحملة، لازم تجمع الاسم الجديد مع باقي التفاصيل الي جاية من previousDraftJson ولا تفقد ولا حقل موجود فيه. لا تعتبر previousDraftJson صالح إلا إذا كان يخص نفس الموضوع (لو المستخدم بدأ طلب جديد كلياً مختلف بوضوح، تجاهل previousDraftJson القديم).\\nمهم جداً للذاكرة طويلة المدى: campaignHistory (إذا موجودة) هي قائمة بكل حملات هذا الرقم اللي سبق نفذناها (بأي وقت، حتى لو كان قبل أسابيع)، كل عنصر فيها فيه campaign_id وname وplatform وbudget وstatus وclient وcreated_at. لو المستخدم سأل عن حملة قديمة بالاسم أو استفسر عن تفاصيلها (شكد ميزانيتها، شنو حالتها، متى سويتها...)، دور عليها بcampaignHistory وجاوبه مباشرة بالمعلومة الموجودة عن طريق general_reply (واعتبر action='none' لأنه سؤال معلوماتي مو أمر تنفيذي). لو المستخدم طلب عملية تنفيذية على حملة قديمة بالاسم بس ما ذكر campaign_id (مثل 'وقف حملة محمد' أو 'زيد ميزانية حملة الصيف')، دور بcampaignHistory عن حملة بنفس الاسم واستخرج campaign_id منها تلقائياً وحطه بحقل campaign_id، ولا تطلب من المستخدم رقم الحملة إذا already موجود بcampaignHistory.\\nإذا كانت المعلومات ناقصة لتنفيذ action المطلوب (create يحتاج campaign_name وbudget وplatforms وصورة أو فيديو الإعلان على الأقل؛ activate/pause/delete/update_budget يحتاج campaign_id؛ update_budget يحتاج budget أيضاً)، أرجع missing_info كمصفوفة بأسماء الحقول الناقصة، وreply_message_if_incomplete بسؤال قصير وواضح باللهجة العراقية.\\nمهم جداً بخصوص الوسائط: previousDraftJson.has_media (أو previousDraftJson.media_url) يعني المستخدم already أرسل صورة أو فيديو بمحادثة سابقة لنفس هذي الحملة — اعتبر شرط الوسائط متحقق ولا تطلبه مرة ثانية. إذا كان action='create' وما فيه previousDraftJson.has_media ولا previousDraftJson.media_url، ضيف 'صورة أو فيديو الإعلان' لمصفوفة missing_info واسأل المستخدم يرسل صورة أو فيديو المنتج/الإعلان.\\nمهم جداً: إذا كانت رسالة المستخدم أصلاً مو محاولة لإدارة حملة إعلانية إطلاقاً (سؤال عام، سلام، دردشة، استفسار عن أي شيء ثاني)، خل action='none' وplatforms=[] ولا تحط أي شي بmissing_info، وجاوب على المستخدم مباشرة بأسلوب طبيعي ومفيد ومختصر بحقل general_reply (بنفس لهجة المستخدم إذا ممكن). إذا كانت الرسالة فعلاً محاولة حملة إعلانية (حتى لو ناقصة معلومات)، اترك general_reply فاضي.\\nالعمليات الخطرة (delete وactivate) تعتبر دائماً needs_confirmation=true. لا تحط confirmed=true إلا إذا كانت رسالة المستخدم الحالية تحتوي على كلمة 'تأكيد' بالضبط (مثل 'تأكيد' أو 'تأكيد نعم') — لا تعتبر أي كلمة موافقة عادية أخرى كافية وحدها.\\nأرجع فقط كائن JSON صحيح بهذا الشكل بالضبط ولا شي غيره:\\n{\\\"action\\\":\\\"\\\",\\\"platform\\\":\\\"\\\",\\\"platforms\\\":[],\\\"client\\\":\\\"\\\",\\\"ad_account_id\\\":\\\"\\\",\\\"campaign_name\\\":\\\"\\\",\\\"budget\\\":\\\"\\\",\\\"currency\\\":\\\"USD\\\",\\\"objective\\\":\\\"\\\",\\\"audience\\\":\\\"\\\",\\\"location\\\":\\\"\\\",\\\"status\\\":\\\"\\\",\\\"campaign_id\\\":\\\"\\\",\\\"date_range\\\":\\\"\\\",\\\"general_reply\\\":\\\"\\\",\\\"missing_info\\\":[],\\\"needs_confirmation\\\":false,\\\"confirmed\\\":false,\\\"reply_message_if_incomplete\\\":\\\"\\\"}\",\n  messages: [\n    { role: 'user', content: 'previousDraftJson: ' + JSON.stringify($json.previousDraftJson) + '\\ncampaignHistory: ' + JSON.stringify($json.campaignHistory || []) + '\\nرسالة المستخدم الحالية: ' + $json.text }\n  ]\n})}}",
-        "options": {}
+        "jsCode": "const raw = $json.output;\nlet parsed = null;\nif (typeof raw === 'string') {\n  try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }\n} else if (raw && typeof raw === 'object') {\n  parsed = raw;\n}\nconst incoming = $('تجهيز سياق الـAI').first().json;\nconst defaults = {\n  action: 'none', platform: '', platforms: [], client: '', ad_account_id: '',\n  campaign_name: '', budget: '', currency: 'USD', objective: '', audience: '',\n  location: '', status: '', campaign_id: '', date_range: '', general_reply: '',\n  missing_info: ['فهم الرسالة'], needs_confirmation: false, confirmed: false,\n  reply_message_if_incomplete: 'ما فهمت الطلب زين، تكدر تعيد الصياغة؟'\n};\nconst result = parsed ? { ...defaults, ...parsed } : { ...defaults };\nresult.from = incoming.from;\nresult.rawText = incoming.text;\nreturn [{ json: result }];"
       },
-      "id": "b3459282-be19-456f-972b-b1c244a95409",
-      "name": "AI Agent - فهم الأمر",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        -2016,
-        1280
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "b3Pv3fKspLPeelyn",
-          "name": "Header Auth account 2"
-        }
-      },
-      "notes": "Credential: Header Auth باسم 'Anthropic API' — Header: x-api-key. لا يوجد أي مفتاح مكتوب هنا.",
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const resp = $input.first().json;\nlet text = '';\nif (Array.isArray(resp.content)) {\n  const block = resp.content.find(c => c.type === 'text') || resp.content[0];\n  text = (block && block.text) || '';\n} else if (typeof resp.content === 'string') {\n  text = resp.content;\n} else if (resp.text) {\n  text = resp.text;\n}\ntext = (text || '').trim();\nconst fence = text.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\nif (fence) text = fence[1].trim();\nconst bs = text.indexOf('{'); const be = text.lastIndexOf('}');\nif (bs !== -1 && be !== -1 && be > bs) text = text.slice(bs, be + 1);\nlet parsed;\ntry { parsed = JSON.parse(text); } catch (e) {\n  parsed = { action: 'none', missing_info: ['فهم الرسالة'], reply_message_if_incomplete: 'ما فهمت الطلب زين، تكدر تعيد الصياغة؟' };\n}\nparsed.action = parsed.action || 'none';\nparsed.platform = parsed.platform || '';\nparsed.platforms = (Array.isArray(parsed.platforms) && parsed.platforms.length) ? parsed.platforms : (parsed.platform ? [parsed.platform] : []);\nparsed.client = parsed.client || '';\nparsed.ad_account_id = parsed.ad_account_id || '';\nparsed.campaign_name = parsed.campaign_name || '';\nparsed.budget = parsed.budget || '';\nparsed.currency = parsed.currency || 'USD';\nparsed.objective = parsed.objective || '';\nparsed.audience = parsed.audience || '';\nparsed.location = parsed.location || '';\nparsed.status = parsed.status || '';\nparsed.campaign_id = parsed.campaign_id || '';\nparsed.date_range = parsed.date_range || '';\nparsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\nparsed.general_reply = parsed.general_reply || '';\nconst ctx = $('تجهيز سياق الـAI').first().json;\nconst rawText = (ctx.text || '');\n// إذا كانت هذه رسالة تأكيد، ندمج مسودة الطلب السابقة المحفوظة بالشيت\nif (ctx.previousDraftJson && rawText.includes('تأكيد')) {\n  try {\n    const draft = typeof ctx.previousDraftJson === 'string' ? JSON.parse(ctx.previousDraftJson) : ctx.previousDraftJson;\n    parsed = { ...draft, ...parsed };\n    parsed.missing_info = Array.isArray(parsed.missing_info) ? parsed.missing_info : [];\n  } catch (e) {}\n}\nparsed.needs_confirmation = parsed.needs_confirmation === true || parsed.needs_confirmation === 'true' || ['delete','activate'].includes(parsed.action);\nparsed.confirmed = rawText.includes('تأكيد');\nparsed.reply_message_if_incomplete = parsed.reply_message_if_incomplete || 'تمام، بس ناقصني بعض التفاصيل، تكدر توضحلي أكثر؟';\nreturn [{ json: { ...parsed, from: $('تجهيز سياق الـAI').first().json.from, rawText } }];"
-      },
-      "id": "8f52aa80-3545-452c-934f-5af475171e1d",
+      "id": "9d1821e8-d91f-462d-859f-7603d865e101",
       "name": "استخراج نتيجة الـAI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1792,
-        1280
+        -3728,
+        26032
       ]
     },
     {
@@ -247,13 +206,13 @@
         },
         "options": {}
       },
-      "id": "882febe6-6d1a-4985-86a4-c89a59055884",
+      "id": "fd253313-3857-49e7-aa18-c303c059cff6",
       "name": "هل المعلومات مكتملة؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1568,
-        1280
+        -3504,
+        26032
       ]
     },
     {
@@ -306,16 +265,16 @@
         },
         "options": {}
       },
-      "id": "e5ad4ee0-deb4-4fbc-aa22-fd093574508d",
+      "id": "c505f95a-4094-4985-a37c-5b095898c648",
       "name": "حفظ الحالة المعلقة (ناقص)",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -1344,
-        1088
+        -3280,
+        25840
       ],
-      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
     },
     {
       "parameters": {
@@ -328,21 +287,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $('استخراج نتيجة الـAI').first().json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
-      "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
+      "id": "de9710e8-429b-4a53-aaac-c3ae54855e32",
       "name": "رد: اطلب المعلومات الناقصة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1120,
-        1088
+        -3056,
+        25840
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -377,13 +336,13 @@
         },
         "options": {}
       },
-      "id": "0e330a25-2f60-4fa6-bef2-59e9975dc991",
+      "id": "793068e2-63c3-484e-bf57-472ad3ff8a24",
       "name": "هل يحتاج تأكيد ولم يتأكد؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1344,
-        1760
+        -3280,
+        26512
       ]
     },
     {
@@ -436,16 +395,16 @@
         },
         "options": {}
       },
-      "id": "5227f0ef-aea2-4dd9-b1ca-7d9395e88fea",
+      "id": "58688748-e1fe-4169-a666-547d47a4da63",
       "name": "حفظ الحالة المعلقة (بانتظار تأكيد)",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -1120,
-        1760
+        -3056,
+        26512
       ],
-      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table Upsert — يحدّث صف نفس رقم الهاتف أو يضيفه إذا مو موجود."
     },
     {
       "parameters": {
@@ -458,21 +417,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: ('⚠️ تريد تنفيذ: ' + $('استخراج نتيجة الـAI').first().json.action + '\\n' + 'الحملة: ' + ($('استخراج نتيجة الـAI').first().json.campaign_name || $('استخراج نتيجة الـAI').first().json.campaign_id) + '\\n' + 'المنصة: ' + (($('استخراج نتيجة الـAI').first().json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('استخراج نتيجة الـAI').first().json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
-      "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
+      "id": "09b64428-febd-4d52-8ae4-52ebcd47c2b1",
       "name": "رد: اطلب تأكيد",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -896,
-        1760
+        -2832,
+        26512
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -524,16 +483,16 @@
         },
         "options": {}
       },
-      "id": "10668a68-3c27-4bf8-80b5-7070d40e249f",
+      "id": "20511806-65d3-4690-8b5a-b5c3bcc03fc8",
       "name": "تصفير الحالة المعلقة",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -1120,
-        1568
+        -3056,
+        26320
       ],
-      "notes": "Data Table Upsert — يصفّر عمود draft_json لنفس رقم الهاتف فقط (آمن، ما يمسح صفوف ثانية).",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table Upsert — يصفّر عمود draft_json لنفس رقم الهاتف فقط (آمن، ما يمسح صفوف ثانية)."
     },
     {
       "parameters": {
@@ -545,28 +504,28 @@
         },
         "returnAll": true
       },
-      "id": "b4202268-0170-410d-a951-ffbcbb4a30d1",
+      "id": "b5992d6c-d42f-47d7-a41c-0570bf374c82",
       "name": "جلب حساب العميل",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -896,
-        1568
+        -2832,
+        26320
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف جدول العملاء، والفلترة الآمنة (رقم الهاتف ثم اسم العميل) صايرة بنود 'تحقق قبل التنفيذ' التالي.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف جدول العملاء، والفلترة الآمنة (رقم الهاتف ثم اسم العميل) صايرة بنود 'تحقق قبل التنفيذ' التالي."
     },
     {
       "parameters": {
         "jsCode": "const ai = $('استخراج نتيجة الـAI').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(ai.from);\nconst allRows = $input.all().map(i => i.json).filter(r => r && r.client);\nlet rows = allRows.filter(r => normalizePhone(r.phone) === fromNorm);\nif (ai.client) {\n  const byClient = rows.filter(r => String(r.client || '').trim() === String(ai.client).trim());\n  if (byClient.length) rows = byClient;\n}\nconst errors = [];\nconst platforms = ai.platforms;\nconst action = ai.action;\n\n// محادثة عامة/سؤال عام مو متعلق بإدارة حملات — الذكاء الاصطناعي يرد مباشرة\n// بدل ما نطلب منصة/اسم حملة/ميزانية مالها معنى بهذا السياق.\nconst isGeneralChat = (!action || action === 'none') && !!ai.general_reply;\n\nif (!isGeneralChat) {\n  if (!platforms || !platforms.length) errors.push('المنصة (فيسبوك أو تيك توك) غير محددة');\n  if (!action || action === 'none') errors.push('نوع العملية غير واضح');\n  if (action === 'create') {\n    if (!ai.campaign_name) errors.push('اسم الحملة');\n    if (!ai.budget) errors.push('الميزانية');\n  }\n  if (['activate','pause','delete','update_budget'].includes(action) && !ai.campaign_id) errors.push('رقم الحملة (campaign_id)');\n  if (action === 'update_budget' && !ai.budget) errors.push('الميزانية الجديدة');\n}\n\nlet metaAccountId = '';\nlet tiktokAdvertiserId = '';\n\nif (!isGeneralChat) {\n  if (rows.length > 1) {\n    const options = rows.map(r => `${r.client}: Meta=${r.meta_ad_account_id||'-'} / TikTok=${r.tiktok_advertiser_id||'-'}`).join('\\n');\n    errors.push('فيه أكثر من حساب مرتبط برقمك، حدد اسم العميل بالضبط:\\n' + options);\n  } else if (rows.length === 1) {\n    metaAccountId = rows[0].meta_ad_account_id || '';\n    tiktokAdvertiserId = rows[0].tiktok_advertiser_id || '';\n  } else {\n    metaAccountId = platforms.includes('meta') ? (ai.ad_account_id || '') : '';\n    tiktokAdvertiserId = platforms.includes('tiktok') ? (ai.ad_account_id || '') : '';\n    if (platforms.includes('meta') && !metaAccountId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب Meta الإعلاني');\n    if (platforms.includes('tiktok') && !tiktokAdvertiserId) errors.push('ما لقيت عميل مرتبط برقمك، حدد اسم العميل أو رقم حساب TikTok الإعلاني');\n  }\n}\n\nconst valid = errors.length === 0 && !isGeneralChat;\nlet validationMessage = '';\nif (isGeneralChat) {\n  validationMessage = ai.general_reply;\n} else if (!valid) {\n  validationMessage = '❌ ما كدرت أنفذ الطلب.\\n' + errors.join('\\n');\n}\n\nreturn [{ json: { ...ai, metaAccountId, tiktokAdvertiserId, valid, validationErrors: errors, validationMessage } }];"
       },
-      "id": "1a72cb9d-b42b-42b5-ae89-d849e1b6a7ef",
+      "id": "27ce1290-214b-415a-a1ea-25e5fa3c8e68",
       "name": "تحقق قبل التنفيذ",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -672,
-        1568
+        -2608,
+        26320
       ]
     },
     {
@@ -593,13 +552,13 @@
         },
         "options": {}
       },
-      "id": "6b930dd6-516f-4f51-a949-a616e2a21d32",
+      "id": "1a8485c3-0e61-4a7d-89f8-abd43641050e",
       "name": "هل التحقق ناجح؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -448,
-        1568
+        -2384,
+        26320
       ]
     },
     {
@@ -613,21 +572,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $json.validationMessage, session: 'default' })}}",
         "options": {}
       },
-      "id": "e90e893b-0013-4ee2-8c00-7dd6ee07578c",
+      "id": "b3f58395-88a6-4552-9544-a6d1226b8899",
       "name": "رد: خطأ في التحقق",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -224,
-        1856
+        -2160,
+        26608
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -653,13 +612,13 @@
         },
         "options": {}
       },
-      "id": "e09d8b9e-fe61-455f-94ed-383f4d741004",
+      "id": "cd15a658-6c13-4643-8eae-3491058f23a6",
       "name": "يشمل Meta؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -224,
-        704
+        -2160,
+        25456
       ]
     },
     {
@@ -686,13 +645,13 @@
         },
         "options": {}
       },
-      "id": "5ad8ac3e-4a78-460e-be6c-284dba2f58a1",
+      "id": "a448dd9e-e9c6-4389-8877-3f4d05ef5ea0",
       "name": "يشمل TikTok؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -224,
-        1664
+        -2160,
+        26416
       ]
     },
     {
@@ -847,13 +806,13 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "87104156-2199-4471-9031-cc683ef09db9",
+      "id": "db932268-8e5a-402d-a12d-173243d28a3a",
       "name": "نوع العملية - Meta",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        0,
-        640
+        -1936,
+        25392
       ],
       "notes": "تمت إضافة مخرج fallback يوصل لرسالة 'إجراء Meta غير معروف' — كانت هذي الرسالة موجودة بالأتمتة الأصلية لكن غير موصولة بأي مكان إطلاقاً، فأي إجراء غير متوقع كان يخلي الأتمتة تتوقف بصمت بدون أي رد للمستخدم."
     },
@@ -868,21 +827,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً.', session: 'default' })}}",
         "options": {}
       },
-      "id": "8b69420a-77f9-4994-92bf-ba8655138e3d",
+      "id": "106a4cba-13f0-4915-8387-b69ab9e9ca77",
       "name": "رد: إجراء Meta غير معروف",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -3808,
-        0
+        -5760,
+        25248
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -895,21 +854,21 @@
         "jsonBody": "={{JSON.stringify({ name: $json.campaign_name, objective: $json.objective || 'OUTCOME_ENGAGEMENT', status: 'PAUSED', special_ad_categories: [] })}}",
         "options": {}
       },
-      "id": "07d948b9-242c-4229-9bee-73e29f5081b4",
+      "id": "5cbf96d9-4548-4a26-a6d4-cf22c7baadea",
       "name": "Meta: إنشاء حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        224
+        -1712,
+        24976
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -922,21 +881,21 @@
         "jsonBody": "={\"status\":\"ACTIVE\"}",
         "options": {}
       },
-      "id": "1a7f1c39-b8c6-4021-945c-a0ad52d4f073",
+      "id": "b2fa75a4-d7fa-4ba5-aa2b-54f955608bc6",
       "name": "Meta: تفعيل حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        416
+        -1712,
+        25168
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -949,21 +908,21 @@
         "jsonBody": "={\"status\":\"PAUSED\"}",
         "options": {}
       },
-      "id": "81c1db1d-cf06-4770-b435-c84b5ea6c6f4",
+      "id": "0f0b7a87-f4ae-4867-b00e-0eaaa6769c71",
       "name": "Meta: إيقاف حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        608
+        -1712,
+        25360
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -976,21 +935,21 @@
         "jsonBody": "={{JSON.stringify({ daily_budget: Math.round(Number($json.budget) * 100) })}}",
         "options": {}
       },
-      "id": "77694cf2-1154-4d28-a9af-1adc1314b290",
+      "id": "26f1ca5e-de7f-4a99-82e9-33136cfac97c",
       "name": "Meta: تعديل الميزانية",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        800
+        -1712,
+        25552
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1003,22 +962,22 @@
         "jsonBody": "={\"status\":\"ARCHIVED\"}",
         "options": {}
       },
-      "id": "fbcfa7f0-91e6-4505-9a8f-70f150348a1e",
+      "id": "49e43b70-a660-44d1-ba5a-36ce0eff5739",
       "name": "Meta: حذف حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        992
+        -1712,
+        25744
       ],
+      "onError": "continueRegularOutput",
+      "notes": "حذف آمن عبر POST بحالة ARCHIVED (الطريقة الصحيحة والمدعومة فعلياً بواجهة Meta، بدل استخدام method مع URL). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد'.",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "notes": "حذف آمن عبر POST بحالة ARCHIVED (الطريقة الصحيحة والمدعومة فعلياً بواجهة Meta، بدل استخدام method مع URL). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد'.",
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1036,21 +995,21 @@
         },
         "options": {}
       },
-      "id": "17f3a788-18bf-494f-ac1a-44605ec9929e",
+      "id": "aa083c1c-3ea0-48a8-9c66-53f39e17937d",
       "name": "Meta: تقرير/قائمة الحملات",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        1184
+        -1712,
+        25936
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "facebookGraphApi": {
           "id": "csMEOVermkuAbciJ",
           "name": "Facebook Graph account"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1204,13 +1163,13 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "3a580093-9b21-47ae-b1b0-feb3682ecc5a",
+      "id": "ade7de8d-bc2c-4366-9809-72d88b3577fd",
       "name": "نوع العملية - TikTok",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        0,
-        1632
+        -1936,
+        26384
       ],
       "notes": "تمت إضافة قاعدتي update_budget و delete اللي كانتا ناقصتين بالكامل (لا نود ولا رد لهما)، بالإضافة لمخرج fallback إضافي يوصل لرسالة 'إجراء TikTok غير معروف' بدل ما تسكت الأتمتة تماماً بدون أي رد."
     },
@@ -1225,21 +1184,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '❌ نوع العملية \\'' + $json.action + '\\' غير مدعوم حالياً على TikTok.', session: 'default' })}}",
         "options": {}
       },
-      "id": "9ae0cdb8-3619-484a-a1f3-dd8bc6202773",
+      "id": "58ccad21-b95f-4387-a1cb-077a8200435a",
       "name": "رد: إجراء TikTok غير معروف",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -3808,
-        2176
+        -5744,
+        26928
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
@@ -1252,22 +1211,22 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_name: $json.campaign_name, objective_type: 'ENGAGEMENT', operation_status: 'DISABLE' })}}",
         "options": {}
       },
-      "id": "dd46173b-cc2d-4235-8a04-d98dc8ea98bf",
+      "id": "9dfe9660-99c2-47e1-98ea-c6c28758cf50",
       "name": "TikTok: إنشاء حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        1376
+        -1712,
+        26128
       ],
+      "onError": "continueRegularOutput",
+      "notes": "Credential: Header Auth باسم 'TikTok Marketing API' — Header: Access-Token. لا يوجد توكن مكتوب هنا.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "notes": "Credential: Header Auth باسم 'TikTok Marketing API' — Header: Access-Token. لا يوجد توكن مكتوب هنا.",
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1280,21 +1239,21 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'ENABLE' })}}",
         "options": {}
       },
-      "id": "3369050c-04fa-4bb8-88ab-0f8739cfcff3",
+      "id": "4ba2422c-f4c4-456c-9fb1-9a9f481178e1",
       "name": "TikTok: تفعيل حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        1568
+        -1712,
+        26320
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1307,21 +1266,21 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'DISABLE' })}}",
         "options": {}
       },
-      "id": "64f1db27-55a5-414b-b672-23701b381c0e",
+      "id": "6918a44f-a6ac-45b8-a38b-723907828f5e",
       "name": "TikTok: إيقاف حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        1760
+        -1712,
+        26512
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1334,38 +1293,37 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, report_type: 'BASIC', dimensions: ['campaign_id'], metrics: ['spend','impressions','clicks'], data_level: 'AUCTION_CAMPAIGN' })}}",
         "options": {}
       },
-      "id": "74ce1338-3697-4dbb-ba5e-d2955fbf5cc3",
+      "id": "2225682b-b7d4-41a9-8ab2-37355997e1d1",
       "name": "TikTok: تقرير/قائمة الحملات",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        1952
+        -1712,
+        26704
       ],
+      "onError": "continueRegularOutput",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
         "jsCode": "// استجابة API فيسبوك/تيك توك تستبدل بيانات العنصر بالكامل (يرجع بس id\n// مثلاً)، فنفقد باقي التفاصيل (اسم الحملة، الميزانية...). نجيبها من نود\n// \"تحقق قبل التنفيذ\" (قبل استدعاء المنصة) بدل الاعتماد على $json وحده.\nconst ctx = $('تحقق قبل التنفيذ').first().json;\nconst j = $json;\nconst body = j.body || j;\nlet error = '';\nif (body && body.error) { error = body.error.message || (typeof body.error === 'string' ? body.error : JSON.stringify(body.error)); }\nelse if (j.error) { error = (typeof j.error === 'string') ? j.error : (j.error.message || JSON.stringify(j.error)); }\nelse if (body && body.message && body.success === false) { error = body.message; }\nconst success = !error;\nconst result = {\n  id: body.id || ctx.campaign_id || '',\n  status: body.status || ctx.status || 'PAUSED',\n  platform: (Array.isArray(ctx.platforms) && ctx.platforms.length) ? ctx.platforms.join('+') : (ctx.platform || ''),\n  name: ctx.campaign_name || '',\n  budget: ctx.budget || '',\n  from: ctx.from || '',\n  campaign_id: body.id || ctx.campaign_id || '',\n  client: ctx.client || '',\n  created_at: new Date().toISOString(),\n  action: ctx.action || '',\n  success,\n  error\n};\nreturn [{ json: result }];"
       },
-      "id": "19d8a995-a0ce-4a5e-8359-a3e7876f535c",
+      "id": "a759b875-57e2-4b9b-895b-c400a84cb38f",
       "name": "تجهيز نتيجة الحملة النهائية",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
-        1184
+        -1488,
+        25936
       ]
     },
     {
       "parameters": {
-        "operation": "insert",
         "dataTableId": {
           "__rl": true,
           "mode": "id",
@@ -1482,28 +1440,28 @@
         },
         "options": {}
       },
-      "id": "f660c8b6-5fd9-4527-b312-5b84673bcbc6",
+      "id": "53d46986-f71f-46c6-83f6-9c20602e8bbe",
       "name": "حفظ النتيجة",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        672,
-        1184
+        -1264,
+        25936
       ],
-      "notes": "Data Table Insert — رقم الصف (id) والتاريخ (createdAt) يتولدون تلقائياً، عمود campaign_id فيه رقم الحملة الحقيقي.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table Insert — رقم الصف (id) والتاريخ (createdAt) يتولدون تلقائياً، عمود campaign_id فيه رقم الحملة الحقيقي."
     },
     {
       "parameters": {
         "jsCode": "const j = $json;\nlet msg;\nif (j.success) {\n  msg = `✅ تم ${j.action === 'create' ? 'إنشاء' : 'تنفيذ'} حملة ${j.name || j.campaign_id}\\nالمنصة: ${j.platform}\\nCampaign ID: ${j.campaign_id}\\nالميزانية: $${j.budget || '-'}\\nالحالة: ${j.status}`;\n} else {\n  msg = `❌ ما تم تنفيذ الطلب.\\nالسبب: ${j.error || 'خطأ غير معروف من المنصة'}`;\n}\nreturn [{ json: { ...j, finalMessage: msg } }];"
       },
-      "id": "4116aa29-b5ab-4ed3-8e86-6bd1696fec5e",
+      "id": "7c544514-dd45-40de-83a6-21b3b5422e4d",
       "name": "صياغة رد واتساب النهائي",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        896,
-        1184
+        -1040,
+        25936
       ]
     },
     {
@@ -1517,36 +1475,36 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: $json.finalMessage, session: 'default' })}}",
         "options": {}
       },
-      "id": "f1b0d239-fab6-4da4-ad70-63977bf2191e",
+      "id": "df0528f6-c7d9-4c46-9df3-0f42ab358322",
       "name": "الرد النهائي على واتساب",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1120,
-        1184
+        -816,
+        25936
       ],
+      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "حُوّل من WhatsApp Cloud API (ميتا) إلى استدعاء مباشر لواها عبر /api/sendText. يحتاج Credential باسم 'WAHA API' من نوع Header Auth، Header Name: X-Api-Key."
+      }
     },
     {
       "parameters": {
+        "httpMethod": "POST",
         "path": "wa-webhook",
         "responseMode": "responseNode",
-        "options": {},
-        "httpMethod": "POST"
+        "options": {}
       },
-      "id": "21dafd73-635c-4dd9-a052-158a1f56823a",
+      "id": "3f03f8dc-1fa6-482b-b853-4ba53cb1dd00",
       "name": "استقبال واتساب (Webhook)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -3808,
-        1280
+        -5744,
+        26032
       ],
       "webhookId": "e1e64100-fc84-4854-96f0-7ba851f282fa",
       "notes": "إصلاح جذري: كان بدون httpMethod فيرجع افتراضياً لـ GET، فيمنع وصول أي رسالة حقيقية (POST) من واتساب — لا من ميتا ولا من واها — رغم نجاح اختبار GET اليدوي بالمتصفح. الآن httpMethod=POST صراحة، وهو المطلوب لكل من واها وميتا لتسليم الرسائل الفعلية."
@@ -1575,13 +1533,13 @@
         },
         "options": {}
       },
-      "id": "e644aa1a-b11d-4331-9656-ab7b5d3ce1c6",
+      "id": "e9e5a60f-7ab6-4c01-abfb-e58b0a4f4075",
       "name": "هل هذا طلب تحقق من ميتا؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -3584,
-        1280
+        -5520,
+        26032
       ]
     },
     {
@@ -1607,13 +1565,13 @@
         },
         "options": {}
       },
-      "id": "0b8352a9-6b3a-424f-b2f2-377956622dc0",
+      "id": "3187ad51-03ac-4646-8ff5-8bc5b8952007",
       "name": "التحقق من تطابق الرمز",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -3360,
-        1184
+        -5296,
+        25936
       ]
     },
     {
@@ -1622,13 +1580,13 @@
         "responseBody": "={{$json.query['hub.challenge']}}",
         "options": {}
       },
-      "id": "53d6f471-bd55-4b48-bdd8-18dd6061bf9f",
+      "id": "33fd912d-4cda-489b-b5fc-3854026306ce",
       "name": "رد: Challenge صحيح",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        -3136,
-        1088
+        -5072,
+        25840
       ]
     },
     {
@@ -1637,13 +1595,13 @@
         "responseBody": "Verification token mismatch",
         "options": {}
       },
-      "id": "cc6ff51d-7057-43f8-84a8-92385afd2034",
+      "id": "d7855fed-9a83-4dee-a2c5-fa1bcdfc871e",
       "name": "رد: رمز غير مطابق",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        -3136,
-        1280
+        -5072,
+        26128
       ]
     },
     {
@@ -1652,13 +1610,13 @@
         "responseBody": "={\"status\":\"received\"}",
         "options": {}
       },
-      "id": "b5ae02bc-2efa-43ba-a734-934205206995",
+      "id": "e2b46c5d-4ecc-45ee-9430-daf52d4a23dc",
       "name": "رد فوري: تم الاستلام",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
-        -3360,
-        1472
+        -5296,
+        26224
       ]
     },
     {
@@ -1671,28 +1629,28 @@
         },
         "returnAll": true
       },
-      "id": "2b82913e-23c3-4db1-871a-7eb4d95dfdf9",
+      "id": "b186c9cc-8561-4cac-a2d3-bb5ca13813f6",
       "name": "جلب قائمة المصرح لهم",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -2860,
-        1440
+        -4800,
+        26128
       ],
-      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف شيت المستخدمين، والتحقق من الرقم صاير بنود 'تحقق الرقم من القائمة' التالي.",
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "notes": "Data Table بدل Google Sheets — يجيب كل صفوف شيت المستخدمين، والتحقق من الرقم صاير بنود 'تحقق الرقم من القائمة' التالي."
     },
     {
       "parameters": {
         "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nconst active = match ? !(String(match.active || '').trim().toLowerCase() === 'false') : false;\nlet authorized = !!match && active;\n\n// بعض جهات الاتصال يظهر رقمها لواتساب/واها كمعرّف مخفي (@lid) بدل الرقم\n// الحقيقي (خاصية خصوصية جديدة من واتساب نفسه) فما نكدر نطابقها مع الجدول\n// إطلاقاً. الحل: أي رسالة تبدأ برمز سري متفق عليه تعتبر مصرح لها (نتقبل\n// وجود أو عدم وجود مسافة بين الكلمة والرقم، مثل \"كود1234\" أو \"كود 1234\").\n// نحذف الرمز من النص دائماً لو موجود، سواء انصرح عن طريق الرمز أو عن طريق\n// تطابق الرقم مباشرة (حتى ما يوصل \"كود 1234\" للذكاء الاصطناعي ويلخبطه).\nlet text = incoming.text || '';\nconst codeMatch = text.trim().match(/^كود\\s*1234\\s*/);\nif (codeMatch) {\n  if (!authorized) authorized = true;\n  text = text.trim().slice(codeMatch[0].length).trim();\n}\n\nif (!authorized) {\n  return [];\n}\n\nreturn [{ json: { ...incoming, text, authorized } }];"
       },
-      "id": "f82a8a2c-afcf-4fc5-a54a-c0923e8bb914",
+      "id": "5ffc9bdc-bee1-466b-b871-e6372fcf3a53",
       "name": "تحقق الرقم من القائمة",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2780,
-        1440
+        -4608,
+        26128
       ],
       "notes": "يطابق رقم الهاتف بالجدول كالمعتاد. إضافياً: أي رسالة تبدأ بـ \"كود1234\" أو \"كود 1234\" (بمسافة أو بدونها) تعتبر مصرح لها حتى لو رقم المرسل يظهر كمعرّف lid مخفي بدل رقم حقيقي."
     },
@@ -1707,22 +1665,22 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_id: $json.campaign_id, budget: Number($json.budget) })}}",
         "options": {}
       },
-      "id": "147b6485-f512-4327-a99b-87876def7146",
+      "id": "2b896874-d681-4adf-b2b5-83eb41a36b05",
       "name": "TikTok: تعديل الميزانية",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        2144
+        -1712,
+        26896
       ],
+      "onError": "continueRegularOutput",
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'عدّل ميزانية حملة TikTok' ما كان يسوي أي شي). يستخدم endpoint campaign/update لتعديل الميزانية على مستوى الحملة (Campaign Budget Optimization). تحقق من توثيق TikTok Business API الحالي إذا حسابك يدير الميزانية على مستوى Ad Group بدل الحملة.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'عدّل ميزانية حملة TikTok' ما كان يسوي أي شي). يستخدم endpoint campaign/update لتعديل الميزانية على مستوى الحملة (Campaign Budget Optimization). تحقق من توثيق TikTok Business API الحالي إذا حسابك يدير الميزانية على مستوى Ad Group بدل الحملة.",
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1735,22 +1693,22 @@
         "jsonBody": "={{JSON.stringify({ advertiser_id: $json.tiktokAdvertiserId, campaign_ids: [$json.campaign_id], operation_status: 'DELETE' })}}",
         "options": {}
       },
-      "id": "181d2ac1-6fd5-440c-bf96-f537d882eb2a",
+      "id": "bbf46040-61a4-4229-8d49-a41076e6e462",
       "name": "TikTok: حذف حملة",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        224,
-        2336
+        -1712,
+        27088
       ],
+      "onError": "continueRegularOutput",
+      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "b3Pv3fKspLPeelyn",
           "name": "Header Auth account 2"
         }
-      },
-      "notes": "نود كان ناقص بالكامل بالأتمتة الأصلية (طلب 'احذف حملة TikTok' ما كان يسوي أي شي ولا حتى يرد). لا يوجد حذف نهائي فعلي بواجهة TikTok، فنستخدم operation_status=DELETE عبر نفس endpoint تغيير الحالة (يشابه أسلوب ARCHIVED بميتا). يوصل هنا بس بعد تأكيد صريح بكلمة 'تأكيد' مثل باقي العمليات الخطرة.",
-      "onError": "continueRegularOutput"
+      }
     },
     {
       "parameters": {
@@ -1776,13 +1734,13 @@
         },
         "options": {}
       },
-      "id": "c119c7f0-687c-4cde-98a8-fdfc2b797cb2",
+      "id": "bbfe0ae2-f486-408c-af8d-d424263d092e",
       "name": "فيه وسائط (صورة/فيديو)؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -3104,
-        1360
+        -5056,
+        26384
       ],
       "notes": "يتحقق هل الرسالة تحتوي صورة أو فيديو (hasMedia). إذا نعم، يرد برسالة قيد التطوير بدل ما يكمل لمسار فهم النص العادي."
     },
@@ -1797,21 +1755,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: 'استلمت الملف ✅ — ميزة تحليل وتصميم الفيديوهات بالذكاء الاصطناعي قيد الإضافة قريباً، وبنعلمك أول ما تصير جاهزة.', session: 'default' })}}",
         "options": {}
       },
-      "id": "35179d13-fbb7-4295-b10e-9729d7547944",
+      "id": "9e085885-7b63-4f9b-b0e4-2610db1c81f6",
       "name": "رد: استلام وسائط (قيد التطوير)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2896,
-        1248
+        -4832,
+        26000
       ],
+      "notes": "رد مؤقت لأي رسالة فيها صورة/فيديو لحين إضافة ميزة تحليل/توليد الفيديو الفعلية.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "رد مؤقت لأي رسالة فيها صورة/فيديو لحين إضافة ميزة تحليل/توليد الفيديو الفعلية."
+      }
     },
     {
       "parameters": {
@@ -1836,13 +1794,13 @@
         },
         "options": {}
       },
-      "id": "9ef35598-1f08-406f-8814-627e50b5f726",
+      "id": "f0676a2e-fc44-4d8a-aae8-7dc24585db92",
       "name": "نوع الوسائط: فيديو؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -3104,
-        1200
+        -5040,
+        25952
       ],
       "notes": "يفصل الفيديوهات (تروح لمسار التحليل الفعلي) عن الصور وباقي الأنواع (تبقى برد قيد التطوير)."
     },
@@ -1850,13 +1808,13 @@
       "parameters": {
         "jsCode": "const res = $input.first().json;\nlet text = res?.content ?? res?.text ?? res?.response ?? res?.output;\nif (Array.isArray(text)) text = text.map(t => (t && t.text) || t).join('\\n');\nif (text && typeof text === 'object' && text.text) text = text.text;\nconst analysis = (typeof text === 'string' && text.trim())\n  ? text.trim()\n  : 'ما كدرت أحلل الفيديو هذي المرة (خطأ تقني). جرب ترسله مرة ثانية بعد شوي.';\nreturn [{ json: { analysis } }];"
       },
-      "id": "27c26cca-481a-4375-9cbe-882641e887dd",
+      "id": "d4e2ed5e-10a2-4d0c-9f3d-3f8cf833cc90",
       "name": "استخراج نتيجة التحليل",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2480,
-        1080
+        -4416,
+        25840
       ]
     },
     {
@@ -1870,21 +1828,21 @@
         "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').first().json.from, text: '🎬 تحليل الفيديو:\\n\\n' + $json.analysis, session: 'default' })}}",
         "options": {}
       },
-      "id": "05d61656-be9a-4183-a8b4-0e21432dd2f3",
+      "id": "323c1969-048c-4b49-8624-f23d8cbae601",
       "name": "رد: نتيجة تحليل الفيديو",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -2272,
-        1080
+        -4208,
+        25840
       ],
+      "notes": "يرسل نتيجة تحليل الفيديو لصاحب الرسالة بواتساب.",
       "credentials": {
         "httpHeaderAuth": {
           "id": "dkXyS0fe3LEk0alg",
           "name": "Header Auth account 5"
         }
-      },
-      "notes": "يرسل نتيجة تحليل الفيديو لصاحب الرسالة بواتساب."
+      }
     },
     {
       "parameters": {
@@ -1896,13 +1854,13 @@
         },
         "returnAll": true
       },
-      "id": "d4c972aa-1c56-466b-92ce-d080873d61b1",
+      "id": "9ddb99b4-3c42-4782-a813-dcc9b40b8a42",
       "name": "جلب الحالة المعلقة (وسائط)",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -2904,
-        1760
+        -4848,
+        26512
       ],
       "onError": "continueRegularOutput"
     },
@@ -1910,13 +1868,13 @@
       "parameters": {
         "jsCode": "const incoming = $('قراءة نص الرسالة').first().json;\nconst normalizePhone = (p) => String(p || '').replace(/\\D/g, '').replace(/^00/, '').slice(-10);\nconst fromNorm = normalizePhone(incoming.from);\nconst rows = $input.all().map(i => i.json).filter(r => r && r.phone);\nconst match = rows.find(r => normalizePhone(r.phone) === fromNorm);\nlet draft = {};\nif (match && match.draft_json) {\n  try { draft = JSON.parse(match.draft_json) || {}; } catch (e) { draft = {}; }\n}\ndraft.media_url = incoming.mediaUrl || '';\ndraft.media_type = incoming.mediaType || '';\ndraft.has_media = true;\nreturn [{ json: { from: incoming.from, draft_json: JSON.stringify(draft) } }];"
       },
-      "id": "a0a29154-9ac1-4ab3-bef2-6d94ca7196cb",
+      "id": "69e90884-de03-4ff6-8fe6-6fe9b5dd0384",
       "name": "دمج الوسائط بالمسودة",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2684,
-        1760
+        -4624,
+        26512
       ]
     },
     {
@@ -1969,13 +1927,13 @@
         },
         "options": {}
       },
-      "id": "e576ae99-c057-41be-bf0b-498feecf06dc",
+      "id": "cd4baa3b-8275-405f-9ec4-1a1500709165",
       "name": "حفظ الوسائط بالمسودة",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -2464,
-        1760
+        -4400,
+        26512
       ],
       "onError": "continueRegularOutput"
     },
@@ -2003,13 +1961,13 @@
         },
         "options": {}
       },
-      "id": "defea7e1-660d-4430-8d95-5632bc632505",
+      "id": "7a5d7d35-2cd3-45f1-9936-23367729f357",
       "name": "فيه نص مع الوسائط؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -2244,
-        1760
+        -4176,
+        26512
       ]
     },
     {
@@ -2022,32 +1980,18 @@
         },
         "returnAll": true
       },
-      "id": "71b182b6-34ec-47ac-bb1f-4e911283e926",
+      "id": "992393dc-0d9e-4895-a4f0-e007c23eb433",
       "name": "جلب سجل الحملات (للذاكرة)",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        -2352,
-        1420
+        -4288,
+        26176
       ],
       "onError": "continueRegularOutput"
     },
     {
-      "parameters": {
-        "resource": "video",
-        "operation": "analyze",
-        "modelId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "models/gemini-3.1-pro-preview",
-          "cachedResultName": "models/gemini-3.1-pro-preview"
-        },
-        "text": "حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.",
-        "inputType": "url",
-        "videoUrls": "={{ $('قراءة نص الرسالة').first().json.mediaUrl }}",
-        "simplify": true
-      },
-      "id": "de951d39-d942-4eec-b327-3aacc347b90d",
+      "id": "5f0043e6-fbf0-4c41-b141-78b9f76f389b",
       "name": "تحليل الفيديو (Gemini الرسمي)",
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1.2,
@@ -2055,13 +1999,103 @@
         -2688,
         1080
       ],
+      "parameters": {
+        "inputType": "url",
+        "modelId": {
+          "__rl": true,
+          "cachedResultName": "models/gemini-3.1-pro-preview",
+          "mode": "list",
+          "value": "models/gemini-3.1-pro-preview"
+        },
+        "operation": "analyze",
+        "resource": "video",
+        "simplify": true,
+        "text": "حلل هذا الفيديو كإعلان تسويقي. قيّم: وضوح الصوت والكلام، جودة الصورة، مدى مناسبته كإعلان (هل يجذب الانتباه بأول ثوانٍ)، ونقاط تحتاج تحسين. رد بالعربية، نقاط مختصرة وعملية، بدون مقدمات طويلة.",
+        "videoUrls": "={{ $('قراءة نص الرسالة').first().json.mediaUrl }}"
+      },
+      "onError": "continueRegularOutput",
       "credentials": {
         "googlePalmApi": {
           "id": "hnxWgFPUTMlnvMhH",
           "name": "Google Gemini(PaLM) Api account"
         }
+      }
+    },
+    {
+      "id": "02e7be11-eab3-407e-b626-f15de202b435",
+      "name": "AI Agent - فهم الأمر",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2016,
+        1280
+      ],
+      "parameters": {
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "أنت مساعد ذكاء اصطناعي حقيقي تتحدث مع عميل عبر واتساب لإدارة حملاته الإعلانية على فيسبوك (ميتا) وتيك توك. تتذكر كل تفاصيل هذي المحادثة (رسائلها السابقة) وتستخدمها دائماً — لا تنسى أي معلومة ذكرها المستخدم قبل قليل (اسم الحملة، الميزانية، المنصة، الاستهداف...) حتى لو جات على عدة رسائل منفصلة، وادمجها مع أي معلومة جديدة بالرسالة الحالية.\n\nمهمتك: تفهم طلب المستخدم وتحوله لكائن منظم بالحقول: action (create/activate/pause/update_budget/report/list/list_paused/delete/none)، platform، platforms (array تحتوي meta و/أو tiktok)، client، ad_account_id، campaign_name، budget، currency، objective، audience، location، status، campaign_id، date_range، general_reply، missing_info، needs_confirmation، confirmed، reply_message_if_incomplete.\n\nقواعد مهمة:\n- لا تحط action='none' إلا إذا كانت الرسالة أصلاً مو متعلقة بإدارة حملات إعلانية (سؤال عام، سلام، دردشة). لو فيها فعل واضح (سوّي/أنشئ/فعّل/شغّل/وقف/أوقف/غيّر/عدّل/احذف/شكد/شوفلي/اعرضلي)، استنتج action مباشرة.\n- لو المستخدم قال فيسبوك وتيك توك سوا، حط الاثنين بمصفوفة platforms.\n- create يحتاج: campaign_name وbudget وplatforms وصورة أو فيديو الإعلان. activate/pause/delete/update_budget يحتاج campaign_id. update_budget يحتاج budget أيضاً. لو ناقص شي، أرجع missing_info بأسماء الحقول الناقصة وreply_message_if_incomplete بسؤال قصير وواضح باللهجة العراقية.\n- previousDraftJson.has_media أو previousDraftJson.media_url (إذا موجودة بالسياق) تعني المستخدم already أرسل صورة أو فيديو بمحادثة سابقة — اعتبر شرط الوسائط متحقق ولا تطلبه مرة ثانية.\n- سجل الحملات السابقة (campaignHistory) فيه كل حملات هذا الرقم بأي وقت. لو المستخدم سأل عن حملة قديمة بالاسم، جاوبه من هالبيانات مباشرة بحقل general_reply (واعتبر action='none'). لو طلب عملية على حملة قديمة بالاسم بس، استخرج campaign_id منها تلقائياً وحطه بحقل campaign_id.\n- لو الرسالة مو محاولة إدارة حملة إطلاقاً، خل action='none' وplatforms=[] وجاوب طبيعي ومختصر بحقل general_reply بنفس لهجة المستخدم، واترك باقي الحقول فاضية.\n- العمليات الخطرة (delete وactivate) دائماً needs_confirmation=true. لا تحط confirmed=true إلا لو الرسالة الحالية تحتوي كلمة 'تأكيد' بالضبط.\n\nخلي أسلوبك طبيعي ومباشر وباللهجة العراقية، مثل شخص حقيقي يفهم زبونه، مو رد آلي جامد."
+        },
+        "promptType": "define",
+        "text": "={{ 'سجل الحملات السابقة لهذا الرقم (JSON): ' + JSON.stringify($json.campaignHistory || []) + '\n\nمعلومات وسائط سابقة (JSON، إذا موجودة من رسالة منفصلة): ' + JSON.stringify($json.previousDraftJson || null) + '\n\nرسالة المستخدم الحالية: ' + $json.text }}"
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "id": "4768a6e2-78d8-4f09-a8fa-daff417db242",
+      "name": "نموذج Claude",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
+      "position": [
+        -2060,
+        1460
+      ],
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "cachedResultName": "Claude Sonnet 5",
+          "mode": "list",
+          "value": "claude-sonnet-5"
+        },
+        "options": {
+          "maxTokensToSample": 2000,
+          "thinkingMode": "disabled"
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "g9xVoJn4zzarniXM",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "id": "ca6ce52e-641b-4526-9097-ff82eec2ed96",
+      "name": "ذاكرة المحادثة",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -1975,
+        1460
+      ],
+      "parameters": {
+        "contextWindowLength": 12,
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('قراءة نص الرسالة').first().json.from }}"
+      }
+    },
+    {
+      "id": "2e208d99-b2a6-4427-be30-fddaa34d978f",
+      "name": "مخطط إخراج JSON",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1890,
+        1460
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"action\":\"create\",\"platform\":\"meta\",\"platforms\":[\"meta\"],\"client\":\"\",\"ad_account_id\":\"\",\"campaign_name\":\"\",\"budget\":\"\",\"currency\":\"USD\",\"objective\":\"\",\"audience\":\"\",\"location\":\"\",\"status\":\"\",\"campaign_id\":\"\",\"date_range\":\"\",\"general_reply\":\"\",\"missing_info\":[],\"needs_confirmation\":false,\"confirmed\":false,\"reply_message_if_incomplete\":\"\"}",
+        "schemaType": "fromJson"
+      }
     }
   ],
   "pinData": {},
@@ -2118,28 +2152,6 @@
         [
           {
             "node": "جلب سجل الحملات (للذاكرة)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "تجهيز سياق الـAI": {
-      "main": [
-        [
-          {
-            "node": "AI Agent - فهم الأمر",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Agent - فهم الأمر": {
-      "main": [
-        [
-          {
-            "node": "استخراج نتيجة الـAI",
             "type": "main",
             "index": 0
           }
@@ -2763,12 +2775,68 @@
           }
         ]
       ]
+    },
+    "تجهيز سياق الـAI": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - فهم الأمر",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - فهم الأمر": {
+      "main": [
+        [
+          {
+            "node": "استخراج نتيجة الـAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "نموذج Claude": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - فهم الأمر",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ذاكرة المحادثة": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent - فهم الأمر",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "مخطط إخراج JSON": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent - فهم الأمر",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": true
   },
   "versionId": "82142078-37b5-4165-bb79-e670abbac39d",
   "meta": {
