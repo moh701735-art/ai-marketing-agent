@@ -155,7 +155,8 @@
         26032
       ],
       "onError": "continueRegularOutput",
-      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي."
+      "notes": "Data Table بدل Google Sheets — يجيب كل الصفوف، والفلترة على رقم الهاتف صايرة بنود 'تجهيز سياق الـAI' التالي.",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -1862,7 +1863,8 @@
         -4848,
         26512
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -1988,7 +1990,8 @@
         -4288,
         26176
       ],
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
     },
     {
       "id": "5f0043e6-fbf0-4c41-b141-78b9f76f389b",
