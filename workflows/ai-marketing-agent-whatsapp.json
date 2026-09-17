@@ -325,7 +325,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $json.reply_message_if_incomplete, session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: $('تحقق قبل التنفيذ').item.json.reply_message_if_incomplete, session: 'default' })}}",
         "options": {}
       },
       "id": "fb03ae37-9d30-46bd-9906-521ef438b559",
@@ -455,7 +455,7 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: ('⚠️ تريد تنفيذ: ' + $json.action + '\\n' + 'الحملة: ' + ($json.campaign_name || $json.campaign_id) + '\\n' + 'المنصة: ' + (($json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
+        "jsonBody": "={{JSON.stringify({ chatId: $('قراءة نص الرسالة').item.json.from, text: ('⚠️ تريد تنفيذ: ' + $('تحقق قبل التنفيذ').item.json.action + '\\n' + 'الحملة: ' + ($('تحقق قبل التنفيذ').item.json.campaign_name || $('تحقق قبل التنفيذ').item.json.campaign_id) + '\\n' + 'المنصة: ' + (($('تحقق قبل التنفيذ').item.json.platforms||[]).join('+')) + '\\n' + 'الميزانية: ' + ($('تحقق قبل التنفيذ').item.json.budget || '-') + '\\n\\n' + 'رد بكلمة (تأكيد) بالضبط للمتابعة.'), session: 'default' })}}",
         "options": {}
       },
       "id": "303a1d42-4a66-428c-ad9e-b202bfbf677f",
