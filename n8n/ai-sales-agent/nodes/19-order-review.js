@@ -28,6 +28,8 @@ if (s.reply_mode === 'review') {
   L.push('');
   L.push('وإذا تريد تغيّر أي شي بس كلي 🌹');
   text = L.join('\n');
+} else if (s.reply_mode === 'template') {
+  text = s.template_reply;
 } else if (s.reply_mode === 'handoff') {
   if (s.handoff_reason === 'order_locked_cancel' || s.handoff_reason === 'order_locked_change') text = 'حبيبي طلبك صار قيد التجهيز/الشحن 🌹 حولتك لموظف من فريقنا حتى يساعدك بالتعديل أو الإلغاء، راح يرد عليك بأقرب وقت.';
   else text = 'تمام حبيبي 🌹 حولتك لموظف من فريقنا، راح يرد عليك بأقرب وقت.';

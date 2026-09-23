@@ -45,7 +45,7 @@ lines.push('default_product_id: ' + safe(store.default_product_id));
 const draftForAi = Object.keys(draft).filter(k => !['_meta', 'review_hash', 'price_rule'].includes(k) && draft[k] !== null && draft[k] !== '' && draft[k] !== undefined).map(k => k + '=' + safe(draft[k]));
 lines.push('current_order_draft: ' + (draftForAi.length ? draftForAi.join(' | ') : 'none'));
 lines.push('recent_conversation (oldest first):');
-recent.slice(-12).forEach(m => lines.push('- ' + (m.r === 'agent' ? 'الوكيل' : 'الزبون') + ': ' + safe(m.t)));
+recent.slice(-8).forEach(m => lines.push('- ' + (m.r === 'agent' ? 'الوكيل' : 'الزبون') + ': ' + safe(m.t)));
 lines.push('catalog:');
 products.slice(0, 300).forEach(p => lines.push('- product_id=' + p.product_id + ' | name=' + safe(p.product_name) + ' | aliases=' + safe(p.aliases) + ' | colors=' + safe(p.colors) + ' | sizes=' + safe(p.sizes)));
 lines.push('provinces: ' + shipping.map(s => s.province).join('، '));

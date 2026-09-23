@@ -81,7 +81,7 @@ lines.push('default_product_id: ' + safe(store.default_product_id));
 const draftForAi = Object.keys(draft).filter(k => !['_meta', 'review_hash', 'price_rule'].includes(k) && draft[k] !== null && draft[k] !== '' && draft[k] !== undefined).map(k => k + '=' + safe(draft[k]));
 lines.push('current_order_draft: ' + (draftForAi.length ? draftForAi.join(' | ') : 'none'));
 lines.push('recent_conversation (oldest first):');
-recent.slice(-12).forEach(m => lines.push('- ' + (m.r === 'agent' ? 'الوكيل' : 'الزبون') + ': ' + safe(m.t)));
+recent.slice(-8).forEach(m => lines.push('- ' + (m.r === 'agent' ? 'الوكيل' : 'الزبون') + ': ' + safe(m.t)));
 lines.push('catalog:');
 products.slice(0, 300).forEach(p => lines.push('- product_id=' + p.product_id + ' | name=' + safe(p.product_name) + ' | aliases=' + safe(p.aliases) + ' | colors=' + safe(p.colors) + ' | sizes=' + safe(p.sizes)));
 lines.push('provinces: ' + shipping.map(s => s.province).join('، '));
@@ -488,6 +488,21 @@ if (facts.ask_field) facts.ask_question = ASK[facts.ask_field];
 if (ordering && has(draft.product_id)) facts.order_so_far = ['product=' + (draft.product_name || ''), has(draft.color) ? 'color=' + draft.color : '', has(draft.size) ? 'size=' + draft.size : '', has(draft.quantity) ? 'quantity=' + draft.quantity : '', has(draft.province) ? 'province=' + draft.province : ''].filter(Boolean).join(' | ');
 facts.next_state = nextState;
 
+// ---- cost saver: simple data-entry turns during ordering get a fixed template (no second AI call)
+const SIMPLE = ['OTHER', 'BUY_INTENT', 'CHANGE_ORDER', 'ORDER_CONFIRMATION'];
+let templateReply = '';
+if (replyMode === 'ai' && action === 'reply' && ordering && facts.ask_field && !ext.greeting && !ext.wants_images && !ext.wants_video
+    && Array.from(I).every(x => SIMPLE.includes(x)) && !facts.out_of_stock && !facts.insufficient_stock && !facts.price_missing) {
+  const t = [];
+  if (facts.invalid_phone) t.push('حبيبي الرقم مو صحيح، دزلي رقم عراقي يبدي بـ 07 ويتكون من 11 رقم.');
+  if (facts.province_unmatched) t.push('ما عرفت المحافظة حبيبي، اكتبلي اسمها بوضوح.');
+  if (facts.invalid_color) t.push('اللون «' + facts.invalid_color.said + '» مو متوفر حاليًا، المتوفر: ' + facts.invalid_color.options + '.');
+  if (facts.invalid_size) t.push('القياس «' + facts.invalid_size.said + '» مو متوفر حاليًا، المتوفر: ' + facts.invalid_size.options + '.');
+  if (!t.length) { t.push('تمام حبيبي 🌹'); t.push(facts.ask_question); }
+  templateReply = t.join('\n');
+  replyMode = 'template';
+}
+
 const safe = (v) => String(v === null || v === undefined ? '' : (typeof v === 'object' ? Object.keys(v).map(k => k + '=' + v[k]).join(', ') : v)).replace(/[{}]/g, ' ').replace(/\s+/g, ' ').trim();
 const factsText = Object.keys(facts).filter(k => { const v = facts[k]; return !(v === null || v === undefined || v === '' || v === false || (Array.isArray(v) && !v.length)); })
   .map(k => '- ' + k + ': ' + safe(Array.isArray(facts[k]) ? facts[k].join(' | ') : facts[k])).join('\n');
@@ -532,7 +547,7 @@ const customerUpdate = {
 return [{ json: {
   action, reply_mode: replyMode, next_state: nextState, prev_state: prevState, is_edit: isEdit, ordering,
   handoff_reason: handoffReason, handoff_until: handoffUntil,
-  draft, meta, product, facts, facts_text: factsText, fallback_text: fb.join('\n'),
+  draft, meta, product, facts, facts_text: factsText, fallback_text: fb.join('\n'), template_reply: templateReply,
   media_to_send: media, customer_update: customerUpdate,
   stock_update: stockUpdate, stock_restore: stockRestore,
   currency_word: curWord
@@ -569,6 +584,8 @@ if (s.reply_mode === 'review') {
   L.push('');
   L.push('وإذا تريد تغيّر أي شي بس كلي 🌹');
   text = L.join('\n');
+} else if (s.reply_mode === 'template') {
+  text = s.template_reply;
 } else if (s.reply_mode === 'handoff') {
   if (s.handoff_reason === 'order_locked_cancel' || s.handoff_reason === 'order_locked_change') text = 'حبيبي طلبك صار قيد التجهيز/الشحن 🌹 حولتك لموظف من فريقنا حتى يساعدك بالتعديل أو الإلغاء، راح يرد عليك بأقرب وقت.';
   else text = 'تمام حبيبي 🌹 حولتك لموظف من فريقنا، راح يرد عليك بأقرب وقت.';
