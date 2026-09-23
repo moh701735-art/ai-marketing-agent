@@ -15,11 +15,20 @@ const parseOffers = (s) => {
   String(s).split(/[,،;\n]/).forEach(part => { const m = part.match(/(\d+)\s*[=:]\s*(\d+)/); if (m) out[parseInt(m[1], 10)] = Number(m[2]); });
   return out;
 };
+// Optional per-color price/offer override, e.g. {"اسود":{"price":15000,"offers":{"2":25000}}}. Colors not listed use the product's own price/quantity_offers.
+const parseColorPricing = (s) => {
+  if (!s) return {};
+  let obj = null;
+  if (typeof s === 'object') obj = s; else { try { obj = JSON.parse(s); } catch (e) { obj = null; } }
+  return (obj && typeof obj === 'object') ? obj : {};
+};
 // Pricing rule: exact quantity offer if defined, otherwise the biggest offer tier <= quantity + base price for the remaining pieces.
-const calc = (p, q) => {
+const calc = (p, q, color) => {
   if (!p || p.price === null || p.price === undefined || !(q >= 1)) return null;
-  const offers = parseOffers(p.quantity_offers);
-  const base = offers[1] !== undefined ? offers[1] : Number(p.price);
+  const override = color ? parseColorPricing(p.color_pricing)[color] : null;
+  const offers = parseOffers(override ? override.offers : p.quantity_offers);
+  const basePrice = override && override.price !== undefined ? Number(override.price) : Number(p.price);
+  const base = offers[1] !== undefined ? offers[1] : basePrice;
   if (offers[q] !== undefined) return { quantity: q, total: offers[q], unit_price: base, offer_applied: q > 1, rule: 'exact_offer_' + q };
   const tiers = Object.keys(offers).map(Number).filter(t => t > 1 && t <= q).sort((a, b) => b - a);
   if (tiers.length) { const t = tiers[0]; return { quantity: q, total: offers[t] + (q - t) * base, unit_price: base, offer_applied: true, rule: 'tier_' + t + '_plus_base' }; }
@@ -128,7 +137,7 @@ if (ext.human_request) {
         nextState = STATE_FOR[missing[0]];
       } else if (!blocked) {
         const q = Number(draft.quantity);
-        const pr = calc(dp, q);
+        const pr = calc(dp, q, draft.color);
         const ship = findShipping(draft.province);
         const fee = (ship && ship.fee !== null && ship.fee !== undefined) ? Number(ship.fee) : null;
         draft.product_price = pr.total; draft.shipping_fee = fee; draft.total = pr.total + (fee || 0);

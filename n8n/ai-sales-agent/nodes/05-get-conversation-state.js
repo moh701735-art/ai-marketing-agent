@@ -14,7 +14,7 @@ const storeId = String(store.store_id);
 const products = rows('04c - Load Product Catalog').filter(p => String(p.store_id) === storeId && p.active !== false && p.product_id).map(p => ({
   row_id: p.id, product_id: String(p.product_id), product_name: p.product_name || '', aliases: p.aliases || '', description: p.description || '',
   price: num(p.price), currency: p.currency || store.currency || 'IQD', colors: p.colors || '', sizes: p.sizes || '', stock: num(p.stock),
-  quantity_offers: p.quantity_offers || '', shipping_information: p.shipping_information || '', return_information: p.return_information || '', notes: p.notes || ''
+  quantity_offers: p.quantity_offers || '', color_pricing: p.color_pricing || '', shipping_information: p.shipping_information || '', return_information: p.return_information || '', notes: p.notes || ''
 }));
 
 const shipping = rows('04d - Load Shipping Table').filter(s => String(s.store_id) === storeId && s.active !== false && s.province).map(s => ({
