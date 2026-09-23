@@ -1,0 +1,5 @@
+__pycache__/
+batch*.json
+b_*.json
+c_*.json
+validate.json

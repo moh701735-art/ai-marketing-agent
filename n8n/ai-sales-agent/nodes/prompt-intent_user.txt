@@ -1,0 +1,6 @@
+=سياق المحادثة:
+{{ $('05 - Get Conversation State').first().json.ai_context_text }}
+
+نوع الرسالة: {{ $('08 - Clean Transcript').first().json.input_source }}
+رسالة الزبون (إذا كانت بصمة صوتية فهذا النص المستخرج منها):
+{{ $('08 - Clean Transcript').first().json.customer_text }}

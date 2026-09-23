@@ -1,0 +1,70 @@
+const C = require('../codes.json');
+const run = async (key, outputs, input) => {
+  const $ = (n) => {
+    if (!(n in outputs)) return { isExecuted: false, first: () => { throw new Error('no ' + n); }, all: () => [] };
+    const items = outputs[n];
+    return { isExecuted: true, first: () => items[0], all: () => items };
+  };
+  const $input = { first: () => input[0], all: () => input };
+  const f = new Function('$', '$input', 'return (async () => {' + C[key] + '})()');
+  return await f($, $input);
+};
+const store = { id: 1, store_id: 'STORE001', phone_number_id: '*', store_name: 'متجر تجريبي', currency: 'IQD', notify_channel: 'telegram', telegram_chat_id: '1', team_whatsapp_numbers: '', handoff_hours: 12, default_product_id: 'DRESS001', active: true };
+const products = [{ id: 1, store_id: 'STORE001', product_id: 'DRESS001', product_name: 'فستان', aliases: 'الفستان,فستان سهرة', description: 'فستان نسائي', price: 15000, currency: 'IQD', colors: 'أسود,أحمر,أبيض', sizes: '38,40,42,44', stock: 50, quantity_offers: '{"1":15000,"2":25000}', active: true }];
+const shipping = [{ id: 1, store_id: 'STORE001', province: 'بغداد', aliases: 'بغداد', fee: 5000, active: true }, { id: 2, store_id: 'STORE001', province: 'نينوى', aliases: 'الموصل,موصل', fee: null, active: true }];
+const media = [{ id: 1, store_id: 'STORE001', product_id: 'DRESS001', media_type: 'image', url: 'https://x/1.jpg', sort_order: 1, active: true, color: 'أسود' }, { id: 2, store_id: 'STORE001', product_id: 'DRESS001', media_type: 'image', url: 'https://x/2.jpg', sort_order: 2, active: true }, { id: 3, store_id: 'STORE001', product_id: 'DRESS001', media_type: 'video', url: 'https://x/v.mp4', sort_order: 1, active: true }];
+let customerRow = null; let lastOrder = null;
+const turn = async (label, text, ai, opts = {}) => {
+  const O = {};
+  O['02 - Detect Message Type'] = await run('02', O, [{ json: { metadata: { phone_number_id: '111' }, contacts: [{ profile: { name: 'أحمد' } }], messages: [{ id: 'm' + Math.random(), from: '9647811111111', type: opts.voice ? 'audio' : 'text', text: { body: text }, audio: { id: 'a1', mime_type: 'audio/ogg' } }] } }]);
+  O['04 - Get Store Settings'] = [{ json: store }];
+  O['04b - Get Customer'] = customerRow ? [{ json: customerRow }] : [{ json: {} }];
+  O['04c - Load Product Catalog'] = products.map(j => ({ json: j }));
+  O['04d - Load Shipping Table'] = shipping.map(j => ({ json: j }));
+  O['05 - Get Conversation State'] = await run('05', O, []);
+  O['05e - Get Last Order'] = lastOrder ? [{ json: lastOrder }] : [{ json: {} }];
+  O['08 - Clean Transcript'] = await run('08', O, opts.voice ? [{ json: { content: { parts: [{ text }] } } }] : [{ json: {} }]);
+  O['10 - Extract Customer Data'] = await run('10', O, [{ json: { output: Object.assign({ greeting: false, intents: [], wants_images: false, wants_video: false, confirmation: false, cancel: false, human_request: false, question_summary: '' }, ai) } }]);
+  O['11 - Product Lookup'] = await run('11', O, []);
+  O['12 - Product Media Lookup'] = media.map(j => ({ json: j }));
+  O['13 - Price Calculator'] = await run('13', O, []);
+  O['14 - Order State Manager'] = await run('14', O, []);
+  O['19 - Order Review'] = await run('19', O, []);
+  O['15 - Generate AI Response'] = [{ json: { text: '(AI reply)' } }];
+  O['15b - Compose Final Reply'] = await run('15b', O, []);
+  const s = O['14 - Order State Manager'][0].json; const fin = O['15b - Compose Final Reply'][0].json;
+  customerRow = Object.assign({ id: 1 }, fin.customer_update);
+  let confirm = null;
+  if (s.action === 'confirm_order') {
+    O['21b - Generate Order ID'] = await run('21b', O, [{ json: { id: 123 } }]);
+    O['20 - Order Confirmation'] = await run('20', O, []);
+    confirm = O['20 - Order Confirmation'][0].json;
+    customerRow = Object.assign({ id: 1 }, confirm.customer_update);
+    lastOrder = { order_id: confirm.order_id, status: 'CONFIRMED' };
+  }
+  console.log('\n=== ' + label + ' | ' + text);
+  console.log('intents:', O['10 - Extract Customer Data'][0].json.intents.join(','), '| action:', s.action, '| mode:', s.reply_mode, '| state:', s.prev_state, '->', s.next_state);
+  console.log('media:', JSON.stringify(s.media_to_send.map(m => m.media_type + ':' + m.url)));
+  console.log('facts:\n' + s.facts_text);
+  if (s.reply_mode !== 'ai') console.log('TEMPLATE:\n' + fin.reply_text);
+  else console.log('FALLBACK:', s.fallback_text);
+  if (confirm) console.log('CONFIRMED:', confirm.customer_text, '\nTEAM:\n' + confirm.team_message);
+};
+(async () => {
+  await turn('TEST1 voice', 'السلام عليكم، بيش هذا المنتج؟', { greeting: true, intents: ['PRICE_INQUIRY'], product_id: null }, { voice: true });
+  await turn('TEST2 voice', 'إذا آخذ قطعتين شكد يصير؟', { intents: ['PRICE_INQUIRY', 'QUANTITY_INQUIRY'], quantity: 2, product_id: 'DRESS001' }, { voice: true });
+  await turn('TEST3 voice', 'دزلي صورته', { intents: ['IMAGE_REQUEST'], wants_images: true, product_id: 'DRESS001' }, { voice: true });
+  await turn('TEST4 voice', 'دزلي فيديو إله', { intents: ['VIDEO_REQUEST'], wants_video: true, product_id: 'DRESS001' }, { voice: true });
+  await turn('TEST6 voice', 'أريد الفستان الأسود قياس 42', { intents: ['BUY_INTENT'], product_id: 'DRESS001', color: 'اسود', size: '42' }, { voice: true });
+  await turn('TEST5 voice', 'أريد أطلب قطعتين، أني من بغداد', { intents: ['BUY_INTENT'], quantity: 2, province: 'بغداد' }, { voice: true });
+  await turn('name', 'أحمد علي', { intents: ['OTHER'], customer_name: 'أحمد علي' });
+  await turn('phone bad', '0781234', { intents: ['OTHER'], phone: '0781234' });
+  await turn('phone', '07811111111', { intents: ['OTHER'], phone: '07811111111' });
+  await turn('area+landmark', 'الكرادة قرب ساحة كهرمانة', { intents: ['OTHER'], area: 'الكرادة', landmark: 'قرب ساحة كهرمانة' });
+  await turn('confirm', 'تأكيد الطلب', { intents: ['ORDER_CONFIRMATION'], confirmation: true });
+  await turn('change after confirm', 'غير اللون أحمر', { intents: ['CHANGE_ORDER'], color: 'أحمر', change_fields: ['color'] });
+  await turn('cancel', 'ألغي الطلب', { intents: ['ORDER_CANCEL'], cancel: true });
+  customerRow = null; lastOrder = null;
+  await turn('TEST7 voice multi', 'السلام عليكم خوية شكد سعره وإذا آخذ اثنين ودزلي صورته', { greeting: true, intents: ['PRICE_INQUIRY', 'QUANTITY_INQUIRY', 'IMAGE_REQUEST'], quantity: 2, wants_images: true, product_id: null }, { voice: true });
+  await turn('human', 'أريد أحچي ويا موظف', { intents: ['HUMAN_AGENT_REQUEST'], human_request: true });
+})().catch(e => { console.error('ERR', e); process.exit(1); });

@@ -1,0 +1,4 @@
+=المعطيات:
+{{ $('14 - Order State Manager').first().json.facts_text }}
+
+اكتب رد الوكيل للزبون:

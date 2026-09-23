@@ -1,0 +1,127 @@
+{
+  "type": "object",
+  "properties": {
+    "greeting": {
+      "type": "boolean"
+    },
+    "intents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "PRODUCT_INQUIRY",
+          "PRICE_INQUIRY",
+          "COLOR_INQUIRY",
+          "SIZE_INQUIRY",
+          "IMAGE_REQUEST",
+          "VIDEO_REQUEST",
+          "AVAILABILITY",
+          "SHIPPING_INQUIRY",
+          "DISCOUNT_INQUIRY",
+          "QUANTITY_INQUIRY",
+          "BUY_INTENT",
+          "ORDER_CONFIRMATION",
+          "ORDER_CANCEL",
+          "CHANGE_ORDER",
+          "CUSTOMER_SUPPORT",
+          "HUMAN_AGENT_REQUEST",
+          "OTHER"
+        ]
+      }
+    },
+    "product_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "product_mentioned_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "quantity": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "color": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "size": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "customer_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "phone": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "province": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "area": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "landmark": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "wants_images": {
+      "type": "boolean"
+    },
+    "wants_video": {
+      "type": "boolean"
+    },
+    "confirmation": {
+      "type": "boolean"
+    },
+    "cancel": {
+      "type": "boolean"
+    },
+    "human_request": {
+      "type": "boolean"
+    },
+    "change_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "question_summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "greeting",
+    "intents",
+    "wants_images",
+    "wants_video",
+    "confirmation",
+    "cancel",
+    "human_request",
+    "question_summary"
+  ]
+}

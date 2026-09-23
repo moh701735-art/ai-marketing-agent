@@ -1,0 +1,4432 @@
+{
+ "name": "AI SALES AGENT",
+ "nodes": [
+  {
+   "id": "e41b3e1d-cb2d-4f64-97ed-6f9c6ec3b4f2",
+   "name": "01 - WhatsApp Webhook",
+   "type": "n8n-nodes-base.whatsAppTrigger",
+   "typeVersion": 1,
+   "position": [
+    0,
+    400
+   ],
+   "parameters": {
+    "updates": [
+     "messages"
+    ]
+   },
+   "credentials": {
+    "whatsAppTriggerApi": {
+     "id": "IAQ8dNvZbNYxlwv6",
+     "name": "WhatsApp OAuth account"
+    }
+   }
+  },
+  {
+   "id": "c42e4832-f401-4ee2-aaf0-37d8a0d18435",
+   "name": "02 - Detect Message Type",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    260,
+    400
+   ],
+   "parameters": {
+    "jsCode": "// 02 - Detect Message Type: normalizes the WhatsApp Cloud API payload into one clean message object\nconst v = $input.first().json || {};\nconst msg = (v.messages || [])[0];\nif (!msg) return []; // status updates (sent/delivered/read) have no messages -> stop silently\nif (msg.type === 'reaction' || msg.type === 'system' || msg.type === 'unsupported') return [];\nconst contact = (v.contacts || [])[0] || {};\nconst t = msg.type;\nlet text = '', mediaId = '', mime = '', caption = '', filename = '', location = null;\nswitch (t) {\n  case 'text': text = (msg.text && msg.text.body) || ''; break;\n  case 'audio': mediaId = msg.audio.id; mime = msg.audio.mime_type || ''; break;\n  case 'image': mediaId = msg.image.id; mime = msg.image.mime_type || ''; caption = msg.image.caption || ''; break;\n  case 'video': mediaId = msg.video.id; mime = msg.video.mime_type || ''; caption = msg.video.caption || ''; break;\n  case 'document': mediaId = msg.document.id; mime = msg.document.mime_type || ''; caption = msg.document.caption || ''; filename = msg.document.filename || ''; break;\n  case 'location': location = { latitude: msg.location.latitude, longitude: msg.location.longitude, name: msg.location.name || '', address: msg.location.address || '' }; break;\n  case 'interactive': text = (msg.interactive.button_reply && msg.interactive.button_reply.title) || (msg.interactive.list_reply && msg.interactive.list_reply.title) || ''; break;\n  case 'button': text = (msg.button && msg.button.text) || ''; break;\n}\nconst KIND = { text: 'TEXT', interactive: 'TEXT', button: 'TEXT', audio: 'VOICE', image: 'IMAGE', video: 'VIDEO', document: 'DOCUMENT', location: 'LOCATION' };\nreturn [{ json: {\n  message_id: msg.id,\n  wa_from: String(msg.from || ''),\n  profile_name: (contact.profile && contact.profile.name) || '',\n  phone_number_id: String((v.metadata && v.metadata.phone_number_id) || ''),\n  display_phone: String((v.metadata && v.metadata.display_phone_number) || ''),\n  raw_type: t,\n  message_type: KIND[t] || 'OTHER',\n  text, media_id: mediaId || '', mime_type: mime, caption, filename, location,\n  reply_to: (msg.context && msg.context.id) || '',\n  timestamp: msg.timestamp || '',\n  received_at: new Date().toISOString()\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "6ea3b099-64e8-49de-9941-56a42998b98c",
+   "name": "03 - Check Duplicate",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    520,
+    400
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "3trgdy1rN6NGL306"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "message_id",
+       "keyValue": "={{ $json.message_id }}"
+      }
+     ]
+    },
+    "operation": "rowNotExists",
+    "resource": "row"
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "8d7d997d-7101-40d2-acf8-bf76f1ba0959",
+   "name": "03b - Mark Message Processed",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    780,
+    400
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "message_id",
+       "id": "message_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "message_type",
+       "id": "message_type",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "message_id": "={{ $('02 - Detect Message Type').first().json.message_id }}",
+      "message_type": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+      "store_id": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+      "whatsapp_number": "={{ $('02 - Detect Message Type').first().json.wa_from }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "3trgdy1rN6NGL306"
+    },
+    "operation": "insert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500
+  },
+  {
+   "id": "2a6acb27-fa2d-4e56-8b2e-16a57c0e6345",
+   "name": "04 - Get Store Settings",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1040,
+    400
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "xgLdRjDHxAqa8JfA"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "phone_number_id",
+       "keyValue": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}"
+      },
+      {
+       "condition": "eq",
+       "keyName": "phone_number_id",
+       "keyValue": "*"
+      }
+     ]
+    },
+    "matchType": "anyCondition",
+    "operation": "get",
+    "resource": "row",
+    "returnAll": true
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "f651cc72-6bb7-4e05-a50d-66b6125f8c51",
+   "name": "04b - Get Customer",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1300,
+    400
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "Xw12SCMPxzHJtTBj"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "whatsapp_number",
+       "keyValue": "={{ $('02 - Detect Message Type').first().json.wa_from }}"
+      }
+     ]
+    },
+    "operation": "get",
+    "resource": "row",
+    "returnAll": true
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "4c570700-8392-417c-b47e-9ba7f27d627d",
+   "name": "04c - Load Product Catalog",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1560,
+    400
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "JgIhtXO5KkyjPxQt"
+    },
+    "operation": "get",
+    "resource": "row",
+    "returnAll": true
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "0f5f8c2a-ec86-4984-8dcd-6bb2364fb8be",
+   "name": "04d - Load Shipping Table",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    1820,
+    400
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "vUId3lHD5cML0m7f"
+    },
+    "operation": "get",
+    "resource": "row",
+    "returnAll": true
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "1a23751e-84b7-44af-8a71-9bf6bdea3aa4",
+   "name": "05 - Get Conversation State",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    2080,
+    400
+   ],
+   "parameters": {
+    "jsCode": "// 05 - Get Conversation State: builds the full context (store, customer, draft order, catalog, shipping)\nconst msg = $('02 - Detect Message Type').first().json;\nconst rows = (name) => $(name).all().map(i => i.json).filter(r => r && r.id !== undefined);\nconst safeJson = (s, fb) => { if (!s) return fb; if (typeof s === 'object') return s; try { return JSON.parse(s); } catch (e) { return fb; } };\nconst num = (v) => (v === null || v === undefined || v === '') ? null : Number(v);\nconst safe = (v) => String(v === null || v === undefined ? '' : v).replace(/[{}]/g, ' ').replace(/\\s+/g, ' ').trim();\n\nconst stores = rows('04 - Get Store Settings').filter(r => r.active !== false);\nlet store = stores.find(r => String(r.phone_number_id) === String(msg.phone_number_id)) || stores.find(r => String(r.phone_number_id) === '*');\nconst storeMissing = !store;\nstore = Object.assign({ store_id: 'DEFAULT', store_name: '', currency: 'IQD', notify_channel: 'telegram', telegram_chat_id: '', team_whatsapp_numbers: '', handoff_hours: 12, default_product_id: '' }, store || {});\nconst storeId = String(store.store_id);\n\nconst products = rows('04c - Load Product Catalog').filter(p => String(p.store_id) === storeId && p.active !== false && p.product_id).map(p => ({\n  row_id: p.id, product_id: String(p.product_id), product_name: p.product_name || '', aliases: p.aliases || '', description: p.description || '',\n  price: num(p.price), currency: p.currency || store.currency || 'IQD', colors: p.colors || '', sizes: p.sizes || '', stock: num(p.stock),\n  quantity_offers: p.quantity_offers || '', shipping_information: p.shipping_information || '', return_information: p.return_information || '', notes: p.notes || ''\n}));\n\nconst shipping = rows('04d - Load Shipping Table').filter(s => String(s.store_id) === storeId && s.active !== false && s.province).map(s => ({\n  province: s.province, aliases: s.aliases || '', fee: num(s.fee), delivery_days: s.delivery_days || ''\n}));\n\nconst customerId = storeId + '-' + msg.wa_from;\nconst custRow = rows('04b - Get Customer').find(r => String(r.customer_id) === customerId);\nconst isNew = !custRow;\nconst customer = Object.assign({ customer_id: customerId, store_id: storeId, whatsapp_number: msg.wa_from, whatsapp_name: '', name: '', phone: '', province: '', area: '', landmark: '', last_product: '', last_order: '', conversation_state: 'NEW_CUSTOMER', draft_order: '', recent_messages: '', handoff_until: null }, custRow || {});\ncustomer.whatsapp_name = msg.profile_name || customer.whatsapp_name || '';\n\nlet state = customer.conversation_state || 'NEW_CUSTOMER';\nconst handoffUntil = customer.handoff_until ? new Date(customer.handoff_until).getTime() : 0;\nlet handoffActive = false;\nif (state === 'HUMAN_HANDOFF') { if (handoffUntil > Date.now()) handoffActive = true; else state = 'BROWSING'; }\n\nconst draft = safeJson(customer.draft_order, {}) || {};\nconst recent = safeJson(customer.recent_messages, []) || [];\n\nconst lines = [];\nlines.push('store_name: ' + safe(store.store_name));\nlines.push('conversation_state: ' + state);\nlines.push('is_new_customer: ' + isNew);\nlines.push('known_customer_data: name=' + safe(customer.name) + ' | phone=' + safe(customer.phone) + ' | province=' + safe(customer.province) + ' | area=' + safe(customer.area) + ' | landmark=' + safe(customer.landmark));\nlines.push('last_product_id: ' + safe(customer.last_product));\nlines.push('default_product_id: ' + safe(store.default_product_id));\nconst draftForAi = Object.keys(draft).filter(k => !['_meta', 'review_hash', 'price_rule'].includes(k) && draft[k] !== null && draft[k] !== '' && draft[k] !== undefined).map(k => k + '=' + safe(draft[k]));\nlines.push('current_order_draft: ' + (draftForAi.length ? draftForAi.join(' | ') : 'none'));\nlines.push('recent_conversation (oldest first):');\nrecent.slice(-12).forEach(m => lines.push('- ' + (m.r === 'agent' ? 'الوكيل' : 'الزبون') + ': ' + safe(m.t)));\nlines.push('catalog:');\nproducts.slice(0, 300).forEach(p => lines.push('- product_id=' + p.product_id + ' | name=' + safe(p.product_name) + ' | aliases=' + safe(p.aliases) + ' | colors=' + safe(p.colors) + ' | sizes=' + safe(p.sizes)));\nlines.push('provinces: ' + shipping.map(s => s.province).join('، '));\n\nreturn [{ json: {\n  msg, store, store_missing: storeMissing, products, shipping, customer, state, is_new_customer: isNew,\n  handoff_active: handoffActive, draft, recent, last_order_id: customer.last_order || '', ai_context_text: lines.join('\\n')\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "1e2961b3-01a2-4e56-8501-810ca697c6a4",
+   "name": "05b - Human Handoff Active?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    2340,
+    400
+   ],
+   "parameters": {
+    "conditions": {
+     "combinator": "and",
+     "conditions": [
+      {
+       "leftValue": "={{ $json.handoff_active }}",
+       "operator": {
+        "operation": "true",
+        "singleValue": true,
+        "type": "boolean"
+       },
+       "rightValue": ""
+      }
+     ],
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     }
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "29d81936-cb00-49b8-aa5a-f836c190cc2c",
+   "name": "05e - Get Last Order",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    2600,
+    480
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "RhEVlUgGjiFdO2js"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "order_id",
+       "keyValue": "={{ $('05 - Get Conversation State').first().json.last_order_id || '__none__' }}"
+      }
+     ]
+    },
+    "limit": 1,
+    "operation": "get",
+    "resource": "row"
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "f6557385-4845-4a3e-a4d1-a01e1eaf4a4a",
+   "name": "05d - Route By Message Type",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    2860,
+    480
+   ],
+   "parameters": {
+    "mode": "rules",
+    "options": {
+     "fallbackOutput": "extra",
+     "renameFallbackOutput": "text / location"
+    },
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+          "operator": {
+           "operation": "regex",
+           "type": "string"
+          },
+          "rightValue": "^(VOICE|IMAGE|VIDEO|DOCUMENT)$"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "media",
+       "renameOutput": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "d1d3f37b-63ee-4aa0-bc36-394d75e7adbd",
+   "name": "06 - Get Media URL",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    3120,
+    700
+   ],
+   "parameters": {
+    "mediaGetId": "={{ $('02 - Detect Message Type').first().json.media_id }}",
+    "operation": "mediaUrlGet",
+    "resource": "media"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1000,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "25e38bc4-ec65-4088-9a1d-4016d39d9081",
+   "name": "06b - Download Voice / Media",
+   "type": "n8n-nodes-base.httpRequest",
+   "typeVersion": 4.2,
+   "position": [
+    3380,
+    700
+   ],
+   "parameters": {
+    "authentication": "predefinedCredentialType",
+    "method": "GET",
+    "nodeCredentialType": "whatsAppApi",
+    "options": {
+     "response": {
+      "response": {
+       "outputPropertyName": "data",
+       "responseFormat": "file"
+      }
+     },
+     "timeout": 60000
+    },
+    "url": "={{ $json.url }}"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "2f81140d-0081-465d-86f2-61cd63f58849",
+   "name": "06c - Media Kind",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    3640,
+    700
+   ],
+   "parameters": {
+    "mode": "rules",
+    "options": {},
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "VOICE"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "VOICE",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "IMAGE"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "IMAGE",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "VIDEO"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "VIDEO",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('02 - Detect Message Type').first().json.message_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "DOCUMENT"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "DOCUMENT",
+       "renameOutput": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "0459eb47-c0bc-46a7-a50e-a2df96113051",
+   "name": "07 - Speech To Text",
+   "type": "@n8n/n8n-nodes-langchain.googleGemini",
+   "typeVersion": 1.2,
+   "position": [
+    3900,
+    560
+   ],
+   "parameters": {
+    "binaryPropertyName": "data",
+    "inputType": "binary",
+    "modelId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "models/gemini-3.6-flash"
+    },
+    "operation": "analyze",
+    "options": {
+     "maxOutputTokens": 1500
+    },
+    "resource": "audio",
+    "simplify": true,
+    "text": "فرّغ هذه البصمة الصوتية من زبون عراقي على واتساب إلى نص عربي حرفياً كما قيلت، باللهجة العراقية نفسها (لا تترجمها للفصحى ولا تلخصها ولا تصححها).\n- اكتب الأرقام المنطوقة كما قيلت (مثلاً: ثنين، 15 ألف).\n- اكتب أسماء المحافظات والمناطق كما قيلت.\n- إذا كان هناك أكثر من طلب بنفس البصمة اكتبها كلها.\n- أرجع النص فقط بدون أي مقدمة أو شرح.\n- إذا الصوت غير مفهوم تماماً أو فارغ أرجع فقط: [UNCLEAR]"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "googlePalmApi": {
+     "id": "hnxWgFPUTMlnvMhH",
+     "name": "Google Gemini(PaLM) Api account"
+    }
+   }
+  },
+  {
+   "id": "3dae6b0f-906f-4215-bc4b-438995d1700b",
+   "name": "07b - Analyze Customer Image",
+   "type": "@n8n/n8n-nodes-langchain.googleGemini",
+   "typeVersion": 1.2,
+   "position": [
+    3900,
+    720
+   ],
+   "parameters": {
+    "binaryPropertyName": "data",
+    "inputType": "binary",
+    "modelId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "models/gemini-3.6-flash"
+    },
+    "operation": "analyze",
+    "options": {
+     "maxOutputTokens": 400
+    },
+    "resource": "image",
+    "simplify": true,
+    "text": "هذه صورة أرسلها زبون لمتجر على واتساب. صف باختصار وبالعربي (سطرين كحد أقصى): شنو المنتج أو الشي الظاهر بالصورة، لونه، وأي نص مكتوب بالصورة. إذا الصورة لقطة شاشة لإعلان أو منتج اذكر اسم المنتج والسعر إذا ظاهر. لا تضيف أي شي غير ظاهر."
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "googlePalmApi": {
+     "id": "hnxWgFPUTMlnvMhH",
+     "name": "Google Gemini(PaLM) Api account"
+    }
+   }
+  },
+  {
+   "id": "08a4d037-d0ca-4544-ad25-be097e94de3e",
+   "name": "07c - Analyze Customer Video",
+   "type": "@n8n/n8n-nodes-langchain.googleGemini",
+   "typeVersion": 1.2,
+   "position": [
+    3900,
+    880
+   ],
+   "parameters": {
+    "binaryPropertyName": "data",
+    "inputType": "binary",
+    "modelId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "models/gemini-3.6-flash"
+    },
+    "operation": "analyze",
+    "options": {
+     "maxOutputTokens": 800
+    },
+    "resource": "video",
+    "simplify": true,
+    "text": "هذا فيديو أرسله زبون لمتجر على واتساب. إذا بيه كلام، فرّغ الكلام حرفياً باللهجة العراقية. ثم صف باختصار شنو الظاهر بالفيديو (المنتج، اللون). أرجع النص فقط."
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "googlePalmApi": {
+     "id": "hnxWgFPUTMlnvMhH",
+     "name": "Google Gemini(PaLM) Api account"
+    }
+   }
+  },
+  {
+   "id": "db11fd05-2f8c-45a4-a7ea-318046f184dc",
+   "name": "07d - Analyze Customer Document",
+   "type": "@n8n/n8n-nodes-langchain.googleGemini",
+   "typeVersion": 1.2,
+   "position": [
+    3900,
+    1040
+   ],
+   "parameters": {
+    "binaryPropertyName": "data",
+    "inputType": "binary",
+    "modelId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "models/gemini-3.6-flash"
+    },
+    "operation": "analyze",
+    "options": {
+     "maxOutputTokens": 400
+    },
+    "resource": "document",
+    "simplify": true,
+    "text": "هذا ملف أرسله زبون لمتجر على واتساب. لخص محتواه المهم للمبيعات بسطرين كحد أقصى بالعربي (أسماء منتجات، كميات، عناوين، أرقام هواتف إذا موجودة)."
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "googlePalmApi": {
+     "id": "hnxWgFPUTMlnvMhH",
+     "name": "Google Gemini(PaLM) Api account"
+    }
+   }
+  },
+  {
+   "id": "952e6f39-05f9-41ea-a08c-472d21900bdd",
+   "name": "07e - Media Processing Failed",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    3900,
+    1200
+   ],
+   "parameters": {
+    "jsCode": "// 07e - Media Processing Failed: download / Gemini error -> mark as failed (no secrets are kept)\nconst j = $input.first().json || {};\nconst e = j.error;\nconst m = typeof e === 'string' ? e : (e && (e.message || e.description)) || 'media processing error';\nreturn [{ json: { media_failed: true, media_error: String(m).slice(0, 300) } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "9346b1d2-4edf-4d8f-9b57-e3e0beec2dba",
+   "name": "08 - Clean Transcript",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    4160,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 08 - Clean Transcript: one clean customer_text regardless of message type (text / voice / image / video / document / location)\nconst msg = $('02 - Detect Message Type').first().json;\nconst inp = $input.first().json || {};\nconst AR = '٠١٢٣٤٥٦٧٨٩', FA = '۰۱۲۳۴۵۶۷۸۹';\nconst toWestern = (s) => String(s || '').replace(/[٠-٩]/g, d => String(AR.indexOf(d))).replace(/[۰-۹]/g, d => String(FA.indexOf(d)));\nconst clean = (s) => toWestern(s).replace(/[​-‏‪-‮⁦-⁩]/g, '').replace(/[{}]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst pick = (j) => {\n  if (!j) return '';\n  if (typeof j === 'string') return j;\n  if (typeof j.text === 'string') return j.text;\n  if (j.content && Array.isArray(j.content.parts)) return j.content.parts.map(p => p.text || '').join(' ');\n  if (Array.isArray(j.candidates) && j.candidates[0] && j.candidates[0].content && Array.isArray(j.candidates[0].content.parts)) return j.candidates[0].content.parts.map(p => p.text || '').join(' ');\n  if (typeof j.output === 'string') return j.output;\n  return '';\n};\nconst isMedia = ['VOICE', 'IMAGE', 'VIDEO', 'DOCUMENT'].includes(msg.message_type);\nlet mediaFailed = !!inp.media_failed;\nlet mediaText = '';\nif (isMedia && !mediaFailed) { mediaText = clean(pick(inp)); if (!mediaText) mediaFailed = true; }\nconst unclear = msg.message_type === 'VOICE' && (/\\[?UNCLEAR\\]?/i.test(mediaText) || mediaText.replace(/[^\\p{L}\\p{N}]/gu, '').length < 2);\nconst caption = clean(msg.caption);\nlet text = '';\nswitch (msg.message_type) {\n  case 'TEXT': text = clean(msg.text); break;\n  case 'VOICE': text = mediaText.replace(/\\[?UNCLEAR\\]?/ig, '').trim(); break;\n  case 'IMAGE': text = (caption ? caption + ' ' : '') + (mediaFailed ? '[الزبون دز صورة وما كدرنا نحللها]' : '[الزبون دز صورة، وصفها: ' + mediaText + ']'); break;\n  case 'VIDEO': text = (caption ? caption + ' ' : '') + (mediaFailed ? '[الزبون دز فيديو وما كدرنا نحلله]' : '[الزبون دز فيديو، محتواه: ' + mediaText + ']'); break;\n  case 'DOCUMENT': text = (caption ? caption + ' ' : '') + (mediaFailed ? '[الزبون دز ملف ' + clean(msg.filename) + ' وما كدرنا نقراه]' : '[الزبون دز ملف ' + clean(msg.filename) + '، محتواه: ' + mediaText + ']'); break;\n  case 'LOCATION': { const l = msg.location || {}; text = '[الزبون دز موقعه: ' + clean([l.name, l.address].filter(Boolean).join(' - ')) + ' (' + l.latitude + ', ' + l.longitude + ')]'; break; }\n  default: text = '[الزبون دز رسالة من نوع ' + msg.raw_type + ']';\n}\nreturn [{ json: {\n  customer_text: text.slice(0, 3000),\n  input_source: msg.message_type,\n  voice_failed: msg.message_type === 'VOICE' && (mediaFailed || unclear),\n  media_failed: mediaFailed,\n  media_error: String(inp.media_error || '').slice(0, 300),\n  location: msg.location || null\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "a84a064a-d25f-4ced-a1c4-58b83da1c80e",
+   "name": "08b - Voice Unclear?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    4420,
+    480
+   ],
+   "parameters": {
+    "conditions": {
+     "combinator": "and",
+     "conditions": [
+      {
+       "leftValue": "={{ $json.voice_failed }}",
+       "operator": {
+        "operation": "true",
+        "singleValue": true,
+        "type": "boolean"
+       },
+       "rightValue": ""
+      }
+     ],
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     }
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "6935aa61-cbc5-4ed0-bfe4-e6cd01297951",
+   "name": "16b - Send Voice Retry Message",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    4680,
+    280
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "عذراً حبيبي، الصوت ما واضح عندي 🌹 ممكن تعيد البصمة؟"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "6f256b44-dbc9-4f39-ac61-e8db49536832",
+   "name": "09a - Claude (Intent)",
+   "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+   "typeVersion": 1.6,
+   "position": [
+    4620,
+    720
+   ],
+   "parameters": {
+    "model": {
+     "__rl": true,
+     "cachedResultName": "Claude Sonnet 5",
+     "mode": "list",
+     "value": "claude-sonnet-5"
+    },
+    "options": {
+     "maxTokensToSample": 900
+    }
+   },
+   "credentials": {
+    "anthropicApi": {
+     "id": "g9xVoJn4zzarniXM",
+     "name": "Anthropic account"
+    }
+   }
+  },
+  {
+   "id": "3a3656f4-a110-48f8-b4b6-33c8b5f06e07",
+   "name": "09b - Intent JSON Schema",
+   "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+   "typeVersion": 1.3,
+   "position": [
+    4780,
+    720
+   ],
+   "parameters": {
+    "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"greeting\": {\n      \"type\": \"boolean\"\n    },\n    \"intents\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"PRODUCT_INQUIRY\",\n          \"PRICE_INQUIRY\",\n          \"COLOR_INQUIRY\",\n          \"SIZE_INQUIRY\",\n          \"IMAGE_REQUEST\",\n          \"VIDEO_REQUEST\",\n          \"AVAILABILITY\",\n          \"SHIPPING_INQUIRY\",\n          \"DISCOUNT_INQUIRY\",\n          \"QUANTITY_INQUIRY\",\n          \"BUY_INTENT\",\n          \"ORDER_CONFIRMATION\",\n          \"ORDER_CANCEL\",\n          \"CHANGE_ORDER\",\n          \"CUSTOMER_SUPPORT\",\n          \"HUMAN_AGENT_REQUEST\",\n          \"OTHER\"\n        ]\n      }\n    },\n    \"product_id\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"product_mentioned_text\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"quantity\": {\n      \"type\": [\n        \"integer\",\n        \"null\"\n      ]\n    },\n    \"color\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"size\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"customer_name\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"phone\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"province\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"area\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"landmark\": {\n      \"type\": [\n        \"string\",\n        \"null\"\n      ]\n    },\n    \"wants_images\": {\n      \"type\": \"boolean\"\n    },\n    \"wants_video\": {\n      \"type\": \"boolean\"\n    },\n    \"confirmation\": {\n      \"type\": \"boolean\"\n    },\n    \"cancel\": {\n      \"type\": \"boolean\"\n    },\n    \"human_request\": {\n      \"type\": \"boolean\"\n    },\n    \"change_fields\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"question_summary\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"greeting\",\n    \"intents\",\n    \"wants_images\",\n    \"wants_video\",\n    \"confirmation\",\n    \"cancel\",\n    \"human_request\",\n    \"question_summary\"\n  ]\n}",
+    "schemaType": "manual"
+   }
+  },
+  {
+   "id": "09dcdc08-41fa-4676-a88f-bf4f602a6d6c",
+   "name": "09 - AI Intent Detection",
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
+   "position": [
+    4680,
+    480
+   ],
+   "parameters": {
+    "hasOutputParser": true,
+    "messages": {
+     "messageValues": [
+      {
+       "message": "أنت محرك فهم (NLU) لوكيل مبيعات عراقي على واتساب. وظيفتك فقط تفهم رسالة الزبون وتستخرج منها النوايا والمعلومات بدقة وترجعها حسب المخطط. لا تكتب رد للزبون ولا تحسب أسعار.\n\nتفهم: العربية الفصحى، العامية، اللهجة العراقية، الأخطاء الإملائية، الكلام السريع، الاختصارات، الأرقام المكتوبة والمنطوقة (وحدة/وحده=1، ثنين/اثنين/جوز/زوج=2، ثلاث/تلاث=3، أربع/اربعة=4، خمس=5، درزن=12)، وأسماء المحافظات والمناطق العراقية.\n\nالنوايا المسموحة (رجّع كل النوايا الموجودة بالرسالة، ممكن أكثر من وحدة):\nPRODUCT_INQUIRY, PRICE_INQUIRY, COLOR_INQUIRY, SIZE_INQUIRY, IMAGE_REQUEST, VIDEO_REQUEST, AVAILABILITY, SHIPPING_INQUIRY, DISCOUNT_INQUIRY, QUANTITY_INQUIRY, BUY_INTENT, ORDER_CONFIRMATION, ORDER_CANCEL, CHANGE_ORDER, CUSTOMER_SUPPORT, HUMAN_AGENT_REQUEST, OTHER\n\nأمثلة:\n- شكد؟ / بيش؟ / شكد سعره / بكم / بيش هذا → PRICE_INQUIRY\n- إذا آخذ قطعتين شكد يصير → PRICE_INQUIRY و QUANTITY_INQUIRY مع quantity=2\n- أريد منه ثنين → BUY_INTENT مع quantity=2\n- دزلي صورته / أريد أشوفه / دزلي الصور → IMAGE_REQUEST مع wants_images=true\n- عندك فيديو إله؟ / دزلي فيديو / أريد أشوفه بالفيديو → VIDEO_REQUEST مع wants_video=true\n- أريد أطلبه / أريد واحد / احجزلي / أريد أطلب → BUY_INTENT\n- ثبتلي / ثبت / ثبت الطلب / تأكيد / تأكيد الطلب / إي ثبت / أكد → ORDER_CONFIRMATION\n- ألغي الطلب / لا ما أريده / بطلت → ORDER_CANCEL\n- غير اللون / خليه قطعتين / غير القياس → CHANGE_ORDER\n- أريد موظف / أريد أحچي ويا شخص / خلي الموظف يرد → HUMAN_AGENT_REQUEST\n- يوصل للبصرة؟ / التوصيل شكد → SHIPPING_INQUIRY\n- أكو خصم؟ / أكو عرض؟ → DISCOUNT_INQUIRY\n- متوفر؟ / موجود؟ → AVAILABILITY\n- أي ألوان عندك → COLOR_INQUIRY ، أي قياسات → SIZE_INQUIRY\n\nقواعد الاستخراج:\n1. product_id: اختاره فقط من قائمة catalog. إذا الزبون يكول هذا/منه/إله/سعره بدون اسم، استخدم المنتج من السياق (current_order_draft أو last_product_id أو آخر منتج انذكر بالمحادثة). إذا ماكو منتج واضح خليه null. لا تخترع product_id.\n2. product_mentioned_text: الكلام اللي ذكره الزبون عن المنتج (مثل الفستان الأسود) أو null.\n3. quantity: رقم صحيح فقط إذا الزبون ذكر كمية، وإلا null.\n4. color و size: مثل ما ذكرهن الزبون (أسود، 42، لارج)، وإلا null.\n5. customer_name: فقط إذا الزبون ذكر اسمه صراحة أو جاوب على سؤال الاسم. لا تستخدم اسم الواتساب.\n6. phone: رقم الهاتف أرقام فقط كما كتبه.\n7. province: المحافظة بالاسم الرسمي (الموصل=نينوى، الحلة=بابل، الناصرية=ذي قار، الديوانية=القادسية، الكوت=واسط، العمارة=ميسان، السماوة=المثنى، الرمادي أو الفلوجة=الأنبار، بعقوبة=ديالى، تكريت أو سامراء=صلاح الدين، اربيل=أربيل). area: المنطقة أو الحي. landmark: أقرب نقطة دالة.\n8. انتبه لحالة المحادثة conversation_state: إذا WAITING_NAME فالنص هو الاسم. إذا WAITING_PHONE والرسالة أرقام فهي phone. إذا WAITING_PROVINCE فهي province. إذا WAITING_AREA فهي area (وإذا ذكر نقطة دالة ويا المنطقة استخرج الاثنين). إذا WAITING_LANDMARK فالنص هو landmark. إذا WAITING_QUANTITY ورقم فهو quantity. إذا WAITING_COLOR فهو color. إذا WAITING_SIZE فهو size.\n9. greeting: true إذا بالرسالة سلام أو تحية.\n10. confirmation: true فقط إذا conversation_state هو WAITING_CONFIRMATION والزبون أكد الطلب بشكل صريح وواضح (تأكيد، ثبت، إي ثبت، أكد). كلمات مثل أريده أو زين لوحدها مو تأكيد.\n11. cancel: true إذا يريد يلغي الطلب. human_request: true إذا يريد موظف بشري.\n12. change_fields: الحقول اللي يريد يغيرها من هذي القائمة: product, color, size, quantity, customer_name, phone, province, area, landmark.\n13. question_summary: جملة عربية قصيرة تلخص كل طلبات الزبون بهذي الرسالة.\n14. إذا الرسالة بيها وصف صورة أو فيديو دزه الزبون، استنتج المنتج منه إذا كان واضح ومطابق للكتالوج.",
+       "type": "SystemMessagePromptTemplate"
+      }
+     ]
+    },
+    "promptType": "define",
+    "text": "=سياق المحادثة:\n{{ $('05 - Get Conversation State').first().json.ai_context_text }}\n\nنوع الرسالة: {{ $('08 - Clean Transcript').first().json.input_source }}\nرسالة الزبون (إذا كانت بصمة صوتية فهذا النص المستخرج منها):\n{{ $('08 - Clean Transcript').first().json.customer_text }}"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000
+  },
+  {
+   "id": "13187535-7166-4a1a-b645-ab2115892756",
+   "name": "10 - Extract Customer Data",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    4940,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 10 - Extract Customer Data: validates / normalizes what the AI understood (AI never decides prices or orders)\nconst ctx = $('05 - Get Conversation State').first().json;\nconst raw = $input.first().json || {};\nconst o = (raw.output && typeof raw.output === 'object') ? raw.output : raw;\nconst ALLOWED = ['PRODUCT_INQUIRY', 'PRICE_INQUIRY', 'COLOR_INQUIRY', 'SIZE_INQUIRY', 'IMAGE_REQUEST', 'VIDEO_REQUEST', 'AVAILABILITY', 'SHIPPING_INQUIRY', 'DISCOUNT_INQUIRY', 'QUANTITY_INQUIRY', 'BUY_INTENT', 'ORDER_CONFIRMATION', 'ORDER_CANCEL', 'CHANGE_ORDER', 'CUSTOMER_SUPPORT', 'HUMAN_AGENT_REQUEST', 'OTHER'];\nconst norm = (s) => String(s || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/^ال/, '').replace(/\\s+/g, ' ');\nconst str = (v) => { const s = String(v === null || v === undefined ? '' : v).trim(); return (s && s.toLowerCase() !== 'null' && s !== '-') ? s.slice(0, 200) : null; };\n\nlet intents = Array.isArray(o.intents) ? o.intents.map(x => String(x).toUpperCase().trim()).filter(x => ALLOWED.includes(x)) : [];\nintents = Array.from(new Set(intents));\nif (!intents.length) intents = ['OTHER'];\n\nlet qty = parseInt(String(o.quantity === null || o.quantity === undefined ? '' : o.quantity).replace(/[^0-9]/g, ''), 10);\nif (!(qty >= 1 && qty <= 500)) qty = null;\n\nlet phoneRaw = String(o.phone || '').replace(/[^0-9]/g, '');\nlet phone = null, phoneInvalid = false;\nif (phoneRaw) {\n  if (phoneRaw.startsWith('00964')) phoneRaw = '0' + phoneRaw.slice(5);\n  else if (phoneRaw.startsWith('964')) phoneRaw = '0' + phoneRaw.slice(3);\n  else if (phoneRaw.length === 10 && phoneRaw.startsWith('7')) phoneRaw = '0' + phoneRaw;\n  if (/^07[0-9]{9}$/.test(phoneRaw)) phone = phoneRaw; else phoneInvalid = true;\n}\n\nlet province = null, provinceUnmatched = null;\nif (str(o.province)) {\n  const p = norm(o.province);\n  if (!ctx.shipping.length) province = str(o.province);\n  else {\n    const hit = ctx.shipping.find(s => norm(s.province) === p || String(s.aliases || '').split(/[,،]/).map(norm).filter(Boolean).includes(p));\n    if (hit) province = hit.province; else provinceUnmatched = str(o.province);\n  }\n}\n\nconst entities = {\n  product_id: str(o.product_id), product_mentioned_text: str(o.product_mentioned_text), quantity: qty,\n  color: str(o.color), size: str(o.size), customer_name: str(o.customer_name), phone, province,\n  area: str(o.area), landmark: str(o.landmark)\n};\nreturn [{ json: {\n  intents, entities,\n  greeting: !!o.greeting,\n  wants_images: !!o.wants_images || intents.includes('IMAGE_REQUEST'),\n  wants_video: !!o.wants_video || intents.includes('VIDEO_REQUEST'),\n  confirmation: !!o.confirmation,\n  cancel: !!o.cancel || intents.includes('ORDER_CANCEL'),\n  human_request: !!o.human_request || intents.includes('HUMAN_AGENT_REQUEST'),\n  change_fields: Array.isArray(o.change_fields) ? o.change_fields.map(String) : [],\n  question_summary: str(o.question_summary) || '',\n  phone_invalid: phoneInvalid, phone_raw: phoneInvalid ? phoneRaw : '',\n  province_unmatched: provinceUnmatched\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "822dfde1-7f9c-4f6d-b8eb-636406b4f6aa",
+   "name": "11 - Product Lookup",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    5200,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 11 - Product Lookup: resolves the product from the message, the conversation context or store defaults\nconst ctx = $('05 - Get Conversation State').first().json;\nconst ext = $('10 - Extract Customer Data').first().json;\nconst norm = (s) => String(s || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/^ال/, '').replace(/\\s+/g, ' ');\nconst list = (s) => String(s || '').split(/[,،]/).map(x => x.trim()).filter(Boolean);\nconst products = ctx.products;\nconst byId = (id) => products.find(p => String(p.product_id) === String(id)) || null;\nconst e = ext.entities;\nconst draft = ctx.draft || {};\nlet product = null, source = null;\nif (e.product_id && byId(e.product_id)) { product = byId(e.product_id); source = 'message'; }\nif (!product && e.product_mentioned_text) {\n  const t = norm(e.product_mentioned_text);\n  product = products.find(p => [p.product_name].concat(list(p.aliases)).map(norm).filter(Boolean).some(n => t.includes(n) || n.includes(t))) || null;\n  if (product) source = 'text_match';\n}\nif (!product && draft.product_id && draft.status !== 'CONFIRMED' && byId(draft.product_id)) { product = byId(draft.product_id); source = 'draft'; }\nif (!product && ctx.customer.last_product && byId(ctx.customer.last_product)) { product = byId(ctx.customer.last_product); source = 'last_product'; }\nif (!product && ctx.store.default_product_id && byId(ctx.store.default_product_id)) { product = byId(ctx.store.default_product_id); source = 'store_default'; }\nif (!product && products.length === 1) { product = products[0]; source = 'only_product'; }\n\nconst matchOption = (val, options) => {\n  if (!val) return { value: null, valid: true };\n  if (!options.length) return { value: val, valid: true };\n  const v = norm(val);\n  const hit = options.find(x => norm(x) === v) || options.find(x => norm(x).includes(v) || v.includes(norm(x)));\n  return hit ? { value: hit, valid: true } : { value: null, valid: false, raw: val };\n};\nconst colors = product ? list(product.colors) : [];\nconst sizes = product ? list(product.sizes) : [];\nreturn [{ json: {\n  product, product_source: source, product_id: product ? product.product_id : '',\n  colors, sizes, color: matchOption(e.color, colors), size: matchOption(e.size, sizes),\n  product_not_found: !!(e.product_mentioned_text && !['message', 'text_match'].includes(source) && products.length > 1)\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "5b0e531f-432c-4ba5-a50f-9c3e855b3b76",
+   "name": "12 - Product Media Lookup",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    5460,
+    480
+   ],
+   "parameters": {
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "8xCI4vhVI4ijtq9c"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "product_id",
+       "keyValue": "={{ $json.product_id || '__none__' }}"
+      },
+      {
+       "condition": "eq",
+       "keyName": "store_id",
+       "keyValue": "={{ $('05 - Get Conversation State').first().json.store.store_id }}"
+      }
+     ]
+    },
+    "matchType": "allConditions",
+    "operation": "get",
+    "resource": "row",
+    "returnAll": true
+   },
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000,
+   "alwaysOutputData": true,
+   "executeOnce": true
+  },
+  {
+   "id": "b8217477-6698-4911-97d4-510861594021",
+   "name": "13 - Price Calculator",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    5720,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 13 - Price Calculator: ALL prices come from sa_products (price + quantity_offers). The AI never calculates.\nconst ctx = $('05 - Get Conversation State').first().json;\nconst ext = $('10 - Extract Customer Data').first().json;\nconst pl = $('11 - Product Lookup').first().json;\nconst product = pl.product;\n\nconst parseOffers = (s) => {\n  const out = {};\n  if (!s) return out;\n  let obj = null;\n  if (typeof s === 'object') obj = s; else { try { obj = JSON.parse(s); } catch (e) { obj = null; } }\n  if (obj && typeof obj === 'object') { Object.keys(obj).forEach(k => { const q = parseInt(k, 10); const v = Number(obj[k]); if (q > 0 && v >= 0) out[q] = v; }); return out; }\n  String(s).split(/[,،;\\n]/).forEach(part => { const m = part.match(/(\\d+)\\s*[=:]\\s*(\\d+)/); if (m) out[parseInt(m[1], 10)] = Number(m[2]); });\n  return out;\n};\n// Pricing rule: exact quantity offer if defined, otherwise the biggest offer tier <= quantity + base price for the remaining pieces.\nconst calc = (p, q) => {\n  if (!p || p.price === null || p.price === undefined || !(q >= 1)) return null;\n  const offers = parseOffers(p.quantity_offers);\n  const base = offers[1] !== undefined ? offers[1] : Number(p.price);\n  if (offers[q] !== undefined) return { quantity: q, total: offers[q], unit_price: base, offer_applied: q > 1, rule: 'exact_offer_' + q };\n  const tiers = Object.keys(offers).map(Number).filter(t => t > 1 && t <= q).sort((a, b) => b - a);\n  if (tiers.length) { const t = tiers[0]; return { quantity: q, total: offers[t] + (q - t) * base, unit_price: base, offer_applied: true, rule: 'tier_' + t + '_plus_base' }; }\n  return { quantity: q, total: q * base, unit_price: base, offer_applied: false, rule: 'base_price' };\n};\n\nconst media = $('12 - Product Media Lookup').all().map(i => i.json)\n  .filter(m => m && m.url && m.active !== false && String(m.store_id) === String(ctx.store.store_id) && String(m.product_id) === String(pl.product_id))\n  .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));\nconst images = media.filter(m => String(m.media_type).toLowerCase() === 'image');\nconst videos = media.filter(m => String(m.media_type).toLowerCase() === 'video');\n\nconst draft = ctx.draft || {};\nconst e = ext.entities;\nconst qty = e.quantity || ((draft.status !== 'CONFIRMED' && product && draft.product_id === product.product_id) ? Number(draft.quantity) || null : null) || 1;\nconst quote = calc(product, qty);\nconst unitQuote = calc(product, 1);\nconst offers = product ? Object.keys(parseOffers(product.quantity_offers)).map(Number).sort((a, b) => a - b).map(q => ({ quantity: q, total: parseOffers(product.quantity_offers)[q] })) : [];\n\nconst provinceName = e.province || (draft.status !== 'CONFIRMED' ? draft.province : null) || ctx.customer.province || null;\nconst ship = provinceName ? ctx.shipping.find(s => s.province === provinceName) : null;\nconst shippingFee = ship && ship.fee !== null ? ship.fee : null;\n\nlet stockStatus = 'unknown';\nif (product && product.stock !== null) stockStatus = product.stock <= 0 ? 'out_of_stock' : (qty > product.stock ? 'insufficient' : 'in_stock');\nelse if (product) stockStatus = 'available';\n\nreturn [{ json: {\n  product, images, videos, quote, unit_quote: unitQuote, offers, quantity: qty,\n  province: provinceName, shipping_fee: shippingFee, delivery_days: ship ? ship.delivery_days : '',\n  stock_status: stockStatus, stock: product ? product.stock : null\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "2e7f0885-7160-4173-8769-b7d96f732843",
+   "name": "14 - Order State Manager",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    5980,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 14 - Order State Manager: the business brain. Conversation state machine + order draft + actions.\nconst ctx = $('05 - Get Conversation State').first().json;\nconst clean = $('08 - Clean Transcript').first().json;\nconst ext = $('10 - Extract Customer Data').first().json;\nconst pl = $('11 - Product Lookup').first().json;\nconst pc = $('13 - Price Calculator').first().json;\nconst lastOrder = $('05e - Get Last Order').all().map(i => i.json).find(r => r && r.order_id) || null;\n\nconst parseOffers = (s) => {\n  const out = {};\n  if (!s) return out;\n  let obj = null;\n  if (typeof s === 'object') obj = s; else { try { obj = JSON.parse(s); } catch (e) { obj = null; } }\n  if (obj && typeof obj === 'object') { Object.keys(obj).forEach(k => { const q = parseInt(k, 10); const v = Number(obj[k]); if (q > 0 && v >= 0) out[q] = v; }); return out; }\n  String(s).split(/[,،;\\n]/).forEach(part => { const m = part.match(/(\\d+)\\s*[=:]\\s*(\\d+)/); if (m) out[parseInt(m[1], 10)] = Number(m[2]); });\n  return out;\n};\n// Pricing rule: exact quantity offer if defined, otherwise the biggest offer tier <= quantity + base price for the remaining pieces.\nconst calc = (p, q) => {\n  if (!p || p.price === null || p.price === undefined || !(q >= 1)) return null;\n  const offers = parseOffers(p.quantity_offers);\n  const base = offers[1] !== undefined ? offers[1] : Number(p.price);\n  if (offers[q] !== undefined) return { quantity: q, total: offers[q], unit_price: base, offer_applied: q > 1, rule: 'exact_offer_' + q };\n  const tiers = Object.keys(offers).map(Number).filter(t => t > 1 && t <= q).sort((a, b) => b - a);\n  if (tiers.length) { const t = tiers[0]; return { quantity: q, total: offers[t] + (q - t) * base, unit_price: base, offer_applied: true, rule: 'tier_' + t + '_plus_base' }; }\n  return { quantity: q, total: q * base, unit_price: base, offer_applied: false, rule: 'base_price' };\n};\n\nconst I = new Set(ext.intents || []);\nconst e = ext.entities || {};\nconst product = pl.product || null;\nconst store = ctx.store;\nconst COLLECTING = ['COLLECTING_ORDER', 'WAITING_NAME', 'WAITING_PHONE', 'WAITING_PROVINCE', 'WAITING_AREA', 'WAITING_LANDMARK', 'WAITING_QUANTITY', 'WAITING_SIZE', 'WAITING_COLOR', 'ORDER_REVIEW', 'WAITING_CONFIRMATION'];\nconst CUSTOMER_FIELDS = ['customer_name', 'phone', 'province', 'area', 'landmark'];\nconst STATE_FOR = { product: 'COLLECTING_ORDER', color: 'WAITING_COLOR', size: 'WAITING_SIZE', quantity: 'WAITING_QUANTITY', customer_name: 'WAITING_NAME', phone: 'WAITING_PHONE', province: 'WAITING_PROVINCE', area: 'WAITING_AREA', landmark: 'WAITING_LANDMARK' };\nconst prevState = ctx.state;\nlet draft = JSON.parse(JSON.stringify(ctx.draft || {}));\nconst meta = Object.assign({ images_sent_for: [] }, draft._meta || {});\ndelete draft._meta;\n\nconst has = (v) => v !== null && v !== undefined && String(v).trim() !== '';\nconst fmt = (n) => (n === null || n === undefined || isNaN(Number(n))) ? '' : Number(n).toLocaleString('en-US');\nconst currency = (product && product.currency) || store.currency || 'IQD';\nconst curWord = currency === 'IQD' ? 'دينار' : currency;\nconst qtyText = (q) => Number(q) === 1 ? 'قطعة وحدة' : (Number(q) === 2 ? 'قطعتين' : q + ' قطع');\nconst norm = (s) => String(s || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/^ال/, '');\nconst list = (s) => String(s || '').split(/[,،]/).map(x => x.trim()).filter(Boolean);\nconst customerOnly = (d) => { const o = {}; CUSTOMER_FIELDS.forEach(k => { if (has(d[k])) o[k] = d[k]; }); return o; };\nconst findShipping = (prov) => ctx.shipping.find(s => s.province === prov) || null;\nconst productById = (id) => ctx.products.find(p => p.product_id === id) || null;\n\nconst facts = { notes: [] };\nlet action = 'reply';\nlet replyMode = 'ai';\nlet nextState = prevState === 'NEW_CUSTOMER' ? 'BROWSING' : prevState;\nlet handoffUntil = null, handoffReason = '';\nlet isEdit = false, ordering = false;\nconst wantsChange = I.has('CHANGE_ORDER') || (ext.change_fields || []).length > 0;\nconst locked = !!(lastOrder && draft.order_id && lastOrder.order_id === draft.order_id && ['PROCESSING', 'SHIPPED', 'DELIVERED'].includes(String(lastOrder.status)));\nconst setHandoff = (reason) => {\n  action = 'handoff'; replyMode = 'handoff'; nextState = 'HUMAN_HANDOFF'; handoffReason = reason;\n  handoffUntil = new Date(Date.now() + (Number(store.handoff_hours) || 12) * 3600000).toISOString();\n};\n\nif (ext.human_request) {\n  setHandoff('customer_request');\n} else if (ext.cancel) {\n  if ((draft.status === 'CONFIRMED' || draft.status === 'EDITING') && draft.order_id) {\n    if (locked) setHandoff('order_locked_cancel');\n    else { action = 'cancel_order'; replyMode = 'cancelled_confirmed'; }\n  } else if (has(draft.product_id) || has(draft.quantity) || draft.status === 'EDITING') {\n    draft = customerOnly(draft); replyMode = 'cancelled_draft'; nextState = 'ORDER_CANCELLED';\n  } else {\n    facts.notes.push('الزبون كال يريد يلغي بس ماكو طلب مفتوح حالياً');\n    nextState = 'BROWSING';\n  }\n} else {\n  if (draft.status === 'CONFIRMED') {\n    if (wantsChange) { if (locked) setHandoff('order_locked_change'); else { draft.status = 'EDITING'; } }\n    else if (I.has('BUY_INTENT')) { draft = customerOnly(draft); }\n  }\n  isEdit = draft.status === 'EDITING';\n\n  if (action !== 'handoff') {\n    const writable = draft.status !== 'CONFIRMED';\n    ordering = writable && (I.has('BUY_INTENT') || I.has('ORDER_CONFIRMATION') || wantsChange || isEdit || COLLECTING.includes(prevState));\n    if (writable) {\n      if (product) {\n        const explicit = ['message', 'text_match'].includes(pl.product_source);\n        if (!has(draft.product_id) || (explicit && draft.product_id !== product.product_id)) {\n          if (has(draft.product_id) && draft.product_id !== product.product_id) { draft.color = null; draft.size = null; }\n          draft.product_id = product.product_id; draft.product_name = product.product_name;\n        }\n      }\n      if (has(e.quantity)) draft.quantity = e.quantity;\n      if (pl.color && pl.color.value && product && draft.product_id === product.product_id) draft.color = pl.color.value;\n      if (pl.color && pl.color.valid === false) facts.invalid_color = { said: pl.color.raw, options: pl.colors.join('، ') };\n      if (pl.size && pl.size.value && product && draft.product_id === product.product_id) draft.size = pl.size.value;\n      if (pl.size && pl.size.valid === false) facts.invalid_size = { said: pl.size.raw, options: pl.sizes.join('، ') };\n      CUSTOMER_FIELDS.forEach(k => { if (has(e[k])) draft[k] = e[k]; });\n      if (ext.phone_invalid) facts.invalid_phone = ext.phone_raw;\n      if (ext.province_unmatched) facts.province_unmatched = ext.province_unmatched;\n    }\n\n    if (ordering) {\n      const dp = productById(draft.product_id);\n      CUSTOMER_FIELDS.forEach(k => { const src = k === 'customer_name' ? ctx.customer.name : ctx.customer[k]; if (!has(draft[k]) && has(src)) draft[k] = src; });\n      draft.status = isEdit ? 'EDITING' : 'DRAFT';\n      const colors = dp ? list(dp.colors) : [];\n      const sizes = dp ? list(dp.sizes) : [];\n      facts.colors_available = colors.join('، ');\n      facts.sizes_available = sizes.join('، ');\n      const missing = [];\n      if (!dp) missing.push('product');\n      if (dp && colors.length && !has(draft.color)) missing.push('color');\n      if (dp && sizes.length && !has(draft.size)) missing.push('size');\n      if (!has(draft.quantity)) missing.push('quantity');\n      CUSTOMER_FIELDS.forEach(k => { if (!has(draft[k])) missing.push(k); });\n      let blocked = false;\n      if (dp && dp.stock !== null && dp.stock !== undefined) {\n        if (dp.stock <= 0) { facts.out_of_stock = true; blocked = true; nextState = 'INTERESTED'; }\n        else if (has(draft.quantity) && Number(draft.quantity) > dp.stock) { facts.insufficient_stock = { requested: draft.quantity, available: dp.stock }; blocked = true; nextState = 'WAITING_QUANTITY'; }\n      }\n      if (dp && (dp.price === null || dp.price === undefined)) { facts.price_missing = true; blocked = true; }\n      if (!blocked && missing.length) {\n        facts.missing_fields = missing.join(', ');\n        facts.ask_field = (missing[0] === 'area' && missing.includes('landmark')) ? 'area_landmark' : missing[0];\n        nextState = STATE_FOR[missing[0]];\n      } else if (!blocked) {\n        const q = Number(draft.quantity);\n        const pr = calc(dp, q);\n        const ship = findShipping(draft.province);\n        const fee = (ship && ship.fee !== null && ship.fee !== undefined) ? Number(ship.fee) : null;\n        draft.product_price = pr.total; draft.shipping_fee = fee; draft.total = pr.total + (fee || 0);\n        draft.currency = currency; draft.price_rule = pr.rule; draft.product_name = dp.product_name;\n        const hash = [draft.product_id, draft.color, draft.size, draft.quantity, draft.customer_name, draft.phone, draft.province, draft.area, draft.landmark, draft.total].join('|');\n        const awaiting = ['WAITING_CONFIRMATION', 'ORDER_REVIEW'].includes(prevState);\n        if (awaiting && ext.confirmation && draft.review_hash === hash) {\n          action = isEdit ? 'update_order' : 'confirm_order';\n          replyMode = 'confirmed';\n          nextState = 'WAITING_CONFIRMATION';\n        } else {\n          draft.review_hash = hash; replyMode = 'review'; nextState = 'WAITING_CONFIRMATION';\n        }\n      }\n    } else {\n      if (I.has('PRICE_INQUIRY') || I.has('QUANTITY_INQUIRY') || I.has('DISCOUNT_INQUIRY')) nextState = 'ASKING_PRICE';\n      else if (['PRODUCT_INQUIRY', 'COLOR_INQUIRY', 'SIZE_INQUIRY', 'IMAGE_REQUEST', 'VIDEO_REQUEST'].some(x => I.has(x))) nextState = 'ASKING_PRODUCT';\n      else if (I.has('AVAILABILITY') || I.has('SHIPPING_INQUIRY')) nextState = 'INTERESTED';\n      if (draft.status === 'CONFIRMED' && ['BROWSING', 'ORDER_CONFIRMED'].includes(nextState)) nextState = 'ORDER_CONFIRMED';\n    }\n  }\n}\n\n// ---- media to send (images / video from sa_product_media only)\nconst media = [];\nif (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {\n  const colorPref = (pl.color && pl.color.value) || (draft.product_id === product.product_id ? draft.color : null);\n  const imgs = (pc.images || []).slice();\n  if (colorPref) imgs.sort((a, b) => (norm(b.color) === norm(colorPref) ? 1 : 0) - (norm(a.color) === norm(colorPref) ? 1 : 0));\n  if (ext.wants_images) {\n    if (imgs.length) imgs.slice(0, 5).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));\n    else facts.no_images = true;\n  } else if ((I.has('PRICE_INQUIRY') || I.has('PRODUCT_INQUIRY')) && replyMode === 'ai' && imgs.length && !meta.images_sent_for.includes(product.product_id)) {\n    media.push({ media_type: 'image', url: imgs[0].url, caption: imgs[0].caption || '' });\n  }\n  if (ext.wants_video) {\n    if ((pc.videos || []).length) media.push({ media_type: 'video', url: pc.videos[0].url, caption: pc.videos[0].caption || '' });\n    else facts.no_video = true;\n  }\n  if (media.some(m => m.media_type === 'image') && !meta.images_sent_for.includes(product.product_id)) meta.images_sent_for.push(product.product_id);\n} else if ((ext.wants_images || ext.wants_video) && !product) {\n  facts.need_product = true;\n}\n\n// ---- facts for the response generator (only verified data from the database)\nconst priceAsked = I.has('PRICE_INQUIRY') || I.has('QUANTITY_INQUIRY') || I.has('DISCOUNT_INQUIRY') || has(e.quantity);\nfacts.greeting = !!ext.greeting;\nfacts.is_new_customer = !!ctx.is_new_customer;\nfacts.whatsapp_name = ctx.customer.whatsapp_name || '';\nfacts.intents = Array.from(I).join(', ');\nfacts.question_summary = ext.question_summary;\nfacts.customer_message = clean.customer_text;\nfacts.message_was_voice = clean.input_source === 'VOICE';\nif (product) {\n  facts.product_name = product.product_name;\n  facts.product_description = product.description;\n  facts.price_one_piece = pc.unit_quote ? fmt(pc.unit_quote.total) + ' ' + curWord : 'غير محدد';\n  if (list(product.colors).length) facts.colors = list(product.colors).join('، ');\n  if (list(product.sizes).length) facts.sizes = list(product.sizes).join('، ');\n  facts.stock_status = pc.stock_status;\n  if (product.shipping_information) facts.shipping_information = product.shipping_information;\n  if (product.return_information) facts.return_information = product.return_information;\n  if (product.notes) facts.product_notes = product.notes;\n}\nif (product && priceAsked && pc.quote && pc.quote.quantity > 1) facts.price_for_requested_quantity = qtyText(pc.quote.quantity) + ' = ' + fmt(pc.quote.total) + ' ' + curWord;\nif (product && (priceAsked || I.has('DISCOUNT_INQUIRY')) && pc.offers.length > 1) facts.quantity_offers = pc.offers.map(x => qtyText(x.quantity) + ' = ' + fmt(x.total) + ' ' + curWord).join(' | ');\nif (!product && ctx.products.length) facts.catalog_names = ctx.products.slice(0, 15).map(p => p.product_name).join('، ');\nif (!ctx.products.length) facts.catalog_empty = true;\nconst provinceForShip = e.province || draft.province || ctx.customer.province;\nconst shipRow = provinceForShip ? findShipping(provinceForShip) : null;\nif (shipRow) facts.shipping = shipRow.province + ': ' + (shipRow.fee === null ? 'السعر يتأكد من الفريق' : fmt(shipRow.fee) + ' ' + curWord) + (shipRow.delivery_days ? ' | مدة التوصيل: ' + shipRow.delivery_days : '');\nelse if (I.has('SHIPPING_INQUIRY')) facts.shipping_table = ctx.shipping.filter(s => s.fee !== null).slice(0, 20).map(s => s.province + ' ' + fmt(s.fee)).join(' | ') || 'غير محدد';\nfacts.sending_images = media.filter(m => m.media_type === 'image').length;\nfacts.sending_video = media.some(m => m.media_type === 'video');\nconst ASK = {\n  product: 'يا منتج تريد حبيبي؟' + (facts.catalog_names ? ' (' + facts.catalog_names + ')' : ''),\n  color: 'أي لون تريد؟' + (facts.colors_available ? ' المتوفر: ' + facts.colors_available : ''),\n  size: 'شنو القياس؟' + (facts.sizes_available ? ' المتوفر: ' + facts.sizes_available : ''),\n  quantity: 'شكد قطعة تريد؟',\n  customer_name: 'حتى أثبتلك الطلب، شنو الاسم؟',\n  phone: 'دزلي رقم الهاتف.',\n  province: 'أي محافظة؟',\n  area: 'شنو المنطقة؟',\n  area_landmark: 'شنو المنطقة وأقرب نقطة دالة؟',\n  landmark: 'شنو أقرب نقطة دالة؟'\n};\nif (facts.ask_field) facts.ask_question = ASK[facts.ask_field];\nif (ordering && has(draft.product_id)) facts.order_so_far = ['product=' + (draft.product_name || ''), has(draft.color) ? 'color=' + draft.color : '', has(draft.size) ? 'size=' + draft.size : '', has(draft.quantity) ? 'quantity=' + draft.quantity : '', has(draft.province) ? 'province=' + draft.province : ''].filter(Boolean).join(' | ');\nfacts.next_state = nextState;\n\nconst safe = (v) => String(v === null || v === undefined ? '' : (typeof v === 'object' ? Object.keys(v).map(k => k + '=' + v[k]).join(', ') : v)).replace(/[{}]/g, ' ').replace(/\\s+/g, ' ').trim();\nconst factsText = Object.keys(facts).filter(k => { const v = facts[k]; return !(v === null || v === undefined || v === '' || v === false || (Array.isArray(v) && !v.length)); })\n  .map(k => '- ' + k + ': ' + safe(Array.isArray(facts[k]) ? facts[k].join(' | ') : facts[k])).join('\\n');\n\n// ---- deterministic fallback reply (used if the AI response fails)\nconst fb = [];\nif (ext.greeting) fb.push('هلا بيك حبيبي 🌹');\nif (product && priceAsked && pc.quote) fb.push('سعر ' + (pc.quote.quantity > 1 ? qtyText(pc.quote.quantity) : 'القطعة') + ' ' + fmt(pc.quote.total) + ' ' + curWord + '.');\nif (facts.sending_images) fb.push('وهاي صورته 👇');\nif (facts.sending_video) fb.push('وهذا الفيديو 👇');\nif (facts.no_video) fb.push('حبيبي حاليًا ما متوفر فيديو لهذا المنتج 🌹');\nif (facts.ask_question) fb.push(facts.ask_question);\nif (!fb.length) fb.push('هلا بيك حبيبي 🌹 شلون أكدر أساعدك؟');\n\n// ---- stock movements (applied only after the order is saved / cancelled)\nconst dpFinal = productById(draft.product_id);\nconst stockUpdate = (dpFinal && dpFinal.stock !== null && has(draft.quantity)) ? { row_id: dpFinal.row_id, new_stock: Math.max(0, dpFinal.stock - Number(draft.quantity)) } : { row_id: dpFinal ? dpFinal.row_id : 0, new_stock: dpFinal ? dpFinal.stock : null };\nconst savedQty = (lastOrder && lastOrder.order_id === draft.order_id && has(lastOrder.quantity)) ? Number(lastOrder.quantity) : Number(draft.quantity);\nconst dpSaved = (lastOrder && lastOrder.order_id === draft.order_id && lastOrder.product_id) ? productById(lastOrder.product_id) : dpFinal;\nconst stockRestore = (dpSaved && dpSaved.stock !== null && savedQty > 0) ? { row_id: dpSaved.row_id, new_stock: dpSaved.stock + savedQty } : { row_id: dpSaved ? dpSaved.row_id : 0, new_stock: dpSaved ? dpSaved.stock : null };\n\nconst keepForSafety = ['confirm_order', 'update_order', 'cancel_order'].includes(action);\nconst savedDraft = keepForSafety && action === 'cancel_order' ? ctx.draft : Object.assign({}, draft, { _meta: meta });\nif (keepForSafety && action === 'cancel_order') savedDraft._meta = meta;\nconst customerUpdate = {\n  customer_id: ctx.customer.customer_id,\n  store_id: ctx.store.store_id,\n  whatsapp_number: ctx.msg.wa_from,\n  whatsapp_name: ctx.customer.whatsapp_name || '',\n  name: draft.customer_name || ctx.customer.name || '',\n  phone: draft.phone || ctx.customer.phone || '',\n  province: draft.province || ctx.customer.province || '',\n  area: draft.area || ctx.customer.area || '',\n  landmark: draft.landmark || ctx.customer.landmark || '',\n  last_product: (product && product.product_id) || draft.product_id || ctx.customer.last_product || '',\n  last_order: ctx.customer.last_order || '',\n  conversation_state: action === 'cancel_order' ? prevState : nextState,\n  draft_order: JSON.stringify(savedDraft),\n  handoff_until: handoffUntil\n};\n\nreturn [{ json: {\n  action, reply_mode: replyMode, next_state: nextState, prev_state: prevState, is_edit: isEdit, ordering,\n  handoff_reason: handoffReason, handoff_until: handoffUntil,\n  draft, meta, product, facts, facts_text: factsText, fallback_text: fb.join('\\n'),\n  media_to_send: media, customer_update: customerUpdate,\n  stock_update: stockUpdate, stock_restore: stockRestore,\n  currency_word: curWord\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "204cef2f-dd7d-4776-aa89-dacc5ab9a38f",
+   "name": "19 - Order Review",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    6240,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 19 - Order Review: deterministic templates (review summary / handoff / cancellation). No AI here.\nconst s = $('14 - Order State Manager').first().json;\nconst d = s.draft || {};\nconst fmt = (n) => (n === null || n === undefined || isNaN(Number(n))) ? '' : Number(n).toLocaleString('en-US');\nconst cur = s.currency_word;\nconst qtyText = (q) => Number(q) === 1 ? 'قطعة وحدة' : (Number(q) === 2 ? 'قطعتين' : q + ' قطع');\nconst qtyWord = (q) => Number(q) === 1 ? 'القطعة' : (Number(q) === 2 ? 'القطعتين' : 'الـ ' + q + ' قطع');\nconst shipUnknown = d.shipping_fee === null || d.shipping_fee === undefined;\nlet text = '';\nif (s.reply_mode === 'review') {\n  const L = [s.is_edit ? 'تمام حبيبي 🌹 هذا طلبك بعد التعديل:' : 'تمام حبيبي 🌹 هذا طلبك:', ''];\n  L.push('المنتج: ' + d.product_name);\n  L.push('الكمية: ' + qtyText(d.quantity));\n  if (d.color) L.push('اللون: ' + d.color);\n  if (d.size) L.push('القياس: ' + d.size);\n  L.push('سعر ' + qtyWord(d.quantity) + ': ' + fmt(d.product_price) + ' ' + cur);\n  L.push('التوصيل: ' + (shipUnknown ? 'يأكده الفريق وياك' : fmt(d.shipping_fee) + ' ' + cur));\n  L.push('المجموع: ' + fmt(d.total) + ' ' + cur + (shipUnknown ? ' + التوصيل' : ''));\n  L.push('');\n  L.push('الاسم: ' + d.customer_name);\n  L.push('الهاتف: ' + d.phone);\n  L.push('المحافظة: ' + d.province);\n  L.push('المنطقة: ' + d.area);\n  L.push('أقرب نقطة: ' + d.landmark);\n  L.push('');\n  L.push('إذا كلشي صحيح اكتبلي:');\n  L.push('تأكيد الطلب');\n  L.push('');\n  L.push('وإذا تريد تغيّر أي شي بس كلي 🌹');\n  text = L.join('\\n');\n} else if (s.reply_mode === 'handoff') {\n  if (s.handoff_reason === 'order_locked_cancel' || s.handoff_reason === 'order_locked_change') text = 'حبيبي طلبك صار قيد التجهيز/الشحن 🌹 حولتك لموظف من فريقنا حتى يساعدك بالتعديل أو الإلغاء، راح يرد عليك بأقرب وقت.';\n  else text = 'تمام حبيبي 🌹 حولتك لموظف من فريقنا، راح يرد عليك بأقرب وقت.';\n} else if (s.reply_mode === 'cancelled_draft') {\n  text = 'تمام حبيبي، لغيت الطلب 🌹 إذا احتجت أي شي آني حاضر.';\n} else if (s.reply_mode === 'cancelled_confirmed') {\n  text = 'جاري إلغاء الطلب...';\n} else if (s.reply_mode === 'confirmed') {\n  text = 'جاري تثبيت الطلب...';\n}\nreturn [{ json: { template_text: text } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "eaa45b08-1db1-4845-b550-0a6e1cb7fd76",
+   "name": "14b - Needs AI Reply?",
+   "type": "n8n-nodes-base.if",
+   "typeVersion": 2.2,
+   "position": [
+    6500,
+    480
+   ],
+   "parameters": {
+    "conditions": {
+     "combinator": "and",
+     "conditions": [
+      {
+       "leftValue": "={{ $('14 - Order State Manager').first().json.reply_mode }}",
+       "operator": {
+        "operation": "equals",
+        "type": "string"
+       },
+       "rightValue": "ai"
+      }
+     ],
+     "options": {
+      "caseSensitive": true,
+      "leftValue": "",
+      "typeValidation": "loose",
+      "version": 2
+     }
+    },
+    "options": {}
+   }
+  },
+  {
+   "id": "faa1495c-6339-4677-b32c-f2930972854a",
+   "name": "15a - Claude (Response)",
+   "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+   "typeVersion": 1.6,
+   "position": [
+    6760,
+    540
+   ],
+   "parameters": {
+    "model": {
+     "__rl": true,
+     "cachedResultName": "Claude Sonnet 5",
+     "mode": "list",
+     "value": "claude-sonnet-5"
+    },
+    "options": {
+     "maxTokensToSample": 600
+    }
+   },
+   "credentials": {
+    "anthropicApi": {
+     "id": "g9xVoJn4zzarniXM",
+     "name": "Anthropic account"
+    }
+   }
+  },
+  {
+   "id": "8870ab2b-b89f-460e-ab75-2d9977a6fedb",
+   "name": "15 - Generate AI Response",
+   "type": "@n8n/n8n-nodes-langchain.chainLlm",
+   "typeVersion": 1.9,
+   "position": [
+    6760,
+    340
+   ],
+   "parameters": {
+    "hasOutputParser": false,
+    "messages": {
+     "messageValues": [
+      {
+       "message": "أنت موظف مبيعات عراقي محترف تشتغل داخل WhatsApp.\nتتكلم باللهجة العراقية بطريقة طبيعية ومحترمة وودودة، مثل موظف حقيقي، مو روبوت.\nمهمتك مساعدة الزبون وشرح المنتجات ومساعدته على إكمال الطلب.\nالزبون ممكن يكون دز بصمة صوتية، ونص البصمة موجود بالمعطيات. تعامل وياه طبيعي بدون ما تكول إنه نص مستخرج.\n\nقواعد صارمة:\n1. استخدم فقط المعلومات الموجودة بالمعطيات. لا تخترع أي سعر أو عرض أو خصم أو لون أو قياس أو توفر أو مدة توصيل أو أي معلومة عن المنتج.\n2. اكتب الأسعار والأرقام بالضبط مثل ما موجودة بالمعطيات.\n3. إذا المعلومة المطلوبة مو موجودة بالمعطيات، كول للزبون إنك تحتاج تتأكد وترجعله.\n4. جاوب على كل طلبات الزبون الموجودة بالرسالة (ممكن أكثر من طلب ببصمة وحدة).\n5. إذا sending_images أكبر من صفر، كول بشكل طبيعي إنك دزيت الصور (مثلاً: وهاي صورته 👇). لا تكتب أي رابط.\n6. إذا sending_video موجود كول: وهذا الفيديو 👇. إذا no_video موجود كول: حبيبي حاليًا ما متوفر فيديو لهذا المنتج 🌹\n7. إذا no_images موجود، كول ما متوفرة صور حاليًا.\n8. إذا ask_question موجود، اسأله بآخر الرد بنفس المعنى (سؤال واحد فقط). لا تسأل عن معلومة موجودة بالمعطيات.\n9. إذا greeting موجود رد السلام بشكل طبيعي (وعليكم السلام حبيبي 🌹 أو هلا بيك). إذا مو موجود لا ترحب من جديد.\n10. الرد قصير ومناسب للواتساب: من سطر إلى 4 أسطر. إيموجي واحد أو اثنين كحد أقصى.\n11. لا تكول أبداً إن الطلب تثبت أو تأكد. تثبيت الطلب يسويه النظام فقط.\n12. إذا invalid_phone موجود: الرقم غلط، اطلب رقم عراقي صحيح يبدي بـ 07 ويتكون من 11 رقم.\n13. إذا province_unmatched موجود: اطلب منه يكتب اسم المحافظة بوضوح.\n14. إذا invalid_color أو invalid_size موجود: كوله هذا غير متوفر واذكر الخيارات المتوفرة.\n15. إذا out_of_stock موجود: اعتذر لأن المنتج حاليًا نافذ. إذا insufficient_stock موجود: كوله الكمية المتوفرة.\n16. إذا price_missing موجود: كول راح أتأكد من السعر وأرجعلك.\n17. إذا need_product أو catalog_names موجود والمنتج مو واضح: اسأله يا منتج يقصد.\n18. لا تتكلم عن حالات النظام أو المعطيات أو الكلمات الإنجليزية.\n19. اكتب نص الرسالة النهائي فقط بدون عناوين أو شرح.",
+       "type": "SystemMessagePromptTemplate"
+      }
+     ]
+    },
+    "promptType": "define",
+    "text": "=المعطيات:\n{{ $('14 - Order State Manager').first().json.facts_text }}\n\nاكتب رد الوكيل للزبون:"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 2000
+  },
+  {
+   "id": "9854e6b9-f5ef-4373-b16b-816868ff24dc",
+   "name": "15b - Compose Final Reply",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    7020,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 15b - Compose Final Reply: picks AI text or template, falls back safely, appends to customer memory\nconst s = $('14 - Order State Manager').first().json;\nconst rv = $('19 - Order Review').first().json;\nconst ctx = $('05 - Get Conversation State').first().json;\nconst clean = $('08 - Clean Transcript').first().json;\nlet text = '', aiFailed = false;\nif (s.reply_mode === 'ai') {\n  let ai = null;\n  try {\n    const j = $('15 - Generate AI Response').first().json;\n    if (j && !j.error && typeof j.text === 'string') ai = j.text;\n  } catch (e) { ai = null; }\n  if (ai && ai.trim() && !/تم تثبيت|تم تأكيد/.test(ai)) text = ai.trim();\n  else { aiFailed = true; text = s.fallback_text; }\n} else {\n  text = rv.template_text;\n}\nif (!text) text = 'هلا بيك حبيبي 🌹 شلون أكدر أساعدك؟';\ntext = text.replace(/https?:\\/\\/\\S+/g, '').trim().slice(0, 4000);\nconst recent = (ctx.recent || []).concat([\n  { r: 'customer', t: String(clean.customer_text || '').slice(0, 400), at: new Date().toISOString() },\n  { r: 'agent', t: text.slice(0, 400) }\n]).slice(-16);\nconst cu = Object.assign({}, s.customer_update, { recent_messages: JSON.stringify(recent) });\nreturn [{ json: { reply_text: text, ai_failed: aiFailed, action: s.action, customer_update: cu } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "d23d667c-a9f4-4b3a-bb6f-00395a42c180",
+   "name": "14c - Update Customer Record",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    7280,
+    480
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_name",
+       "id": "whatsapp_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "name",
+       "id": "name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "phone",
+       "id": "phone",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "province",
+       "id": "province",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "area",
+       "id": "area",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "landmark",
+       "id": "landmark",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_product",
+       "id": "last_product",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_order",
+       "id": "last_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "conversation_state",
+       "id": "conversation_state",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "draft_order",
+       "id": "draft_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "recent_messages",
+       "id": "recent_messages",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "handoff_until",
+       "id": "handoff_until",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "dateTime"
+      }
+     ],
+     "value": {
+      "area": "={{ $json.customer_update.area }}",
+      "conversation_state": "={{ $json.customer_update.conversation_state }}",
+      "customer_id": "={{ $json.customer_update.customer_id }}",
+      "draft_order": "={{ $json.customer_update.draft_order }}",
+      "handoff_until": "={{ $json.customer_update.handoff_until || null }}",
+      "landmark": "={{ $json.customer_update.landmark }}",
+      "last_order": "={{ $json.customer_update.last_order }}",
+      "last_product": "={{ $json.customer_update.last_product }}",
+      "name": "={{ $json.customer_update.name }}",
+      "phone": "={{ $json.customer_update.phone }}",
+      "province": "={{ $json.customer_update.province }}",
+      "recent_messages": "={{ $json.customer_update.recent_messages }}",
+      "store_id": "={{ $json.customer_update.store_id }}",
+      "whatsapp_name": "={{ $json.customer_update.whatsapp_name }}",
+      "whatsapp_number": "={{ $json.customer_update.whatsapp_number }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "Xw12SCMPxzHJtTBj"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "customer_id",
+       "keyValue": "={{ $json.customer_update.customer_id }}"
+      }
+     ]
+    },
+    "operation": "upsert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500
+  },
+  {
+   "id": "72fda8fe-4cc4-4e98-9dbc-31baca4f5a7a",
+   "name": "14d - Route Action",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    7540,
+    480
+   ],
+   "parameters": {
+    "mode": "rules",
+    "options": {
+     "fallbackOutput": "extra",
+     "renameFallbackOutput": "reply"
+    },
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('15b - Compose Final Reply').first().json.action }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "confirm_order"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "confirm_order",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('15b - Compose Final Reply').first().json.action }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "update_order"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "update_order",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('15b - Compose Final Reply').first().json.action }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "cancel_order"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "cancel_order",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $('15b - Compose Final Reply').first().json.action }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "handoff"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "handoff",
+       "renameOutput": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "818e0721-9d48-4aeb-938c-05f89d53044a",
+   "name": "16 - Send WhatsApp Text",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    7800,
+    900
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "={{ $('15b - Compose Final Reply').first().json.reply_text }}"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "7903d172-df58-4e8f-b47c-443ce0cfa381",
+   "name": "17a - Prepare Media Queue",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    8060,
+    900
+   ],
+   "parameters": {
+    "jsCode": "// 17a - Prepare Media Queue: one item per image / video to send (from sa_product_media)\nconst s = $('14 - Order State Manager').first().json;\nreturn (s.media_to_send || []).filter(m => m.url).map(m => ({ json: { media_type: m.media_type, url: m.url, caption: String(m.caption || '').slice(0, 900) } }));\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "04c36755-ccfb-4c09-9dcd-a6973a056d87",
+   "name": "17b - Media Type",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    8320,
+    900
+   ],
+   "parameters": {
+    "mode": "rules",
+    "options": {},
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $json.media_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "image"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "image",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ $json.media_type }}",
+          "operator": {
+           "operation": "equals",
+           "type": "string"
+          },
+          "rightValue": "video"
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "video",
+       "renameOutput": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "3bedb444-fc52-403b-9e62-65db65c87875",
+   "name": "17 - Send Product Image",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    8580,
+    820
+   ],
+   "parameters": {
+    "additionalFields": {
+     "mediaCaption": "={{ $json.caption }}"
+    },
+    "mediaLink": "={{ $json.url }}",
+    "mediaPath": "useMediaLink",
+    "messageType": "image",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "56399637-cd69-4cda-9678-a8cabb34738e",
+   "name": "18 - Send Product Video",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    8580,
+    1000
+   ],
+   "parameters": {
+    "additionalFields": {
+     "mediaCaption": "={{ $json.caption }}"
+    },
+    "mediaLink": "={{ $json.url }}",
+    "mediaPath": "useMediaLink",
+    "messageType": "video",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 2000,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "56bc0898-527d-44de-a798-22bfd040093c",
+   "name": "17c - Media Send Failed",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    8840,
+    900
+   ],
+   "parameters": {
+    "jsCode": "// 17c - Media Send Failed: log only (retries already happened on the send node)\nconst items = $input.all().map(i => i.json || {});\nconst msgs = items.map(j => { const e = j.error; return typeof e === 'string' ? e : (e && (e.message || e.description)) || 'unknown'; });\nreturn [{ json: { log_error: ('MEDIA_SEND_FAILED: ' + msgs.join(' || ')).replace(/(Bearer\\s+)\\S+/g, '$1***').replace(/(access_token=)[^&\\s]+/g, '$1***').slice(0, 1500), log_level: 'WARN' } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "93c44ed0-6010-438c-a271-eb33de731e6e",
+   "name": "21 - Save Order",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    7800,
+    -200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "order_id",
+       "id": "order_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_name",
+       "id": "customer_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "phone",
+       "id": "phone",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "province",
+       "id": "province",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "area",
+       "id": "area",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "landmark",
+       "id": "landmark",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_id",
+       "id": "product_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_name",
+       "id": "product_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "color",
+       "id": "color",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "size",
+       "id": "size",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "quantity",
+       "id": "quantity",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_price",
+       "id": "product_price",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "shipping_fee",
+       "id": "shipping_fee",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "total",
+       "id": "total",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "status",
+       "id": "status",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "notes",
+       "id": "notes",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "area": "={{ $('14 - Order State Manager').first().json.draft.area }}",
+      "color": "={{ $('14 - Order State Manager').first().json.draft.color }}",
+      "customer_id": "={{ $('14 - Order State Manager').first().json.customer_update.customer_id }}",
+      "customer_name": "={{ $('14 - Order State Manager').first().json.draft.customer_name }}",
+      "landmark": "={{ $('14 - Order State Manager').first().json.draft.landmark }}",
+      "notes": "={{ $('14 - Order State Manager').first().json.draft.shipping_fee === null || $('14 - Order State Manager').first().json.draft.shipping_fee === undefined ? 'shipping_fee_pending' : '' }}",
+      "order_id": "",
+      "phone": "={{ $('14 - Order State Manager').first().json.draft.phone }}",
+      "product_id": "={{ $('14 - Order State Manager').first().json.draft.product_id }}",
+      "product_name": "={{ $('14 - Order State Manager').first().json.draft.product_name }}",
+      "product_price": "={{ $('14 - Order State Manager').first().json.draft.product_price }}",
+      "province": "={{ $('14 - Order State Manager').first().json.draft.province }}",
+      "quantity": "={{ Number($('14 - Order State Manager').first().json.draft.quantity) }}",
+      "shipping_fee": "={{ $('14 - Order State Manager').first().json.draft.shipping_fee }}",
+      "size": "={{ $('14 - Order State Manager').first().json.draft.size }}",
+      "status": "PENDING",
+      "store_id": "={{ $('14 - Order State Manager').first().json.customer_update.store_id }}",
+      "total": "={{ $('14 - Order State Manager').first().json.draft.total }}",
+      "whatsapp_number": "={{ $('02 - Detect Message Type').first().json.wa_from }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "RhEVlUgGjiFdO2js"
+    },
+    "operation": "insert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "f5aedd7c-391b-4791-a154-e85817f642b1",
+   "name": "21b - Generate Order ID",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    8060,
+    -200
+   ],
+   "parameters": {
+    "jsCode": "// 21b - Generate Order ID: unique, sequential, derived from the database row id (ORD-YYYY-000123)\nconst row = $input.first().json || {};\nif (!row.id) throw new Error('ORDER_INSERT_RETURNED_NO_ID');\nconst year = new Date().toLocaleString('en-US', { timeZone: 'Asia/Baghdad', year: 'numeric' });\nreturn [{ json: { row_id: row.id, order_id: 'ORD-' + year + '-' + String(row.id).padStart(6, '0') } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   },
+   "onError": "continueErrorOutput"
+  },
+  {
+   "id": "9097155c-4fd6-45fa-8278-560179f29a3e",
+   "name": "21c - Mark Order Confirmed",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    8320,
+    -200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "order_id",
+       "id": "order_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "status",
+       "id": "status",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "order_id": "={{ $json.order_id }}",
+      "status": "CONFIRMED"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "RhEVlUgGjiFdO2js"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "id",
+       "keyValue": "={{ $json.row_id }}"
+      }
+     ]
+    },
+    "operation": "update",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "a92bf6ff-1817-4033-b849-dff630c90c9b",
+   "name": "21d - Update Stock",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    8580,
+    -200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "stock",
+       "id": "stock",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      }
+     ],
+     "value": {
+      "stock": "={{ $('14 - Order State Manager').first().json.stock_update.new_stock }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "JgIhtXO5KkyjPxQt"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "id",
+       "keyValue": "={{ $('14 - Order State Manager').first().json.stock_update.row_id }}"
+      }
+     ]
+    },
+    "operation": "update",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "f6229357-3ae0-4e73-a762-4a0b846cd69f",
+   "name": "21u - Update Existing Order",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    8060,
+    0
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "order_id",
+       "id": "order_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_name",
+       "id": "customer_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "phone",
+       "id": "phone",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "province",
+       "id": "province",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "area",
+       "id": "area",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "landmark",
+       "id": "landmark",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_id",
+       "id": "product_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_name",
+       "id": "product_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "color",
+       "id": "color",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "size",
+       "id": "size",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "quantity",
+       "id": "quantity",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product_price",
+       "id": "product_price",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "shipping_fee",
+       "id": "shipping_fee",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "total",
+       "id": "total",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "status",
+       "id": "status",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "notes",
+       "id": "notes",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "area": "={{ $('14 - Order State Manager').first().json.draft.area }}",
+      "color": "={{ $('14 - Order State Manager').first().json.draft.color }}",
+      "customer_id": "={{ $('14 - Order State Manager').first().json.customer_update.customer_id }}",
+      "customer_name": "={{ $('14 - Order State Manager').first().json.draft.customer_name }}",
+      "landmark": "={{ $('14 - Order State Manager').first().json.draft.landmark }}",
+      "notes": "={{ $('14 - Order State Manager').first().json.draft.shipping_fee === null || $('14 - Order State Manager').first().json.draft.shipping_fee === undefined ? 'shipping_fee_pending' : '' }}",
+      "order_id": "={{ $('14 - Order State Manager').first().json.draft.order_id }}",
+      "phone": "={{ $('14 - Order State Manager').first().json.draft.phone }}",
+      "product_id": "={{ $('14 - Order State Manager').first().json.draft.product_id }}",
+      "product_name": "={{ $('14 - Order State Manager').first().json.draft.product_name }}",
+      "product_price": "={{ $('14 - Order State Manager').first().json.draft.product_price }}",
+      "province": "={{ $('14 - Order State Manager').first().json.draft.province }}",
+      "quantity": "={{ Number($('14 - Order State Manager').first().json.draft.quantity) }}",
+      "shipping_fee": "={{ $('14 - Order State Manager').first().json.draft.shipping_fee }}",
+      "size": "={{ $('14 - Order State Manager').first().json.draft.size }}",
+      "status": "CONFIRMED",
+      "store_id": "={{ $('14 - Order State Manager').first().json.customer_update.store_id }}",
+      "total": "={{ $('14 - Order State Manager').first().json.draft.total }}",
+      "whatsapp_number": "={{ $('02 - Detect Message Type').first().json.wa_from }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "RhEVlUgGjiFdO2js"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "order_id",
+       "keyValue": "={{ $('14 - Order State Manager').first().json.draft.order_id }}"
+      }
+     ]
+    },
+    "operation": "update",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "a0e5251a-7c11-4546-8ac6-c3e3af577d3a",
+   "name": "20 - Order Confirmation",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    8840,
+    -200
+   ],
+   "parameters": {
+    "jsCode": "// 20 - Order Confirmation: runs ONLY after the order was saved successfully in sa_orders\nconst s = $('14 - Order State Manager').first().json;\nconst msg = $('02 - Detect Message Type').first().json;\nconst fin = $('15b - Compose Final Reply').first().json;\nconst isUpdate = s.action === 'update_order';\nconst orderId = isUpdate ? s.draft.order_id : $('21b - Generate Order ID').first().json.order_id;\nconst d = Object.assign({}, s.draft, { order_id: orderId, status: 'CONFIRMED' });\ndelete d.review_hash;\nconst fmt = (n) => (n === null || n === undefined || isNaN(Number(n))) ? '' : Number(n).toLocaleString('en-US');\nconst cur = s.currency_word;\nconst shipUnknown = d.shipping_fee === null || d.shipping_fee === undefined;\nconst when = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Baghdad', hour12: false });\nconst customerText = (isUpdate ? 'تم تعديل طلبك ✅ 🌹' : 'تم تثبيت طلبك ✅ 🌹') + '\\n'\n  + 'رقم الطلب: ' + orderId + '\\n'\n  + 'المجموع: ' + fmt(d.total) + ' ' + cur + (shipUnknown ? ' + التوصيل' : '') + '\\n'\n  + 'راح يتواصل وياك فريقنا للتوصيل. شكراً لثقتك 🌹';\nconst team = [\n  isUpdate ? '✏️ تعديل طلب' : '🛍️ طلب جديد',\n  'رقم الطلب:', orderId,\n  '👤 الاسم:', d.customer_name,\n  '📱 الهاتف:', d.phone,\n  '💬 واتساب:', msg.wa_from,\n  '📍 المحافظة:', d.province,\n  '📍 المنطقة:', d.area,\n  '📌 أقرب نقطة:', d.landmark,\n  '🛍️ المنتج:', d.product_name + ' (' + d.product_id + ')',\n  '🎨 اللون:', d.color || '-',\n  '📏 القياس:', d.size || '-',\n  '🔢 الكمية:', String(d.quantity),\n  '💰 سعر المنتجات:', fmt(d.product_price),\n  '🚚 التوصيل:', shipUnknown ? 'غير محدد - يتأكد مع الزبون' : fmt(d.shipping_fee),\n  '💵 المجموع:', fmt(d.total) + (shipUnknown ? ' + التوصيل' : ''),\n  '🕐 وقت الطلب:', when\n].join('\\n');\nlet recent = [];\ntry { recent = JSON.parse(fin.customer_update.recent_messages || '[]'); } catch (e) { recent = []; }\nif (recent.length && recent[recent.length - 1].r === 'agent') recent[recent.length - 1].t = customerText.slice(0, 400);\nconst cu = Object.assign({}, fin.customer_update, {\n  conversation_state: 'ORDER_CONFIRMED', last_order: orderId,\n  draft_order: JSON.stringify(Object.assign({}, d, { _meta: s.meta })), recent_messages: JSON.stringify(recent)\n});\nreturn [{ json: { order_id: orderId, is_update: isUpdate, customer_text: customerText, team_message: team, customer_update: cu, draft: d } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "150e1f6d-6612-4472-bf0b-8b7ad7c6fbfa",
+   "name": "20b - Save Confirmed State",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    9100,
+    -200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_name",
+       "id": "whatsapp_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "name",
+       "id": "name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "phone",
+       "id": "phone",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "province",
+       "id": "province",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "area",
+       "id": "area",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "landmark",
+       "id": "landmark",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_product",
+       "id": "last_product",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_order",
+       "id": "last_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "conversation_state",
+       "id": "conversation_state",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "draft_order",
+       "id": "draft_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "recent_messages",
+       "id": "recent_messages",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "handoff_until",
+       "id": "handoff_until",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "dateTime"
+      }
+     ],
+     "value": {
+      "area": "={{ $json.customer_update.area }}",
+      "conversation_state": "={{ $json.customer_update.conversation_state }}",
+      "customer_id": "={{ $json.customer_update.customer_id }}",
+      "draft_order": "={{ $json.customer_update.draft_order }}",
+      "handoff_until": "={{ $json.customer_update.handoff_until || null }}",
+      "landmark": "={{ $json.customer_update.landmark }}",
+      "last_order": "={{ $json.customer_update.last_order }}",
+      "last_product": "={{ $json.customer_update.last_product }}",
+      "name": "={{ $json.customer_update.name }}",
+      "phone": "={{ $json.customer_update.phone }}",
+      "province": "={{ $json.customer_update.province }}",
+      "recent_messages": "={{ $json.customer_update.recent_messages }}",
+      "store_id": "={{ $json.customer_update.store_id }}",
+      "whatsapp_name": "={{ $json.customer_update.whatsapp_name }}",
+      "whatsapp_number": "={{ $json.customer_update.whatsapp_number }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "Xw12SCMPxzHJtTBj"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "customer_id",
+       "keyValue": "={{ $json.customer_update.customer_id }}"
+      }
+     ]
+    },
+    "operation": "upsert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500
+  },
+  {
+   "id": "5eadfb33-d031-4f45-874b-9003f5df002b",
+   "name": "16c - Send Order Confirmation",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    9360,
+    -340
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "={{ $('20 - Order Confirmation').first().json.customer_text }}"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "5739c042-a0ad-4a6c-9c9f-8acd5ea0512f",
+   "name": "20x - Cancel Order",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    7800,
+    200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "status",
+       "id": "status",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "status": "CANCELLED"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "RhEVlUgGjiFdO2js"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "order_id",
+       "keyValue": "={{ $('14 - Order State Manager').first().json.draft.order_id }}"
+      }
+     ]
+    },
+    "operation": "update",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "9d4a15d2-e2c7-462a-8c3b-34ca91e3a47d",
+   "name": "20z - Restore Stock",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    8060,
+    200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "stock",
+       "id": "stock",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      }
+     ],
+     "value": {
+      "stock": "={{ $('14 - Order State Manager').first().json.stock_restore.new_stock }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "JgIhtXO5KkyjPxQt"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "id",
+       "keyValue": "={{ $('14 - Order State Manager').first().json.stock_restore.row_id }}"
+      }
+     ]
+    },
+    "operation": "update",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "c3c0eb68-6326-4dd1-9184-8c0df4eac32d",
+   "name": "20y - Build Cancel Notice",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    8320,
+    200
+   ],
+   "parameters": {
+    "jsCode": "// 20y - Build Cancel Notice: runs ONLY after the order status was set to CANCELLED in sa_orders\nconst s = $('14 - Order State Manager').first().json;\nconst msg = $('02 - Detect Message Type').first().json;\nconst fin = $('15b - Compose Final Reply').first().json;\nconst d = s.draft || {};\nconst when = new Date().toLocaleString('en-GB', { timeZone: 'Asia/Baghdad', hour12: false });\nconst customerText = 'تم إلغاء طلبك رقم ' + d.order_id + ' ✅\\nإذا احتجت أي شي آني حاضر 🌹';\nconst team = ['❌ إلغاء طلب', 'رقم الطلب:', d.order_id, '👤 الاسم:', d.customer_name || '-', '📱 الهاتف:', d.phone || '-', '💬 واتساب:', msg.wa_from, '🛍️ المنتج:', (d.product_name || '-'), '🔢 الكمية:', String(d.quantity || '-'), '🕐 وقت الإلغاء:', when].join('\\n');\nconst keep = {};\n['customer_name', 'phone', 'province', 'area', 'landmark'].forEach(k => { if (d[k]) keep[k] = d[k]; });\nkeep._meta = s.meta;\nlet recent = [];\ntry { recent = JSON.parse(fin.customer_update.recent_messages || '[]'); } catch (e) { recent = []; }\nif (recent.length && recent[recent.length - 1].r === 'agent') recent[recent.length - 1].t = customerText.slice(0, 400);\nconst cu = Object.assign({}, fin.customer_update, { conversation_state: 'ORDER_CANCELLED', draft_order: JSON.stringify(keep), recent_messages: JSON.stringify(recent) });\nreturn [{ json: { order_id: d.order_id, customer_text: customerText, team_message: team, customer_update: cu } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "6a925337-7354-406d-930a-03f536b14c78",
+   "name": "20w - Save Cancelled State",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    8580,
+    200
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_number",
+       "id": "whatsapp_number",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "whatsapp_name",
+       "id": "whatsapp_name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "name",
+       "id": "name",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "phone",
+       "id": "phone",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "province",
+       "id": "province",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "area",
+       "id": "area",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "landmark",
+       "id": "landmark",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_product",
+       "id": "last_product",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "last_order",
+       "id": "last_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "conversation_state",
+       "id": "conversation_state",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "draft_order",
+       "id": "draft_order",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "recent_messages",
+       "id": "recent_messages",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "handoff_until",
+       "id": "handoff_until",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "dateTime"
+      }
+     ],
+     "value": {
+      "area": "={{ $json.customer_update.area }}",
+      "conversation_state": "={{ $json.customer_update.conversation_state }}",
+      "customer_id": "={{ $json.customer_update.customer_id }}",
+      "draft_order": "={{ $json.customer_update.draft_order }}",
+      "handoff_until": "={{ $json.customer_update.handoff_until || null }}",
+      "landmark": "={{ $json.customer_update.landmark }}",
+      "last_order": "={{ $json.customer_update.last_order }}",
+      "last_product": "={{ $json.customer_update.last_product }}",
+      "name": "={{ $json.customer_update.name }}",
+      "phone": "={{ $json.customer_update.phone }}",
+      "province": "={{ $json.customer_update.province }}",
+      "recent_messages": "={{ $json.customer_update.recent_messages }}",
+      "store_id": "={{ $json.customer_update.store_id }}",
+      "whatsapp_name": "={{ $json.customer_update.whatsapp_name }}",
+      "whatsapp_number": "={{ $json.customer_update.whatsapp_number }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "Xw12SCMPxzHJtTBj"
+    },
+    "filters": {
+     "conditions": [
+      {
+       "condition": "eq",
+       "keyName": "customer_id",
+       "keyValue": "={{ $json.customer_update.customer_id }}"
+      }
+     ]
+    },
+    "operation": "upsert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500
+  },
+  {
+   "id": "f588a34e-7f54-41e9-b4e5-ae47e15435da",
+   "name": "16x - Send Cancel Confirmation",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    8840,
+    300
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "={{ $('20y - Build Cancel Notice').first().json.customer_text }}"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "cb106989-67c6-47cd-ad49-c7189dec4d5f",
+   "name": "22h - Build Handoff Notice",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    7800,
+    480
+   ],
+   "parameters": {
+    "jsCode": "// 22h - Build Handoff Notice: tells the team a customer needs a human (bot is paused for this customer)\nconst s = $('14 - Order State Manager').first().json;\nconst ctx = $('05 - Get Conversation State').first().json;\nconst clean = $('08 - Clean Transcript').first().json;\nconst REASON = { customer_request: 'الزبون طلب يحچي ويا موظف', order_locked_cancel: 'الزبون يريد يلغي طلب صار قيد التجهيز/الشحن', order_locked_change: 'الزبون يريد يعدل طلب صار قيد التجهيز/الشحن' };\nconst until = s.handoff_until ? new Date(s.handoff_until).toLocaleString('en-GB', { timeZone: 'Asia/Baghdad', hour12: false }) : '-';\nconst d = s.draft || {};\nconst team = ['🙋 تحويل لموظف بشري', 'السبب:', REASON[s.handoff_reason] || s.handoff_reason, '💬 واتساب:', ctx.msg.wa_from, '👤 الاسم:', ctx.customer.name || ctx.customer.whatsapp_name || '-', '📝 آخر رسالة:', clean.customer_text, '📦 الطلب الحالي:', d.order_id ? d.order_id + ' (' + (d.status || '') + ')' : (d.product_name ? d.product_name + ' x ' + (d.quantity || '?') : 'لا يوجد'), '⏳ الرد الآلي متوقف لهذا الزبون لحد:', until].join('\\n');\nreturn [{ json: { team_message: team } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "4eca5668-de47-42c2-be09-19ac2764942a",
+   "name": "16h - Send Handoff Reply",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    8060,
+    560
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "={{ $('15b - Compose Final Reply').first().json.reply_text }}"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "e20a06e5-5209-4e65-81d7-a0ba5c817954",
+   "name": "22p - Prepare Team Message",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    9620,
+    100
+   ],
+   "parameters": {
+    "jsCode": "// 22p - Prepare Team Message: picks the notice produced by this run and the store's team channel\nconst ex = (n) => { try { return $(n).isExecuted; } catch (e) { return false; } };\nlet text = '';\nfor (const n of ['24 - Error Handler', '20 - Order Confirmation', '20y - Build Cancel Notice', '22h - Build Handoff Notice']) {\n  if (ex(n)) { const j = $(n).first().json; if (j && j.team_message) { text = j.team_message; break; } }\n}\nif (!text) return [];\nlet store = {};\ntry { store = $('05 - Get Conversation State').first().json.store || {}; } catch (e) { store = {}; }\nconst channel = String(store.notify_channel || 'telegram').toLowerCase().trim();\nconst numbers = String(store.team_whatsapp_numbers || '').split(/[,،\\s]+/).map(x => x.replace(/[^0-9]/g, '')).filter(Boolean);\nreturn [{ json: { team_message: text.slice(0, 3900), channel, telegram_chat_id: String(store.telegram_chat_id || ''), team_numbers: numbers } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "aed90100-aa6b-4b60-b4f8-7c3fb30413e4",
+   "name": "22a - Route Team Channel",
+   "type": "n8n-nodes-base.switch",
+   "typeVersion": 3.2,
+   "position": [
+    9880,
+    100
+   ],
+   "parameters": {
+    "mode": "rules",
+    "options": {
+     "allMatchingOutputs": true
+    },
+    "rules": {
+     "values": [
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ ['telegram','both'].includes($json.channel) }}",
+          "operator": {
+           "operation": "true",
+           "singleValue": true,
+           "type": "boolean"
+          },
+          "rightValue": ""
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "telegram",
+       "renameOutput": true
+      },
+      {
+       "conditions": {
+        "combinator": "and",
+        "conditions": [
+         {
+          "leftValue": "={{ ['whatsapp','both'].includes($json.channel) }}",
+          "operator": {
+           "operation": "true",
+           "singleValue": true,
+           "type": "boolean"
+          },
+          "rightValue": ""
+         }
+        ],
+        "options": {
+         "caseSensitive": true,
+         "leftValue": "",
+         "typeValidation": "loose",
+         "version": 2
+        }
+       },
+       "outputKey": "whatsapp",
+       "renameOutput": true
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "67995099-075f-446a-bc75-3fa78a69b76b",
+   "name": "22 - Send Order To Telegram",
+   "type": "n8n-nodes-base.telegram",
+   "typeVersion": 1.2,
+   "position": [
+    10140,
+    0
+   ],
+   "parameters": {
+    "additionalFields": {
+     "appendAttribution": false,
+     "parse_mode": "HTML"
+    },
+    "chatId": "={{ $json.telegram_chat_id }}",
+    "operation": "sendMessage",
+    "resource": "message",
+    "text": "={{ $json.team_message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }}"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 3000
+  },
+  {
+   "id": "319986a8-f677-4a28-9095-4ad8f373644e",
+   "name": "23a - Split Team Numbers",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    10140,
+    200
+   ],
+   "parameters": {
+    "jsCode": "// 23a - Split Team Numbers: one WhatsApp message per team member number\nconst j = $input.first().json;\nreturn (j.team_numbers || []).map(n => ({ json: { to: n, text: j.team_message } }));\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "c52feb0e-c3d5-4d47-af54-1a2b58d52e1d",
+   "name": "23 - Send Order To WhatsApp Group",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    10400,
+    200
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $json.to }}",
+    "resource": "message",
+    "textBody": "={{ $json.text }}"
+   },
+   "onError": "continueErrorOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 3000,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "760f6304-21ea-45d7-be3e-b2f9b5f0dec9",
+   "name": "24b - Team Notify Failed",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    10660,
+    100
+   ],
+   "parameters": {
+    "jsCode": "// 24b - Team Notify Failed: Telegram / WhatsApp team notification failed after retries -> critical log\nconst j = $input.first().json || {};\nconst e = j.error;\nconst m = typeof e === 'string' ? e : (e && (e.message || e.description)) || 'unknown';\nreturn [{ json: { log_error: ('TEAM_NOTIFY_FAILED: ' + m).replace(/(Bearer\\s+)\\S+/g, '$1***').replace(/(bot)[0-9]+:[A-Za-z0-9_-]+/g, '$1***').slice(0, 1000), log_level: 'CRITICAL' } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "6b741ccd-619d-4e5a-81c8-afccc5225f5b",
+   "name": "24 - Error Handler",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    7800,
+    1300
+   ],
+   "parameters": {
+    "jsCode": "// 24 - Error Handler: AI failure / database failure -> safe customer message + team alert + log. Never confirms an order.\nconst inp = $input.first().json || {};\nconst ex = (n) => { try { return $(n).isExecuted; } catch (e) { return false; } };\nconst raw = inp.error;\nlet err = typeof raw === 'string' ? raw : (raw && (raw.message || raw.description)) || 'unknown error';\nerr = String(err).replace(/(Bearer\\s+)\\S+/g, '$1***').replace(/(access_token=)[^&\\s]+/g, '$1***').replace(/(key=)[^&\\s]+/g, '$1***').slice(0, 800);\nlet stage = 'ai_intent';\nif (ex('20x - Cancel Order')) stage = 'cancel_order';\nelse if (ex('21u - Update Existing Order')) stage = 'update_order';\nelse if (ex('21 - Save Order')) stage = 'save_order';\nconst msg = $('02 - Detect Message Type').first().json;\nlet clean = {};\ntry { clean = $('08 - Clean Transcript').first().json; } catch (e) { clean = {}; }\nlet d = {};\ntry { d = $('14 - Order State Manager').first().json.draft || {}; } catch (e) { d = {}; }\nconst CUSTOMER = {\n  ai_intent: 'هلا بيك حبيبي 🌹 لحظات وراح يرد عليك واحد من فريقنا.',\n  save_order: 'حبيبي صار خلل بسيط وما تثبت الطلب بعد 🌹 فريقنا وصله إشعار وراح يتواصل وياك حتى يثبته.',\n  update_order: 'حبيبي صار خلل بسيط وما انحفظ التعديل بعد 🌹 فريقنا وصله إشعار وراح يتواصل وياك.',\n  cancel_order: 'حبيبي صار خلل بسيط وما انلغى الطلب بعد 🌹 فريقنا وصله إشعار وراح يتابع وياك.'\n};\nconst STAGE_AR = { ai_intent: 'فهم رسالة الزبون (AI)', save_order: 'حفظ طلب جديد', update_order: 'تعديل طلب', cancel_order: 'إلغاء طلب' };\nconst lines = ['⚠️ خطأ بنظام AI SALES AGENT', 'المرحلة:', STAGE_AR[stage], '💬 واتساب الزبون:', msg.wa_from, '📝 رسالته:', String(clean.customer_text || msg.text || '-').slice(0, 500)];\nif (stage !== 'ai_intent') lines.push('📦 بيانات الطلب (يرجى تثبيتها يدوياً):', [d.order_id, d.product_name, d.color, d.size, d.quantity ? 'x' + d.quantity : '', d.total ? 'المجموع ' + d.total : '', d.customer_name, d.phone, d.province, d.area, d.landmark].filter(Boolean).join(' | '));\nlines.push('الخطأ:', err);\nreturn [{ json: { stage, customer_text: CUSTOMER[stage], team_message: lines.join('\\n'), error_message: err, log_error: stage.toUpperCase() + '_FAILED: ' + err, log_level: 'ERROR' } }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "7efea7a1-17ee-435c-9b04-9bd10ae05dfd",
+   "name": "24a - Send Fallback To Customer",
+   "type": "n8n-nodes-base.whatsApp",
+   "typeVersion": 1.1,
+   "position": [
+    8060,
+    1300
+   ],
+   "parameters": {
+    "additionalFields": {},
+    "messageType": "text",
+    "operation": "send",
+    "phoneNumberId": "={{ $('02 - Detect Message Type').first().json.phone_number_id }}",
+    "recipientPhoneNumber": "={{ $('02 - Detect Message Type').first().json.wa_from }}",
+    "resource": "message",
+    "textBody": "={{ $('24 - Error Handler').first().json.customer_text }}"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 3,
+   "waitBetweenTries": 1500,
+   "credentials": {
+    "whatsAppApi": {
+     "id": "G5NjAl0hVWMzWzxb",
+     "name": "WhatsApp account"
+    }
+   }
+  },
+  {
+   "id": "fc410c3b-d462-4d1f-93cd-7575895a7fb2",
+   "name": "25a - Build Log Entry",
+   "type": "n8n-nodes-base.code",
+   "typeVersion": 2,
+   "position": [
+    10920,
+    700
+   ],
+   "parameters": {
+    "jsCode": "// 25a - Build Log Entry: one structured log row per step outcome. Never logs tokens / keys / secrets.\nconst get = (n) => { try { return $(n).isExecuted ? $(n).first().json : null; } catch (e) { return null; } };\nconst msg = get('02 - Detect Message Type') || {};\nconst ctx = get('05 - Get Conversation State') || {};\nconst clean = get('08 - Clean Transcript') || {};\nconst ext = get('10 - Extract Customer Data') || {};\nconst osm = get('14 - Order State Manager') || {};\nconst fin = get('15b - Compose Final Reply') || {};\nconst conf = get('20 - Order Confirmation') || {};\nconst err = get('24 - Error Handler') || {};\nconst inj = $input.first().json || {};\nconst injErr = inj.log_error || (inj.error ? (typeof inj.error === 'string' ? inj.error : (inj.error.message || JSON.stringify(inj.error))) : '');\nconst scrub = (s) => String(s || '').replace(/(Bearer\\s+)\\S+/g, '$1***').replace(/(access_token=)[^&\\s]+/g, '$1***').replace(/(key=)[^&\\s]+/g, '$1***').replace(/(bot)[0-9]+:[A-Za-z0-9_-]+/g, '$1***');\nlet response = fin.reply_text || '';\nif (conf.customer_text) response = conf.customer_text;\nif (err.customer_text) response = err.customer_text;\nif (ctx.handoff_active && !osm.action) response = '(silent - human handoff active)';\nconst voiceFailed = clean.voice_failed ? 'عذراً حبيبي، الصوت ما واضح عندي 🌹 ممكن تعيد البصمة؟' : '';\nconst errorText = injErr || err.log_error || (clean.voice_failed ? 'VOICE_UNCLEAR: ' + (clean.media_error || '') : '') || (fin.ai_failed ? 'AI_RESPONSE_FAILED_FALLBACK_USED' : '');\nreturn [{ json: {\n  message_id: msg.message_id || '',\n  store_id: (ctx.store && ctx.store.store_id) || '',\n  customer_id: (ctx.customer && ctx.customer.customer_id) || '',\n  message_type: msg.message_type || '',\n  transcript: scrub(clean.customer_text || msg.text || '').slice(0, 4000),\n  intent: (ext.intents || []).join(','),\n  extracted_data: scrub(JSON.stringify(ext.entities || {})).slice(0, 4000),\n  product: (osm.product && osm.product.product_id) || '',\n  price: (osm.draft && typeof osm.draft.total === 'number') ? osm.draft.total : null,\n  order_state: conf.order_id ? 'ORDER_CONFIRMED' : (get('20y - Build Cancel Notice') ? 'ORDER_CANCELLED' : (osm.next_state || ctx.state || '')),\n  order_id: conf.order_id || (osm.draft && osm.draft.order_id) || '',\n  response: scrub(response || voiceFailed).slice(0, 4000),\n  error: scrub(errorText).slice(0, 2000),\n  level: inj.log_level || (errorText ? 'ERROR' : 'INFO')\n} }];\n",
+    "language": "javaScript",
+    "mode": "runOnceForAllItems"
+   }
+  },
+  {
+   "id": "362c2a49-d126-4791-a96d-de42f68f5376",
+   "name": "25 - Logging",
+   "type": "n8n-nodes-base.dataTable",
+   "typeVersion": 1.1,
+   "position": [
+    11180,
+    700
+   ],
+   "parameters": {
+    "columns": {
+     "attemptToConvertTypes": false,
+     "convertFieldsToString": false,
+     "mappingMode": "defineBelow",
+     "matchingColumns": [],
+     "schema": [
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "message_id",
+       "id": "message_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "store_id",
+       "id": "store_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "customer_id",
+       "id": "customer_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "message_type",
+       "id": "message_type",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "transcript",
+       "id": "transcript",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "intent",
+       "id": "intent",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "extracted_data",
+       "id": "extracted_data",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "product",
+       "id": "product",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "price",
+       "id": "price",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "number"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "order_state",
+       "id": "order_state",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "order_id",
+       "id": "order_id",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "response",
+       "id": "response",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "error",
+       "id": "error",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      },
+      {
+       "canBeUsedToMatch": true,
+       "defaultMatch": false,
+       "display": true,
+       "displayName": "level",
+       "id": "level",
+       "readOnly": false,
+       "removed": false,
+       "required": false,
+       "type": "string"
+      }
+     ],
+     "value": {
+      "customer_id": "={{ $json.customer_id }}",
+      "error": "={{ $json.error }}",
+      "extracted_data": "={{ $json.extracted_data }}",
+      "intent": "={{ $json.intent }}",
+      "level": "={{ $json.level }}",
+      "message_id": "={{ $json.message_id }}",
+      "message_type": "={{ $json.message_type }}",
+      "order_id": "={{ $json.order_id }}",
+      "order_state": "={{ $json.order_state }}",
+      "price": "={{ $json.price }}",
+      "product": "={{ $json.product }}",
+      "response": "={{ $json.response }}",
+      "store_id": "={{ $json.store_id }}",
+      "transcript": "={{ $json.transcript }}"
+     }
+    },
+    "dataTableId": {
+     "__rl": true,
+     "mode": "id",
+     "value": "Nvn5UWRp7V6Phfg8"
+    },
+    "operation": "insert",
+    "options": {},
+    "resource": "row"
+   },
+   "onError": "continueRegularOutput",
+   "retryOnFail": true,
+   "maxTries": 2,
+   "waitBetweenTries": 1000
+  },
+  {
+   "id": "cec76504-38ff-4b5d-8f49-56fd0df95b3c",
+   "name": "Sticky - Setup",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    -40,
+    -260
+   ],
+   "parameters": {
+    "color": 4,
+    "content": "## AI SALES AGENT — طريقة التشغيل\n1. **المنتجات:** عبّي جدول `sa_products` (السعر + `quantity_offers` مثل `{\"1\":15000,\"2\":25000}`).\n2. **الصور والفيديو:** جدول `sa_product_media` (روابط مباشرة https تنتهي بـ jpg/png/mp4).\n3. **التوصيل:** جدول `sa_shipping` — اكتب `fee` لكل محافظة.\n4. **المتجر:** جدول `sa_stores` — `telegram_chat_id` و `notify_channel` (telegram / whatsapp / both).\n5. **Telegram:** اربط Credential بنود **22 - Send Order To Telegram**.\n6. فعّل الـ Workflow (Publish).\n\nالأسعار والطلبات والحالات كلها من قاعدة البيانات — الذكاء الاصطناعي بس يفهم ويكتب الرد.",
+    "height": 420,
+    "width": 620
+   }
+  },
+  {
+   "id": "184c7666-2289-496e-a6d6-44dd193ccc3e",
+   "name": "Sticky - Voice",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    3080,
+    1320
+   ],
+   "parameters": {
+    "color": 5,
+    "content": "## 🎤 مسار البصمة الصوتية\nVoice → Get Media URL → Download → **Gemini Speech To Text** (لهجة عراقية) → Clean Transcript → Claude Intent → Business Logic → Reply.\nإذا الصوت ما واضح: رسالة إعادة البصمة.",
+    "height": 200,
+    "width": 520
+   }
+  },
+  {
+   "id": "3b979988-fb2c-4d1f-8c3d-ca04ae818c42",
+   "name": "Sticky - Business",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    4600,
+    900
+   ],
+   "parameters": {
+    "color": 6,
+    "content": "## 🧠 AI ↔ Business Logic\n- **09 (Claude):** يفهم اللهجة والنية ويستخرج البيانات فقط.\n- **11-14 (Code + DB):** المنتج، السعر، العروض، التوصيل، المخزون، حالة الطلب.\n- **15 (Claude):** يكتب رد طبيعي من المعطيات الموثقة فقط.\n- **19:** ملخص الطلب (قالب ثابت، بدون AI).",
+    "height": 260,
+    "width": 560
+   }
+  },
+  {
+   "id": "54c1bebb-f7cd-4354-b5be-59b677bd825d",
+   "name": "Sticky - Orders",
+   "type": "n8n-nodes-base.stickyNote",
+   "typeVersion": 1,
+   "position": [
+    7760,
+    -560
+   ],
+   "parameters": {
+    "color": 3,
+    "content": "## 🛍️ الطلبات\nالطلب يتثبت فقط بعد: ملخص → الزبون يكتب «تأكيد» → حفظ ناجح بـ `sa_orders` → Order ID → إشعار الفريق.\nإذا فشل الحفظ: ما يتأكد للزبون + تنبيه للفريق.",
+    "height": 220,
+    "width": 560
+   }
+  }
+ ],
+ "connections": {
+  "01 - WhatsApp Webhook": {
+   "main": [
+    [
+     {
+      "node": "02 - Detect Message Type",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "02 - Detect Message Type": {
+   "main": [
+    [
+     {
+      "node": "03 - Check Duplicate",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03 - Check Duplicate": {
+   "main": [
+    [
+     {
+      "node": "03b - Mark Message Processed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "03b - Mark Message Processed": {
+   "main": [
+    [
+     {
+      "node": "04 - Get Store Settings",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04 - Get Store Settings": {
+   "main": [
+    [
+     {
+      "node": "04b - Get Customer",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04b - Get Customer": {
+   "main": [
+    [
+     {
+      "node": "04c - Load Product Catalog",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04c - Load Product Catalog": {
+   "main": [
+    [
+     {
+      "node": "04d - Load Shipping Table",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "04d - Load Shipping Table": {
+   "main": [
+    [
+     {
+      "node": "05 - Get Conversation State",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05 - Get Conversation State": {
+   "main": [
+    [
+     {
+      "node": "05b - Human Handoff Active?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05b - Human Handoff Active?": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "05e - Get Last Order",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05e - Get Last Order": {
+   "main": [
+    [
+     {
+      "node": "05d - Route By Message Type",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "05d - Route By Message Type": {
+   "main": [
+    [
+     {
+      "node": "06 - Get Media URL",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "06 - Get Media URL": {
+   "main": [
+    [
+     {
+      "node": "06b - Download Voice / Media",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "06b - Download Voice / Media": {
+   "main": [
+    [
+     {
+      "node": "06c - Media Kind",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "06c - Media Kind": {
+   "main": [
+    [
+     {
+      "node": "07 - Speech To Text",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07b - Analyze Customer Image",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07c - Analyze Customer Video",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07d - Analyze Customer Document",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07 - Speech To Text": {
+   "main": [
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07b - Analyze Customer Image": {
+   "main": [
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07c - Analyze Customer Video": {
+   "main": [
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07d - Analyze Customer Document": {
+   "main": [
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "07e - Media Processing Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "07e - Media Processing Failed": {
+   "main": [
+    [
+     {
+      "node": "08 - Clean Transcript",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "08 - Clean Transcript": {
+   "main": [
+    [
+     {
+      "node": "08b - Voice Unclear?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "08b - Voice Unclear?": {
+   "main": [
+    [
+     {
+      "node": "16b - Send Voice Retry Message",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "09 - AI Intent Detection",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "16b - Send Voice Retry Message": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "09a - Claude (Intent)": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "09 - AI Intent Detection",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "09b - Intent JSON Schema": {
+   "ai_outputParser": [
+    [
+     {
+      "node": "09 - AI Intent Detection",
+      "type": "ai_outputParser",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "09 - AI Intent Detection": {
+   "main": [
+    [
+     {
+      "node": "10 - Extract Customer Data",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "10 - Extract Customer Data": {
+   "main": [
+    [
+     {
+      "node": "11 - Product Lookup",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "11 - Product Lookup": {
+   "main": [
+    [
+     {
+      "node": "12 - Product Media Lookup",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "12 - Product Media Lookup": {
+   "main": [
+    [
+     {
+      "node": "13 - Price Calculator",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "13 - Price Calculator": {
+   "main": [
+    [
+     {
+      "node": "14 - Order State Manager",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "14 - Order State Manager": {
+   "main": [
+    [
+     {
+      "node": "19 - Order Review",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "19 - Order Review": {
+   "main": [
+    [
+     {
+      "node": "14b - Needs AI Reply?",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "14b - Needs AI Reply?": {
+   "main": [
+    [
+     {
+      "node": "15 - Generate AI Response",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "15b - Compose Final Reply",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "15a - Claude (Response)": {
+   "ai_languageModel": [
+    [
+     {
+      "node": "15 - Generate AI Response",
+      "type": "ai_languageModel",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "15 - Generate AI Response": {
+   "main": [
+    [
+     {
+      "node": "15b - Compose Final Reply",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "15b - Compose Final Reply",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "15b - Compose Final Reply": {
+   "main": [
+    [
+     {
+      "node": "14c - Update Customer Record",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "14c - Update Customer Record": {
+   "main": [
+    [
+     {
+      "node": "14d - Route Action",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "14d - Route Action": {
+   "main": [
+    [
+     {
+      "node": "21 - Save Order",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "21u - Update Existing Order",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "20x - Cancel Order",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "22h - Build Handoff Notice",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "16 - Send WhatsApp Text",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "16 - Send WhatsApp Text": {
+   "main": [
+    [
+     {
+      "node": "17a - Prepare Media Queue",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "17a - Prepare Media Queue": {
+   "main": [
+    [
+     {
+      "node": "17b - Media Type",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "17b - Media Type": {
+   "main": [
+    [
+     {
+      "node": "17 - Send Product Image",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "18 - Send Product Video",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "17 - Send Product Image": {
+   "main": [
+    null,
+    [
+     {
+      "node": "17c - Media Send Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "18 - Send Product Video": {
+   "main": [
+    null,
+    [
+     {
+      "node": "17c - Media Send Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "17c - Media Send Failed": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "21 - Save Order": {
+   "main": [
+    [
+     {
+      "node": "21b - Generate Order ID",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "21b - Generate Order ID": {
+   "main": [
+    [
+     {
+      "node": "21c - Mark Order Confirmed",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "21c - Mark Order Confirmed": {
+   "main": [
+    [
+     {
+      "node": "21d - Update Stock",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "21d - Update Stock": {
+   "main": [
+    [
+     {
+      "node": "20 - Order Confirmation",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "21u - Update Existing Order": {
+   "main": [
+    [
+     {
+      "node": "20 - Order Confirmation",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20 - Order Confirmation": {
+   "main": [
+    [
+     {
+      "node": "20b - Save Confirmed State",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20b - Save Confirmed State": {
+   "main": [
+    [
+     {
+      "node": "22p - Prepare Team Message",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "16c - Send Order Confirmation",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "16c - Send Order Confirmation": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20x - Cancel Order": {
+   "main": [
+    [
+     {
+      "node": "20z - Restore Stock",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "24 - Error Handler",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20z - Restore Stock": {
+   "main": [
+    [
+     {
+      "node": "20y - Build Cancel Notice",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20y - Build Cancel Notice": {
+   "main": [
+    [
+     {
+      "node": "20w - Save Cancelled State",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "20w - Save Cancelled State": {
+   "main": [
+    [
+     {
+      "node": "22p - Prepare Team Message",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "16x - Send Cancel Confirmation",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "16x - Send Cancel Confirmation": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "22h - Build Handoff Notice": {
+   "main": [
+    [
+     {
+      "node": "16h - Send Handoff Reply",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "22p - Prepare Team Message",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "16h - Send Handoff Reply": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "22p - Prepare Team Message": {
+   "main": [
+    [
+     {
+      "node": "22a - Route Team Channel",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "22a - Route Team Channel": {
+   "main": [
+    [
+     {
+      "node": "22 - Send Order To Telegram",
+      "type": "main",
+      "index": 0
+     }
+    ],
+    [
+     {
+      "node": "23a - Split Team Numbers",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "22 - Send Order To Telegram": {
+   "main": [
+    null,
+    [
+     {
+      "node": "24b - Team Notify Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "23a - Split Team Numbers": {
+   "main": [
+    [
+     {
+      "node": "23 - Send Order To WhatsApp Group",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "23 - Send Order To WhatsApp Group": {
+   "main": [
+    null,
+    [
+     {
+      "node": "24b - Team Notify Failed",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "24b - Team Notify Failed": {
+   "main": [
+    [
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "24 - Error Handler": {
+   "main": [
+    [
+     {
+      "node": "24a - Send Fallback To Customer",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "24a - Send Fallback To Customer": {
+   "main": [
+    [
+     {
+      "node": "22p - Prepare Team Message",
+      "type": "main",
+      "index": 0
+     },
+     {
+      "node": "25a - Build Log Entry",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  },
+  "25a - Build Log Entry": {
+   "main": [
+    [
+     {
+      "node": "25 - Logging",
+      "type": "main",
+      "index": 0
+     }
+    ]
+   ]
+  }
+ },
+ "settings": {
+  "executionOrder": "v1",
+  "availableInMCP": true
+ }
+}
