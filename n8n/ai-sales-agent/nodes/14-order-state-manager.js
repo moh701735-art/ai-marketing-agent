@@ -252,7 +252,12 @@ if (!ctx.products.length) facts.catalog_empty = true;
 const provinceForShip = e.province || draft.province || ctx.customer.province;
 const shipRow = provinceForShip ? findShipping(provinceForShip) : null;
 if (shipRow) facts.shipping = shipRow.province + ': ' + (shipRow.fee === null ? 'السعر يتأكد من الفريق' : fmt(shipRow.fee) + ' ' + curWord) + (shipRow.delivery_days ? ' | مدة التوصيل: ' + shipRow.delivery_days : '');
-else if (I.has('SHIPPING_INQUIRY')) facts.shipping_table = ctx.shipping.filter(s => s.fee !== null).slice(0, 20).map(s => s.province + ' ' + fmt(s.fee)).join(' | ') || 'غير محدد';
+else if (I.has('SHIPPING_INQUIRY')) facts.shipping_table = ctx.shipping.filter(s => s.fee !== null).slice(0, 20).map(s => s.province + ' ' + fmt(s.fee) + (s.delivery_days ? ' (' + s.delivery_days + ')' : '')).join(' | ') || 'غير محدد';
+// delivery time is usually the same for every province -> surface it directly even before the customer's province is known
+if (I.has('SHIPPING_INQUIRY') || priceAsked) {
+  const uniqueDays = Array.from(new Set(ctx.shipping.map(s => s.delivery_days).filter(Boolean)));
+  if (uniqueDays.length === 1 && !facts.shipping) facts.delivery_time = uniqueDays[0];
+}
 facts.sending_images = media.filter(m => m.media_type === 'image').length;
 facts.sending_video = media.some(m => m.media_type === 'video');
 const ASK = {
