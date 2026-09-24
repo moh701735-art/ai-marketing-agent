@@ -12,6 +12,9 @@ const waFrom = (altJid ? altJid.split('@')[0] : '') || rawFrom.split('@')[0];
 const media = p.media || null;
 const mime = (media && media.mimetype) || '';
 const hasMedia = !!p.hasMedia && !!media && !!media.url;
+// WAHA gives media URLs on its Railway-internal hostname, which n8n (a different Railway project) cannot resolve -> rewrite to WAHA's public URL
+const PUBLIC_WAHA_HOST = 'https://devlikeaprowaha-production-c7e8.up.railway.app';
+const mediaUrl = (media && media.url) ? media.url.replace(/^https?:\/\/[^/]*\.railway\.internal/i, PUBLIC_WAHA_HOST) : '';
 let messageType = 'OTHER';
 if (p.location) messageType = 'LOCATION';
 else if (hasMedia) {
@@ -33,7 +36,7 @@ return [{ json: {
   display_phone: '',
   raw_type: messageType.toLowerCase(),
   message_type: messageType,
-  text, media_id: '', media_url: (media && media.url) || '', mime_type: mime, caption, filename: (media && media.filename) || '', location,
+  text, media_id: '', media_url: mediaUrl, mime_type: mime, caption, filename: (media && media.filename) || '', location,
   reply_to: (p.replyTo && p.replyTo.id) || '',
   timestamp: p.timestamp || '',
   received_at: new Date().toISOString()
