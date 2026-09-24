@@ -164,18 +164,58 @@ if (ext.human_request) {
   }
 }
 
-// ---- media to send (images / video from sa_product_media only)
+// ---- media to send (images / video from sa_product_media only) — staged reveal: featured colors first, then the rest
+const FEATURED_COLORS = ['أسود', 'بني'];
 const media = [];
 if (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {
+  const allColorNames = list(product.colors);
+  const featuredNames = allColorNames.filter(c => FEATURED_COLORS.some(f => norm(f) === norm(c)));
+  const otherNames = allColorNames.filter(c => !featuredNames.some(f => norm(f) === norm(c)));
   const colorPref = (pl.color && pl.color.value) || (draft.product_id === product.product_id ? draft.color : null);
   const imgs = (pc.images || []).slice();
-  if (colorPref) imgs.sort((a, b) => (norm(b.color) === norm(colorPref) ? 1 : 0) - (norm(a.color) === norm(colorPref) ? 1 : 0));
-  if (ext.wants_images) {
-    if (imgs.length) imgs.slice(0, 10).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
-    else facts.no_images = true;
-  } else if ((I.has('PRICE_INQUIRY') || I.has('PRODUCT_INQUIRY')) && replyMode === 'ai' && imgs.length && !meta.images_sent_for.includes(product.product_id)) {
-    media.push({ media_type: 'image', url: imgs[0].url, caption: imgs[0].caption || '' });
+  const stage = (meta.image_stage && meta.image_stage[product.product_id]) || null;
+  const setStage = (s) => { meta.image_stage = Object.assign({}, meta.image_stage, { [product.product_id]: s }); };
+
+  if (colorPref) {
+    // a specific color was named -> just that color's images (or all, if none match), normal behaviour
+    if (ext.wants_images) {
+      const match = imgs.filter(m => norm(m.color) === norm(colorPref));
+      const chosen = (match.length ? match : imgs).slice(0, 10);
+      if (chosen.length) chosen.forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+      else facts.no_images = true;
+    } else if ((I.has('PRICE_INQUIRY') || I.has('PRODUCT_INQUIRY')) && imgs.length && !meta.images_sent_for.includes(product.product_id)) {
+      const match = imgs.filter(m => norm(m.color) === norm(colorPref));
+      const chosen = match.length ? match[0] : imgs[0];
+      media.push({ media_type: 'image', url: chosen.url, caption: chosen.caption || '' });
+    }
+  } else if (ext.wants_images || I.has('COLOR_INQUIRY')) {
+    // no specific color named: reveal featured colors first, then the rest on the next such request
+    if (stage === 'featured' && otherNames.length) {
+      const remainingImgs = imgs.filter(m => otherNames.some(c => norm(c) === norm(m.color)));
+      remainingImgs.forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+      facts.pitch_stage = 'remaining_colors';
+      facts.other_colors_shown = otherNames.join('، ');
+      setStage('remaining');
+    } else if (stage !== 'remaining') {
+      const featuredImgs = imgs.filter(m => featuredNames.some(c => norm(c) === norm(m.color)));
+      featuredImgs.forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+      facts.pitch_stage = 'featured_colors';
+      facts.featured_colors = featuredNames.join('، ');
+      facts.other_colors_available = otherNames.join('، ');
+      setStage('featured');
+    } else {
+      imgs.slice(0, 10).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+    }
+  } else if ((I.has('PRICE_INQUIRY') || I.has('PRODUCT_INQUIRY')) && imgs.length && !meta.images_sent_for.includes(product.product_id)) {
+    // first unsolicited pitch for this product: lead with the featured colors only
+    const featuredImgs = imgs.filter(m => featuredNames.some(c => norm(c) === norm(m.color)));
+    (featuredImgs.length ? featuredImgs : imgs.slice(0, 1)).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+    facts.pitch_stage = 'featured_colors';
+    facts.featured_colors = featuredNames.join('، ');
+    facts.other_colors_available = otherNames.join('، ');
+    if (!stage) setStage('featured');
   }
+
   if (ext.wants_video) {
     if ((pc.videos || []).length) media.push({ media_type: 'video', url: pc.videos[0].url, caption: pc.videos[0].caption || '' });
     else facts.no_video = true;
