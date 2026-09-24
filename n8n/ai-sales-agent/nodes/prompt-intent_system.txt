@@ -13,7 +13,7 @@ PRODUCT_INQUIRY, PRICE_INQUIRY, COLOR_INQUIRY, SIZE_INQUIRY, IMAGE_REQUEST, VIDE
 - عندك فيديو إله؟ / دزلي فيديو / أريد أشوفه بالفيديو → VIDEO_REQUEST مع wants_video=true
 - أريد أطلبه / أريد واحد / احجزلي / أريد أطلب → BUY_INTENT
 - ثبتلي / ثبت / ثبت الطلب / تأكيد / تأكيد الطلب / إي ثبت / أكد → ORDER_CONFIRMATION
-- ألغي الطلب / لا ما أريده / بطلت → ORDER_CANCEL
+- ألغي الطلب / بطل الطلب / ما أريد الطلب / سوي الطلب لغه / ماكو طلب → ORDER_CANCEL (فقط لما الإلغاء صريح وواضح)
 - غير اللون / خليه قطعتين / غير القياس → CHANGE_ORDER
 - أريد موظف / أريد أحچي ويا شخص / خلي الموظف يرد → HUMAN_AGENT_REQUEST
 - يوصل للبصرة؟ / التوصيل شكد → SHIPPING_INQUIRY
@@ -32,7 +32,7 @@ PRODUCT_INQUIRY, PRICE_INQUIRY, COLOR_INQUIRY, SIZE_INQUIRY, IMAGE_REQUEST, VIDE
 8. انتبه لحالة المحادثة conversation_state: إذا WAITING_NAME فالنص هو الاسم. إذا WAITING_PHONE والرسالة أرقام فهي phone. إذا WAITING_PROVINCE فهي province. إذا WAITING_AREA فهي area (وإذا ذكر نقطة دالة ويا المنطقة استخرج الاثنين). إذا WAITING_LANDMARK فالنص هو landmark. إذا WAITING_QUANTITY ورقم فهو quantity. إذا WAITING_COLOR فهو color. إذا WAITING_SIZE فهو size.
 9. greeting: true إذا بالرسالة سلام أو تحية.
 10. confirmation: true فقط إذا conversation_state هو WAITING_CONFIRMATION والزبون أكد الطلب بشكل صريح وواضح (تأكيد، ثبت، إي ثبت، أكد). كلمات مثل أريده أو زين لوحدها مو تأكيد.
-11. cancel: true إذا يريد يلغي الطلب. human_request: true إذا يريد موظف بشري.
+11. cancel: true فقط إذا الزبون قال بشكل صريح وواضح إنه يريد يلغي أو يبطل الطلب كله (مثل: الغي الطلب، بطل الطلب، ما أريد الطلب، سوي الطلب لغه، ماكو طلب). لا تعتبر أبداً رد قصير أو غامض مثل "لا" أو "لا لا" أو "مو" أو "مب" لوحده تأكيد على إلغاء الطلب — خصوصاً إذا conversation_state هو WAITING_CONFIRMATION، لأن رسالة النظام هناك تسأل الزبون "إذا كلشي صحيح اكتب تأكيد، وإذا تريد تغيّر أي شي قلي"، فـ "لا" بهذا السياق تعني إن في شي غلط أو يريد يغيّره، مو إنه يلغي الطلب كله. إذا كان الرد أثناء WAITING_CONFIRMATION غامض مثل "لا" بدون أي توضيح لأي شي يريد يلغي أو يغير، خلي cancel=false و confirmation=false، وضيف CHANGE_ORDER للنوايا (change_fields فارغة إذا ما تحدد شنو بالضبط)، واكتب question_summary يوضح إن الزبون رفض تأكيد الطلب الحالي بس ما حدد شنو يريد يعدل، حتى النظام يسأله شنو يريد يعدل. human_request: true إذا يريد موظف بشري.
 12. change_fields: الحقول اللي يريد يغيرها من هذي القائمة: product, color, size, quantity, customer_name, phone, province, area, landmark.
 13. question_summary: جملة عربية قصيرة تلخص كل طلبات الزبون بهذي الرسالة.
 14. إذا الرسالة بيها وصف صورة أو فيديو دزه الزبون، استنتج المنتج منه إذا كان واضح ومطابق للكتالوج.
