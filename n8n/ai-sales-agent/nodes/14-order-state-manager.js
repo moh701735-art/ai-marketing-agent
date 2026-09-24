@@ -171,11 +171,12 @@ if (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {
   const allColorNames = list(product.colors);
   const featuredNames = allColorNames.filter(c => FEATURED_COLORS.some(f => norm(f) === norm(c)));
   const otherNames = allColorNames.filter(c => !featuredNames.some(f => norm(f) === norm(c)));
-  const colorPref = (pl.color && pl.color.value) || (draft.product_id === product.product_id ? draft.color : null);
+  // only THIS message's explicitly-named color narrows the images shown; a color already picked earlier for the order (draft.color) must not silently narrow an unrelated "show me the colors" browsing request
+  const colorPref = (pl.color && pl.color.value) || null;
   const imgs = (pc.images || []).slice();
   const stage = (meta.image_stage && meta.image_stage[product.product_id]) || null;
   const setStage = (s) => { meta.image_stage = Object.assign({}, meta.image_stage, { [product.product_id]: s }); };
-  const wantsAllColors = ext.wants_images && /كل/.test(clean.customer_text || '') && /لون/.test(clean.customer_text || '');
+  const wantsAllColors = ext.wants_images && (/كل.*(لون|الوان)/.test(clean.customer_text || '') || /(الألوان|الالوان|الوان)/.test(clean.customer_text || ''));
 
   if (colorPref) {
     // a specific color was named -> just that color's images (or all, if none match), normal behaviour
