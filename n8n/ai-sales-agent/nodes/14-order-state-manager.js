@@ -175,6 +175,7 @@ if (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {
   const imgs = (pc.images || []).slice();
   const stage = (meta.image_stage && meta.image_stage[product.product_id]) || null;
   const setStage = (s) => { meta.image_stage = Object.assign({}, meta.image_stage, { [product.product_id]: s }); };
+  const wantsAllColors = ext.wants_images && /كل/.test(clean.customer_text || '') && /لون/.test(clean.customer_text || '');
 
   if (colorPref) {
     // a specific color was named -> just that color's images (or all, if none match), normal behaviour
@@ -188,6 +189,11 @@ if (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {
       const chosen = match.length ? match[0] : imgs[0];
       media.push({ media_type: 'image', url: chosen.url, caption: chosen.caption || '' });
     }
+  } else if (wantsAllColors) {
+    // customer explicitly asked for every color -> send everything at once, no staging
+    imgs.forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+    facts.pitch_stage = 'all_colors';
+    setStage('remaining');
   } else if (ext.wants_images || I.has('COLOR_INQUIRY')) {
     // no specific color named: reveal featured colors first, then the rest on the next such request
     if (stage === 'featured' && otherNames.length) {
