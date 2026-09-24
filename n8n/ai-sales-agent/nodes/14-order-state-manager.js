@@ -107,13 +107,16 @@ if (ext.human_request) {
       if (pl.size && pl.size.value && product && draft.product_id === product.product_id) draft.size = pl.size.value;
       if (pl.size && pl.size.valid === false) facts.invalid_size = { said: pl.size.raw, options: pl.sizes.join('، ') };
       CUSTOMER_FIELDS.forEach(k => { if (has(e[k])) draft[k] = e[k]; });
+      // one combined answer to "المنطقة وأقرب نقطة دالة" covers both fields unless the customer clearly gave two different values
+      if (has(draft.area) && !has(draft.landmark)) draft.landmark = draft.area;
+      else if (has(draft.landmark) && !has(draft.area)) draft.area = draft.landmark;
       if (ext.phone_invalid) facts.invalid_phone = ext.phone_raw;
       if (ext.province_unmatched) facts.province_unmatched = ext.province_unmatched;
     }
 
     if (ordering) {
       const dp = productById(draft.product_id);
-      CUSTOMER_FIELDS.forEach(k => { const src = k === 'customer_name' ? ctx.customer.name : ctx.customer[k]; if (!has(draft[k]) && has(src)) draft[k] = src; });
+      CUSTOMER_FIELDS.forEach(k => { const src = k === 'customer_name' ? (ctx.customer.name || ctx.customer.whatsapp_name) : ctx.customer[k]; if (!has(draft[k]) && has(src)) draft[k] = src; });
       draft.status = isEdit ? 'EDITING' : 'DRAFT';
       const colors = dp ? list(dp.colors) : [];
       const sizes = dp ? list(dp.sizes) : [];
@@ -168,7 +171,7 @@ if (action === 'reply' && ['ai', 'review'].includes(replyMode) && product) {
   const imgs = (pc.images || []).slice();
   if (colorPref) imgs.sort((a, b) => (norm(b.color) === norm(colorPref) ? 1 : 0) - (norm(a.color) === norm(colorPref) ? 1 : 0));
   if (ext.wants_images) {
-    if (imgs.length) imgs.slice(0, 5).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
+    if (imgs.length) imgs.slice(0, 10).forEach(m => media.push({ media_type: 'image', url: m.url, caption: m.caption || '' }));
     else facts.no_images = true;
   } else if ((I.has('PRICE_INQUIRY') || I.has('PRODUCT_INQUIRY')) && replyMode === 'ai' && imgs.length && !meta.images_sent_for.includes(product.product_id)) {
     media.push({ media_type: 'image', url: imgs[0].url, caption: imgs[0].caption || '' });
