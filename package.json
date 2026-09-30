@@ -1,0 +1,35 @@
+{
+  "name": "ai-marketing-agent",
+  "version": "1.0.0",
+  "description": "أتمتة n8n كاملة: ترسل رسالة نصية من واتساب، والذكاء الاصطناعي (Claude) يفهم طلبك ويدير حملاتك الإعلانية فعلياً على **Facebook/Instagram (Meta Ads)** و **TikTok Ads** — إنشاء حملة، تفعيل، إيقاف، تعديل ميزانية، حذف، أو تقرير — كل هذا من محادثة واتساب عادية، بدون ما تفتح مدير الإعلانات يدوياً.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate": "tsx index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moh701735-art/ai-marketing-agent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/moh701735-art/ai-marketing-agent/issues"
+  },
+  "homepage": "https://github.com/moh701735-art/ai-marketing-agent#readme",
+  "private": "true",
+  "type": "module",
+  "dependencies": {
+    "@higgsfield/client": "^0.2.6",
+    "dotenv": "^18.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
