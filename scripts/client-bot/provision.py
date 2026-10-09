@@ -26,7 +26,8 @@ import json, re, sys
 det = json.load(open(sys.argv[1]))
 cfg = json.load(open(sys.argv[2]))
 nodes = det['workflow']['nodes']
-ops = [{"type": "setWorkflowMetadata", "name": cfg["name"]}]
+ops = []
+if cfg.get("name"): ops.append({"type": "setWorkflowMetadata", "name": cfg["name"]})
 
 def dumps(o): return json.dumps(o, ensure_ascii=False)
 
@@ -35,7 +36,7 @@ for n in nodes:
     if n['type'] == 'n8n-nodes-base.dataTable':
         v = n['parameters'].get('dataTableId', {})
         old = v.get('value') if isinstance(v, dict) else v
-        if old in cfg['tables']:
+        if old in cfg.get('tables', {}):
             ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/dataTableId/value", "value": cfg['tables'][old]})
         elif old:
             sys.stderr.write(f"WARN table {old} in node '{n['name']}' has no mapping\n")
@@ -43,10 +44,10 @@ for n in nodes:
 # 2) credentials per type (+ Meta isolation)
 for n in nodes:
     for key, cred in (n.get('credentials') or {}).items():
-        new = cfg['credentials'].get(key)
+        new = cfg.get('credentials', {}).get(key)
         if new:
             ops.append({"type": "setNodeCredential", "nodeName": n['name'], "credentialKey": key, "credentialId": new['id'], "credentialName": new['name']})
-        elif key == 'facebookGraphApi':
+        elif key == 'facebookGraphApi' and 'facebookGraphApi' in cfg.get('credentials', {}):
             # no Meta for this client: never leave the template's Meta credential working
             ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/authentication", "value": "none"})
 
@@ -56,17 +57,17 @@ old_token = None
 for n in nodes:
     s = dumps(n['parameters'])
     m = re.search(r"\"chatId\": \"=\{\{ String\('(\d+)'\) \}\}\"", s)
-    if m:
+    if m and cfg.get('chat_id'):
         old_chat = m.group(1)
         ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/chatId", "value": "={{ String('%s') }}" % cfg['chat_id']})
     code = n['parameters'].get('jsCode')
     if not code: continue
     new_code = code
     t = re.search(r"BOT_TOKEN = '(\d+:[\w-]+)'", code)
-    if t:
+    if t and cfg.get('bot_token'):
         old_token = t.group(1)
         new_code = new_code.replace(old_token, cfg['bot_token'])
-    if 'LIMIT_IQD = ' in new_code and n['name'].startswith('سقف التكلفة'):
+    if cfg.get('limit_iqd') and 'LIMIT_IQD = ' in new_code and n['name'].startswith('سقف التكلفة'):
         new_code = re.sub(r"LIMIT_IQD = \d+", "LIMIT_IQD = %d" % cfg['limit_iqd'], new_code)
     if new_code != code:
         ops.append({"type": "updateNodeParameters", "nodeName": n['name'], "replace": True, "parameters": {**n['parameters'], "jsCode": new_code}})
