@@ -39,7 +39,7 @@ footer{padding:24px 0 90px;text-align:center;color:var(--muted);font-size:.85rem
 <script>
 /* ===== إعدادات الصفحة (غيّرها من هنا فقط) ===== */
 window.CFG = {
-  TIKTOK_PIXEL_ID: "PUT_PIXEL_CODE_HERE",   // رمز البكسل من حساب التك توك
+  TIKTOK_PIXEL_IDS: ["DB50TIBC77U7E2MRBV3G", "DB50TJBC77U51S8QC470", "DB50TTJC77U5NP31OPGG", "DB50TURC77U45MNFO6I0", "DB50U0RC77U51S8QC47G", "DB50U33C77U5NP31OPJ0", "DB50U3RC77U1HDKKGHDG", "DB50U4JC77UA94AAIH2G", "DB50U53C77U45MNFO6K0", "DB50U5JC77U62DCMK99G", "DB50U6BC77U1HDKKGHE0", "DB50U73C77U45MNFO6KG", "DB50U8BC77U78MV16320", "DB50UA3C77U62DCMK9AG", "DB50UB3C77U7E2MRBV60", "DB50UC3C77U5NP31OPJG", "DB50UCRC77U78MV1632G", "DB50UHBC77UA94AAIH60", "DB50UL3C77UA94AAIHA0", "DB50UM3C77U45MNFO6TG", "DB50UN3C77U7E2MRBV7G", "DB50UO3C77UA94AAIHAG", "DB50UORC77U5NP31OPQG", "DB50UPBC77U5NP31OPR0", "DB50UPRC77U62DCMK9FG", "DB50UQBC77U1HDKKGHJ0", "DB50URRC77U78MV16360", "DB50USBC77U51S8QC4D0", "DB50USRC77U51S8QC4DG", "DB50UTBC77U5NP31OPS0", "DB50UU3C77U1HDKKGHJG", "DB50UUJC77U45MNFO6U0", "DB50UV3C77U62DCMK9G0", "DB50UVRC77U5NP31OPTG"],   // بكسلات حسابات التك توك
   PRICE: 25000,                             // السعر بالدينار
   OLD_PRICE: 35000,
   CURRENCY: "IQD",
@@ -50,7 +50,7 @@ window.CFG = {
 <script>
 !function (w, d, t) {
   w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};n=document.createElement("script");n.type="text/javascript",n.async=!0,n.src=r+"?sdkid="+e+"&lib="+t;e=document.getElementsByTagName("script")[0];e.parentNode.insertBefore(n,e)};
-  ttq.load(window.CFG.TIKTOK_PIXEL_ID);
+  window.CFG.TIKTOK_PIXEL_IDS.forEach(function(id){ ttq.load(id); });
   ttq.page();
 }(window, document, 'ttq');
 </script>
