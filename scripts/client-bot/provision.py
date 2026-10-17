@@ -1,76 +1,93 @@
 #!/usr/bin/env python3
-"""Build update_workflow operations that turn a DUPLICATE of the template client bot
-(workflow "عميل احمد فوريفر") into a new client's bot.
+"""Turn a DUPLICATE of the clean template ("TEMPLATE - عميل جديد") into a client's bot.
 
 Usage:
-  python3 provision.py DETAILS_JSON CONFIG_JSON > ops.json   # then apply ops.json in batches of <=100
+  python3 provision.py DETAILS_JSON CONFIG_JSON OUT_PREFIX
+      -> writes OUT_PREFIX.<n>.json  (update_workflow operations, <=100 per file)
+      -> writes OUT_PREFIX.verify.json (config for verify_clean.py)
 
-DETAILS_JSON: output of n8n get_workflow_details for the duplicated workflow.
-CONFIG_JSON (see docs/new-client-bot.md):
+DETAILS_JSON: n8n get_workflow_details of the duplicate.
+CONFIG_JSON:
 {
-  "name": "عميل مسلم",
-  "chat_id": "<client telegram numeric id>",
-  "bot_token": "<client bot token>",
-  "limit_iqd": 262,
-  "tables": {"<template table id>": "<new table id>", ...},
+  "name": "عميل أحمد",
+  "chat_id": "123456789",                  # client's Telegram numeric id
+  "limit_iqd": 262,                         # optional, max cost per message
+  "tables": {"<template table id>": "<client table id>", ...},   # all 11, see tables.json
   "credentials": {
-    "telegramApi":       {"id": "...", "name": "..."},
-    "httpHeaderAuth":    {"id": "...", "name": "..."},
-    "facebookGraphApi":  {"id": "...", "name": "..."} | null
+    "telegramApi":      {"id": "...", "name": "..."},
+    "httpHeaderAuth":   {"id": "...", "name": "..."},     # TikTok Access-Token of THIS client
+    "facebookGraphApi": {"id": "...", "name": "..."} | null,
+    "shared": ["<gemini credential id>", "<tiktok app secret credential id>"]   # allowed shared ones
   }
 }
-Template values are auto-detected from the details file (old chat id, bot token, limit).
+Placeholders written by template_fixes.py are replaced here (chat id, webhook paths, media key).
 """
-import json, re, sys
+import json, re, sys, uuid, secrets
 
 det = json.load(open(sys.argv[1]))
 cfg = json.load(open(sys.argv[2]))
+prefix = sys.argv[3]
 nodes = det['workflow']['nodes']
 ops = []
-if cfg.get("name"): ops.append({"type": "setWorkflowMetadata", "name": cfg["name"]})
 
-def dumps(o): return json.dumps(o, ensure_ascii=False)
+def need(key):
+    if not cfg.get(key):
+        sys.exit(f"config is missing '{key}'")
+for k in ('name', 'chat_id', 'tables', 'credentials'): need(k)
+creds = cfg['credentials']
+for k in ('telegramApi', 'httpHeaderAuth'):
+    if not creds.get(k): sys.exit(f"credentials.{k} is required")
 
-# 1) data tables
+media_key = cfg.get('media_key') or secrets.token_hex(12)
+repl = {
+    '__CLIENT_CHAT_ID__': str(cfg['chat_id']),
+    '__MEDIA_KEY__': media_key,
+    '__TT_OAUTH_PATH__': str(uuid.uuid4()),
+    '__FB_OAUTH_PATH__': str(uuid.uuid4()),
+    '__WA_PATH__': str(uuid.uuid4()),
+}
+
+def walk(o):
+    if isinstance(o, str):
+        for k, v in repl.items(): o = o.replace(k, v)
+        return o
+    if isinstance(o, list): return [walk(x) for x in o]
+    if isinstance(o, dict): return {k: walk(v) for k, v in o.items()}
+    return o
+
+ops.append({"type": "setWorkflowMetadata", "name": cfg['name']})
+used_tables, used_creds = set(), set()
 for n in nodes:
-    if n['type'] == 'n8n-nodes-base.dataTable':
-        v = n['parameters'].get('dataTableId', {})
-        old = v.get('value') if isinstance(v, dict) else v
-        if old in cfg.get('tables', {}):
-            ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/dataTableId/value", "value": cfg['tables'][old]})
-        elif old:
-            sys.stderr.write(f"WARN table {old} in node '{n['name']}' has no mapping\n")
-
-# 2) credentials per type (+ Meta isolation)
-for n in nodes:
-    for key, cred in (n.get('credentials') or {}).items():
-        new = cfg.get('credentials', {}).get(key)
+    p = n['parameters']
+    # data tables
+    if n['type'].endswith('dataTable'):
+        v = p.get('dataTableId'); old = v.get('value') if isinstance(v, dict) else v
+        new = cfg['tables'].get(old)
+        if not new: sys.exit(f"no table mapping for template table {old} (node '{n['name']}')")
+        ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/dataTableId/value", "value": new})
+        used_tables.add(new)
+    # credentials
+    for key, cur in (n.get('credentials') or {}).items():
+        new = creds.get(key)
         if new:
             ops.append({"type": "setNodeCredential", "nodeName": n['name'], "credentialKey": key, "credentialId": new['id'], "credentialName": new['name']})
-        elif key == 'facebookGraphApi' and 'facebookGraphApi' in cfg.get('credentials', {}):
-            # no Meta for this client: never leave the template's Meta credential working
+            used_creds.add(new['id'])
+        elif key == 'facebookGraphApi' and key in creds:      # client without Meta: never keep the template's Meta credential
             ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/authentication", "value": "none"})
+        elif cur['id'] in creds.get('shared', []):
+            used_creds.add(cur['id'])
+        else:
+            sys.exit(f"credential type {key} on node '{n['name']}' has no mapping and is not in credentials.shared")
+    # placeholders (and cost cap) inside parameters
+    q = walk(p)
+    if cfg.get('limit_iqd') and n['name'].startswith('سقف التكلفة') and isinstance(q.get('jsCode'), str) and 'LIMIT_IQD = ' in q['jsCode']:
+        q['jsCode'] = re.sub(r"LIMIT_IQD = \d+", "LIMIT_IQD = %d" % int(cfg['limit_iqd']), q['jsCode'])
+    if q != p:
+        ops.append({"type": "updateNodeParameters", "nodeName": n['name'], "replace": True, "parameters": q})
 
-# 3) chat id / bot token / cost cap
-old_chat = None
-old_token = None
-for n in nodes:
-    s = dumps(n['parameters'])
-    m = re.search(r"\"chatId\": \"=\{\{ String\('(\d+)'\) \}\}\"", s)
-    if m and cfg.get('chat_id'):
-        old_chat = m.group(1)
-        ops.append({"type": "setNodeParameter", "nodeName": n['name'], "path": "/chatId", "value": "={{ String('%s') }}" % cfg['chat_id']})
-    code = n['parameters'].get('jsCode')
-    if not code: continue
-    new_code = code
-    t = re.search(r"BOT_TOKEN = '(\d+:[\w-]+)'", code)
-    if t and cfg.get('bot_token'):
-        old_token = t.group(1)
-        new_code = new_code.replace(old_token, cfg['bot_token'])
-    if cfg.get('limit_iqd') and 'LIMIT_IQD = ' in new_code and n['name'].startswith('سقف التكلفة'):
-        new_code = re.sub(r"LIMIT_IQD = \d+", "LIMIT_IQD = %d" % cfg['limit_iqd'], new_code)
-    if new_code != code:
-        ops.append({"type": "updateNodeParameters", "nodeName": n['name'], "replace": True, "parameters": {**n['parameters'], "jsCode": new_code}})
-
-sys.stderr.write(f"template chat id={old_chat}, bot token node patched={'yes' if old_token else 'NO'}, ops={len(ops)}\n")
-print(json.dumps({"operations": ops}, ensure_ascii=False))
+for i in range(0, len(ops), 100):
+    json.dump(ops[i:i+100], open(f"{prefix}.{i//100}.json", 'w'), ensure_ascii=False, separators=(',', ':'))
+json.dump({"chat_id": str(cfg['chat_id']), "tables": sorted(used_tables),
+           "credentials": sorted(used_creds | {c['id'] for c in creds.values() if isinstance(c, dict)})},
+          open(prefix + '.verify.json', 'w'))
+print(f"ops={len(ops)} files={(len(ops)+99)//100} media_key={media_key}", file=sys.stderr)

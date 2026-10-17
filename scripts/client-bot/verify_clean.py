@@ -27,6 +27,9 @@ det = json.load(open(sys.argv[1]))
 cfg = json.load(open(sys.argv[2])) if len(sys.argv) > 2 else {}
 w = det['workflow']
 nodes = w['nodes']
+# webhook paths already used by live bots (a copy that kept one would clash or hijack traffic)
+OWNER_PATHS = {'tiktok-oauth-callback', 'facebook-oauth-callback', 'wa-webhook',
+               'bddf3d8f-f3ec-48fe-bfc8-6a4873fafb7b', '973910a5-3dc9-462b-ba77-c86b87025ad3', 'eba845b6-7d2b-4cfe-b9ed-e67b8fbd3812'}
 allow = PLATFORM_IDS | set(cfg.get('allow_ids', []))
 findings = []
 
@@ -38,6 +41,12 @@ for n in nodes:
     # C1/C2 bot tokens anywhere (URL, code, bodies)
     if re.search(r'[0-9]{8,10}:[A-Za-z0-9_-]{30,}', s):
         bad('C1-TOKEN', name, 'Telegram bot token is written inside the node')
+    # C12 owner brand/identity names and unprovisioned placeholders
+    for word in cfg.get('forbidden', ['boostpro7', 'شركة الجود', 'محمد امين', 'sous-store', 'Mohammed Amin']):
+        if word.lower() in s.lower():
+            bad('C12-OWNER-NAME', name, f"owner/template name '{word}' appears")
+    if re.search(r'__[A-Z0-9_]{4,}__', s):
+        bad('C11-PLACEHOLDER', name, 'placeholder not replaced: ' + ', '.join(sorted(set(re.findall(r'__[A-Z0-9_]{4,}__', s)))))
     # C3 literal 15-19 digit ids (pages, advertisers, business centers, pixels ...)
     for m in sorted(set(re.findall(r'(?<![0-9.])[0-9]{15,19}(?![0-9.])', s))):
         if m not in allow:
@@ -69,7 +78,7 @@ for n in nodes:
     # C7 webhooks must not keep template/owner paths
     if n['type'].endswith('.webhook'):
         path = str(p.get('path', ''))
-        if path in ('tiktok-oauth-callback', 'facebook-oauth-callback', 'wa-webhook'):
+        if path in OWNER_PATHS or path in cfg.get('forbidden_paths', []):
             bad('C7-WEBHOOK', name, f'webhook path {path} is the owner path')
 
 # C10 orphans (no incoming connection, not a trigger/sticky/sub-node)

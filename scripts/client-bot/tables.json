@@ -1,0 +1,24 @@
+{
+  "_doc": "Roles of the per-client data tables. The TEMPLATE workflow points at the 'template_id' tables (empty, schema only). provision.py maps template_id -> the new client's table id.",
+  "tables": [
+    {"role": "الحالة المعلقة",              "template_id": "0t3qZPvY58QOVBAk", "suffix_name": "الحالة المعلقة"},
+    {"role": "حساب العميل",                "template_id": "X2QFWtHbzV5Ew4ni", "suffix_name": "حساب العميل"},
+    {"role": "سجل الحملات",                "template_id": "ZqOVCyDTDPT5OMr9", "suffix_name": "سجل الحملات"},
+    {"role": "قائمة المصرح لهم",           "template_id": "xcyuQQwjxsJDqwGC", "suffix_name": "قائمة المصرح لهم"},
+    {"role": "إيقاف الرد الآلي",           "template_id": "VYceJd577U2I8jZe", "suffix_name": "إيقاف الرد الآلي"},
+    {"role": "مراقبة مراجعة تيك توك",      "template_id": "kusVp3e6Bhlbqeav", "suffix_name": "مراقبة مراجعة تيك توك"},
+    {"role": "لقطات أداء الحملات بالساعة", "template_id": "q1SZ0zhulqGab8qh", "suffix_name": "لقطات أداء الحملات بالساعة"},
+    {"role": "توكنات تيك توك (تفويض)",     "template_id": "Q5vTeKJKQqq8c0a0", "suffix_name": "توكنات تيك توك (تفويض)"},
+    {"role": "اختبار الجمهور",             "template_id": "SLhR565r91SPo1qC", "suffix_name": "اختبار الجمهور"},
+    {"role": "طعون تيك توك",               "template_id": "4pWFwgKCnV5Zol0P", "suffix_name": "طعون تيك توك"},
+    {"role": "سقف سعر رسالة فيسبوك",       "template_id": "C8azv8cUq0FgNNFh", "suffix_name": "سقف سعر رسالة فيسبوك"}
+  ],
+  "ali_to_template": {
+    "Va8UAPpHqEB6Lt7o": "0t3qZPvY58QOVBAk", "q5vfp7rolMTlu5Ta": "X2QFWtHbzV5Ew4ni",
+    "BeXS8vqPxk9snLe3": "ZqOVCyDTDPT5OMr9", "BLmvCbsAaHLprcie": "xcyuQQwjxsJDqwGC",
+    "y2CKz9O9mV1mjHSp": "VYceJd577U2I8jZe", "V2Cu4y12q6uxT3O1": "kusVp3e6Bhlbqeav",
+    "OgQumSr0BRbpqCF0": "q1SZ0zhulqGab8qh", "BIrEREuymCrptVmb": "Q5vTeKJKQqq8c0a0",
+    "9c9N2nj2l1ZmiZWi": "SLhR565r91SPo1qC", "caktQMkpio6JPRr9": "4pWFwgKCnV5Zol0P",
+    "58mcvIBIqV0WC9Hw": "C8azv8cUq0FgNNFh"
+  }
+}
