@@ -11,7 +11,8 @@
     {"role": "توكنات تيك توك (تفويض)",     "template_id": "Q5vTeKJKQqq8c0a0", "suffix_name": "توكنات تيك توك (تفويض)"},
     {"role": "اختبار الجمهور",             "template_id": "SLhR565r91SPo1qC", "suffix_name": "اختبار الجمهور"},
     {"role": "طعون تيك توك",               "template_id": "4pWFwgKCnV5Zol0P", "suffix_name": "طعون تيك توك"},
-    {"role": "سقف سعر رسالة فيسبوك",       "template_id": "C8azv8cUq0FgNNFh", "suffix_name": "سقف سعر رسالة فيسبوك"}
+    {"role": "سقف سعر رسالة فيسبوك",       "template_id": "C8azv8cUq0FgNNFh", "suffix_name": "سقف سعر رسالة فيسبوك"},
+    {"role": "جدولة الحملات (تشغيل/إيقاف)", "template_id": "uR4iPWq8vScEGoRq", "suffix_name": "جدولة الحملات"}
   ],
   "ali_to_template": {
     "Va8UAPpHqEB6Lt7o": "0t3qZPvY58QOVBAk", "q5vfp7rolMTlu5Ta": "X2QFWtHbzV5Ew4ni",
