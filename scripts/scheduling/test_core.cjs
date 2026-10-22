@@ -1,0 +1,14 @@
+const fs=require('fs');const core=fs.readFileSync('core.js','utf8');
+const run=(inp)=>new Function('$input',core)({first:()=>({json:inp})}).map(x=>x.json);
+const camps=[{campaign_id:'111',name:'boostpro7889',platform:'tiktok',client:'A'},{campaign_id:'222',name:'شامبو',platform:'meta',client:'B'}];
+const base={chat:'999',from:'999',camps,clients:[{phone:'999',client:'A',tiktok_advertiser_id:'7693'}],existing:[]};
+let o=run({...base,mode:'intake',ai:{action:'schedule',campaign_name:'boostpro',schedule:[{action:'on',time:'01:00',repeat:'daily'},{action:'off',time:'07:00',repeat:'daily'}]}});
+console.log(o.map(x=>[x.kind,x.action,x.repeat,x.time,x.run_date,x.last_run_date,x.advertiser_id].join('|')));
+o=run({...base,mode:'intake',ai:{action:'schedule_list'},existing:[{sid:'S1',phone:'999',status:'active',campaign_id:'111',campaign_name:'x',platform:'tiktok',action:'on',repeat:'daily',time:'01:00'}]});console.log(o[0].finalMessage);
+o=run({...base,mode:'intake',ai:{action:'schedule_cancel',campaign_name:'boost'},existing:[{sid:'S1',phone:'999',status:'active',campaign_id:'111',campaign_name:'x',platform:'tiktok',action:'on',repeat:'daily',time:'01:00'}]});console.log(o[0].status,o[0].finalMessage);
+o=run({...base,mode:'intake',ai:{action:'schedule',campaign_name:'zzz',schedule:[]}});console.log(o[0].finalMessage.split('\n')[0]);
+o=run({mode:'hook',chat:'999',ctx:{action:'create',schedule:[{action:'off',time:'01:00',repeat:'once'}],tiktokAdvertiserId:'7693',client:'A'},saved:{campaign_id:'333',success:'true',platform:'tiktok',name:'N'}});console.log(o.map(x=>[x.action,x.time,x.campaign_id].join('|')),o[0].finalMessage.split('\n')[0]);
+console.log(run({mode:'hook',chat:'9',ctx:{action:'pause'},saved:{}}).length);
+const B=new Date(Date.now()+3*3600e3),d=B.toISOString().slice(0,10),h=B.toISOString().slice(11,16);
+o=run({mode:'due',rows:[{sid:'a',status:'active',repeat:'once',run_date:d,time:'00:00',campaign_id:'1'},{sid:'b',status:'active',repeat:'once',run_date:d,time:h,campaign_id:'1'},{sid:'c',status:'active',repeat:'daily',last_run_date:'',time:'00:00',campaign_id:'2'}]});console.log(o.map(x=>[x.sid,x.api,x.skipReason].join('|')));
+o=run({mode:'result',items:[{r:{sid:'b',status:'active',repeat:'once',platform:'tiktok',action:'off',campaign_name:'x',phone:'9',api:'apply',time:h,last_result:''},j:{code:40001,message:'No perm'}},{r:{sid:'b',status:'active',repeat:'daily',platform:'meta',action:'on',campaign_name:'x',phone:'9',api:'apply',time:h,last_result:''},j:{success:true}},{r:{sid:'z',status:'active',repeat:'once',platform:'meta',api:'skip',skipReason:'superseded'},j:{}}]});console.log(o.map(x=>[x.sid,x.status,x.last_result,x.notify].join('|')));
