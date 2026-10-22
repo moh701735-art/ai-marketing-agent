@@ -3,9 +3,10 @@ const dateB = B.toISOString().slice(0, 10), hmB = B.toISOString().slice(11, 16);
 const inp = $input.first().json;
 const addDays = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
 const t12 = (hm) => { const p = String(hm).split(':').map(Number); const h = p[0], m = p[1]; return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h < 12 ? 'ص' : 'م'); };
-const normT = (v) => { const m = String(v || '').trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/); return m ? String(m[1]).padStart(2, '0') + ':' + m[2] : ''; };
+const normT = (v) => { const m = String(v || '').trim().replace(/^24(?=:)/, '00').match(/^([01]?\d|2[0-3])(?::([0-5]\d))?$/); return m ? String(m[1]).padStart(2, '0') + ':' + (m[2] || '00') : ''; };
 function buildEvents(sch) {
   const evs = [];
+  let prevTs = null;
   for (const s of (Array.isArray(sch) ? sch : [])) {
     if (!s) continue;
     const action = (s.action === 'on' || s.action === 'off') ? s.action : '';
@@ -21,7 +22,9 @@ function buildEvents(sch) {
       if (isNow) d = dateB;
       else if (/^\d{4}-\d{2}-\d{2}$/.test(day)) d = day;
       else if (day === 'tomorrow') d = addDays(dateB, 1);
+      else if (prevTs !== null) { d = new Date(prevTs).toISOString().slice(0, 10); if (Date.parse(d + 'T' + time + ':00Z') <= prevTs) d = addDays(d, 1); }
       else d = time >= hmB ? dateB : addDays(dateB, 1);
+      prevTs = Date.parse(d + 'T' + time + ':00Z');
       evs.push({ action, repeat: 'once', time, run_date: d, last_run_date: '' });
     }
   }
