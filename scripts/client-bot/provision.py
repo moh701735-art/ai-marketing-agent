@@ -12,7 +12,7 @@ CONFIG_JSON:
   "name": "عميل أحمد",
   "chat_id": "123456789",                  # client's Telegram numeric id
   "limit_iqd": 262,                         # optional, max cost per message
-  "tables": {"<template table id>": "<client table id>", ...},   # all 12 incl. the schedule table uR4iPWq8vScEGoRq, see tables.json; schedule nodes call the shared engine workflow cvLbTQe0UQSVkHFt
+  "tables": {"<template table id>": "<client table id>", ...},   # all 12 incl. the schedule table uR4iPWq8vScEGoRq, see tables.json; schedule nodes call the shared engine workflow cvLbTQe0UQSVkHFt, audience rotation calls 7NWaY0zGwHw8lBFH (cap table C8azv8cUq0FgNNFh now has a `rot` column)
   "credentials": {
     "telegramApi":      {"id": "...", "name": "..."},
     "httpHeaderAuth":   {"id": "...", "name": "..."},     # TikTok Access-Token of THIS client
