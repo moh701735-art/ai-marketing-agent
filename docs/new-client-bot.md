@@ -12,9 +12,9 @@
 6. في n8n: على `TEMPLATE - عميل جديد` ← ⋯ ← Duplicate ← سمّه `<اسم العميل>`. لا تنشره.
 
 ## ما أنفذه أنا (15-25 دقيقة)
-1. أنشئ 11 جدولاً للعميل (`create_data_table`) بنفس أعمدة جداول القالب (القائمة بـ `scripts/client-bot/tables.json`).
+1. أنشئ 12 جدولاً للعميل (11 + جدول الجدولة) (`create_data_table`) بنفس أعمدة جداول القالب (القائمة بـ `scripts/client-bot/tables.json`).
 2. أضيف صف العميل بجدول «حساب العميل» (chat id، اسم، حسابات Meta/TikTok) وصفاً بجدول «قائمة المصرح لهم» (active=true).
-3. `python3 scripts/client-bot/provision.py details.json config.json ops` ثم أطبق ملفات `ops.N.json` بـ `update_workflow` (≤100 عملية لكل دفعة).
+3. `python3 scripts/client-bot/provision.py details.json config.json ops` ثم أطبق ملفات `ops.N.json` بـ `update_workflow` (≤100 عملية لكل دفعة). لا تنسخ من بوت عميل أبداً: القالب فقط (نسخة بوت علي فشلت بفاحص النظافة بـ113 ملاحظة بينها توكن ثابت وأسماء المالك).
 4. `python3 scripts/client-bot/verify_clean.py details.json ops.verify.json` ← يجب صفر ملاحظات.
 
 ## فحص الجاهزية (قبل النشر) — يجب نجاحه كله
@@ -24,7 +24,7 @@
 | 2 | توكن TikTok صالح لكل حساب إعلاني | `advertiser/info` ← `code 0` و`STATUS_ENABLE` |
 | 3 | حساب Meta سليم | `act_X?fields=account_status` ← 1 (مو 9/2/3) |
 | 4 | الصفحة وإنستغرام مربوطين بالحساب | `promote_pages` يحتوي الصفحة المطلوبة (بالمعرّف مو بالاسم) |
-| 5 | الجداول الـ11 موجودة وصف العميل موجود | قراءة الجداول |
+| 5 | الجداول الـ12 موجودة وصف العميل موجود | قراءة الجداول |
 | 6 | رابط الوسائط بلا توكن يعمل | تنزيل ملف عبر `media-<key>` داخل n8n |
 | 7 | لا بيانات تخص المالك/عميل آخر | `verify_clean.py` |
 | 8 | أول رسالة تجريبية من العميل تُرد عليها | بعد النشر، رسالة «مرحبا» من العميل |
