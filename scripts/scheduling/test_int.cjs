@@ -1,0 +1,15 @@
+const fs=require('fs');const core=fs.readFileSync('int_core.js','utf8');
+const run=(inp)=>new Function('$input',core)({first:()=>({json:inp})}).map(x=>x.json);
+const hist=[{campaign_id:'1',name:'بوبج-456110',platform:'tiktok',client:'boostpro7808',success:'true',action:'create'},{campaign_id:'2',name:'حملة زيارات PUBG-674809',platform:'tiktok',client:'boostpro7808',success:'1',action:'create'},{campaign_id:'3',name:'x',platform:'meta',client:'boostpro7808',success:'true',action:'create'},{campaign_id:'4',name:'عبايت',platform:'tiktok',client:'other',success:'true',action:'create'}];
+const clients=[{client:'boostpro7808',tiktok_advertiser_id:'7627240910404763656',phone:'2076853250'},{client:'other',tiktok_advertiser_id:'999',phone:'2076853250'}];
+let o=run({mode:'intFind',text:'حمله بحساب boostpro7808 اسمها حمله زيارات اريدك تلغي الاهتمامات مالتها وتفعلها',hist,clients,phone:'2076853250'});console.log(o);
+console.log(run({mode:'intFind',text:'الغ الاهتمامات من حملة عبايت',hist,clients})[0]);
+console.log(run({mode:'intFind',text:'الغ الاهتمامات',hist,clients})[0].finalMessage);
+const ctx=o[0];
+const ag={code:0,data:{list:[{adgroup_id:'11',interest_keyword_ids:['a','b'],interest_category_ids:[],location_ids:['1'],age_groups:['AGE_18_24'],languages:[],gender:'GENDER_UNLIMITED',pacing:'PACING_MODE_SMOOTH',dayparting:'111'}]}};
+let u=run({mode:'intUpd',ctx,ag});console.log(JSON.stringify(u[0].body),u[0].had);
+console.log(run({mode:'intUpd',ctx,ag:{code:40001,message:'No permission'}})[0].finalMessage);
+console.log(run({mode:'intUpd',ctx,ag:{code:0,data:{list:[]}}})[0].finalMessage);
+console.log(run({mode:'intDone',ctx:u,ups:[{code:0}],ver:[{code:0,data:{list:[{interest_keyword_ids:[]}]}}]})[0].finalMessage);
+console.log(run({mode:'intDone',ctx:u,ups:[{code:40002,message:'deleted'}],ver:[{}]})[0].finalMessage);
+console.log(run({mode:'intDone',ctx:u,ups:[{code:0}],ver:[{code:0,data:{list:[{interest_keyword_ids:['a']}]}}]})[0].finalMessage);
