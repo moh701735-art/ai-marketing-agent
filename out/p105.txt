@@ -1,0 +1,12 @@
+cat > /tmp/p105.b64 <<'EOF'
+/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4AKzAatdADSbSme4Ujxz98E0CfqySrhac+hYGb+9S+Dk
+FuiqQ/B+obnpY57XX+HcsQcWr4Y5T9TpiMlAa95BUTXFY04C9zzn0YooJiAGEV0/hSFh50j310lH
+1LV7D3e6rEGRda6rf0+HNBGIj1432glt/0iYiawn7Wjcck86jn+S5Sc5JgzdW5acSxANmvMIllV8
+bltvO8mW4sNm5s/coJnkmzj1fyzIZi7LNi0F2KAFSNAXJEXfGSXM06icgDRYM2DwzsfSs1LmjPyt
+KZVUZ6AZGU7pRZXXNEY8dt9cle3iLaQdBOL7bTLhu/ttLJ5VG6LGIPI07JZ4Jp/eQjiiSNuubsY1
+SKyw2zm2kwxfgFl6oFEfC3xN1b6/QFsJ2oU844JrwQuBz0aZ/l/XuDrUFEkIHj0jakmwuWg+UBuK
+6R/KSp56wE0nmd+bKIilvYPd2chn10UtRlpgGJH04NRPhjw3eq5vprE0a93IzEO3nDkU808FIG0x
+OSa1MHLaxsQ1/fbNLcbNTDcSDC8KnSttHeJ9Z6H1jvK9IXVNcO0herlyiVs5CmVJOu+RoiGy+4D3
+wgAAAILiqGaYB2+yAAHHA7QFAAAnm8McscRn+wIAAAAABFla
+EOF
+base64 -d < /tmp/p105.b64 | xz -d | python3 && cd /opt/central && bash deploy/update.sh
