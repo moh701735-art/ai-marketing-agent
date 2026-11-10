@@ -1,0 +1,10 @@
+cat > /tmp/p114.b64 <<'EOF'
+/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4AIGATddADSbSme4Ujxz98E0CfqySrhac+hYGb+9S+Dk
+FuirCMZO1QcVN4ogAYJZhYfFXrUL8bLIfjaCOSFk9YmsdeyBZ7W6wq8Om88j6ooUETtiDw+syjzY
+xT8AwR8saXhu5LjfofMCO9jLkOcgxFy4lm754Cy4P6xPWrTJP6+5TB7SjiE2DVNLXEVzn5IT+R2d
+ebiE2+bt/ZntBpe9qbEPFl3iatfCzN881mJzJ/XpQw+gnLY3NS5WaV13CIyzbb08n4X6Pi//Sb8f
+X1nyY79SQ3ARalsTWaYuw7gI4jGIYHvikGRi9npVgx2qN4k01vq+CJYb0aVyFfILBsOJVgyQZoE6
+F1Dj77WSs1Y1i5vDv7u4hprB9mdYQuTIhj0gVvTqmx2x4QCD6mG3/+b2XDbEDC/pMPb1VtYfGsjs
+AAA+xbIM10MlBAAB0wKHBAAAYs+4WrHEZ/sCAAAAAARZWg==
+EOF
+base64 -d < /tmp/p114.b64 | xz -d | python3 && cd /opt/central && bash deploy/update.sh
