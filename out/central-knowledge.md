@@ -106,3 +106,11 @@ p52–p80 (آخرها p81: زر ونص الإعلان بالطلب)، `client-on
 - **p112** (يحتاج p108+p110): المحافظات المثبّتة (`/provinces`) تنطبق فقط عندما ما يذكر الطلب دولة. كتابة «العراق» (سطر لحاله، «على العراق»، «الدول: ...») = كل الدولة وتتجاهل المثبّت؛ «المحافظات:» بالطلب تغلب. نفس القاعدة بتيك توك وفيسبوك.
 - **p113** (فحص فقط): `ops/tt-campaign.py` (`TT_SLUG=... CAMP=<id>`) يعرض كيف يصف تيك توك حملة معيّنة (عادية أم Smart+، حالتها) لتشخيص فشل `/pause_<id>` برسالة «malformed request». لا يوجد op لإيقاف Smart+ بالكتالوج (فرضية لم تتأكد).
 - **p114**: سبب «malformed request» عند `/pause_` و`/activate_` و`/check_`: n8n كان يمرر حقل `mode` من عنصر الأمر (`pause|activate|check`) إلى الـ Broker، والـ Broker لا يقبل إلا `readiness` فيرفض الطلب قبل ما يوصل لتيك توك. الإصلاح مركزي بـ `util_broker` (`n8n/build.py`): نمرّر `mode` فقط إذا كانت `readiness`. (الفرضية السابقة: Smart+ كانت خطأ؛ الحملة عادية REGULAR_CAMPAIGN.)
+
+## واجهة الأزرار (لوحة تحكم تفاعلية) — المرحلة 1 (p115)
+- `/start` (و`/menu`) يعرض لوحة الأزرار؛ `/help` يبقى القائمة النصية القديمة (الأوامر المتقدمة) وكل الأوامر القديمة تشتغل.
+- الكود: `n8n/ui_pages.py` (صفحات: رئيسية بأرقام حقيقية من `tiktok.day_report` مع كاش 10 دقائق بـ `core.ui_state`، الحملات + ترقيم 5/صفحة، تفاصيل حملة من `tiktok.campaign_check`، الحسابات، التقارير، إنشاء (قوالب)، الإعدادات). callback_data: `h hr cl[:a|p|all:<page>] cla:<acct>:<page> cd:<id> ca|cp|cr|cu:<id> ac ad:<acct> rp an al nw st x:<cmd>`.
+- ضغطات الأزرار تدخل نفس مسار الرسائل (Normalize -> هوية -> claim)؛ أزرار الأفعال تُحوَّل بـ Route إلى نفس أوامر النص (`activate/pause/restart/duplicate`) بلا تغيير منطق. أي رد بعد زر يأخذ زر «🏠 الرئيسية» تلقائياً (`Prep send`).
+- Broker: ops `telegram.send_ui` / `telegram.edit_ui` (+ internal `ui_send/ui_edit/ui_answer`)، نوع باراميتر `keyboard` (حتى 8 صفوف × 3 أزرار، callback_data `[a-z0-9_:-]` ≤48)، الإجابة على callback best-effort، وفشل التعديل يرجع لإرسال جديد؛ webhook `allowed_updates = [message, callback_query]`.
+- DB: `core.ui_state` + `api.ui_get/ui_set/ui_clear` (viewer، ≤300 صف و30KB، تنتهي تلقائياً).
+- لسه (المرحلة 2/3): معالج الإنشاء، التحليل (أمس/7/30)، التشخيص، مركز التنبيهات، إعدادات التنبيهات، فلترة الأزرار حسب الدور (الخادم يفرض الصلاحيات أصلاً).
