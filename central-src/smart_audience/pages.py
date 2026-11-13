@@ -6,7 +6,7 @@
 - كل اهتمام معروض هو keyword_id حقيقي رجّعه tiktok.recommend_interests (قاموس الأسواق يُستعمل كمفاتيح بحث فقط). لا يُرسل أي ID خارج ما رجّعه تيك توك.
 - التقدير: tiktok.estimate_audience (قراءة فقط) يُعرض كما رجع (user_count{lower_end,upper_end} + user_count_stage). **تأكد بالفحص (p153): التقدير يتفاعل مع الدولة/الجنس/العمر ولا يتفاعل مع الاهتمامات** — ولذلك الواجهة تقول ذلك صراحة ولا تقدّم رقماً «يتحرك» باختيار الاهتمامات.
 - لا إنشاء حملات ولا أي عملية كتابة. «متابعة» تتحقق من الاختيار وتحفظ القائمة النهائية بحالة الجلسة (sa:<chat>) لربطها بمعالج الحملة بالمرحلة 2.
-callback_data: sa | sa:mk:<سوق> | sa:t:<رقم> | sa:tb:<d|r|n|a> | sa:pg:<n> | sa:lv:<p|b|w|x> | sa:g:<a|f|m> | sa:ag:<all|1824|2534|3544|45p> | sa:r | sa:sv | sa:cmp | sa:cx | sa:ok | sa:cfg | sa:sn | sa:nx | sa:ls | sa:vw:<id> | sa:dl:<id> | sa:dy:<id>"""
+callback_data: sa | sa:mk:<سوق> | sa:t:<رقم> | sa:tb:<d|r|n|a> | sa:pg:<n> | sa:lv:<p|b|w|x> | sa:g:<a|f|m> | sa:ag:<all|1824|2534|3544|45p> | sa:r | sa:sv | sa:cmp | sa:cx | sa:ok | sa:cfg | sa:mp:<صفحة> | sa:sn | sa:nx | sa:ls | sa:vw:<id> | sa:dl:<id> | sa:dy:<id>"""
 
 SQL_DATA = ("SELECT 'cfg'::text AS kind, smart_audience.config($1)::text AS a, NULL::text AS b, NULL::text AS c, NULL::text AS d, NULL::text AS e, NULL::text AS f "
             "UNION ALL SELECT 'state', data::text, age_s::text, NULL, NULL, NULL, NULL FROM api.ui_get($1, 'sa:' || $2) "
@@ -38,6 +38,23 @@ const MK = {
   fod: { l: '🍰 مطاعم وأكل وحلويات', w: ['مطعم', 'اكل', 'حلويات', 'كيك', 'قهوه', 'وجبات', 'food', 'cake', 'coffee', 'restaurant'], d: ['food', 'desserts', 'restaurant'], r: ['cooking', 'recipes', 'coffee'], n: ['foodie', 'baking'], a: ['travel', 'lifestyle'] },
   hom: { l: '🏠 أثاث ومنزل', w: ['اثاث', 'مطبخ', 'ديكور', 'سجاد', 'منزل', 'furniture', 'decor', 'kitchen'], d: ['furniture', 'home decor', 'kitchen'], r: ['interior design', 'home improvement', 'diy'], n: ['home', 'organization'], a: ['gardening', 'lifestyle'] },
   kid: { l: '🧸 أطفال وألعاب', w: ['اطفال', 'طفل', 'العاب', 'حفاضات', 'رضيع', 'kids', 'baby', 'toys'], d: ['baby products', 'kids toys', 'toys'], r: ['parenting', 'kids fashion', 'baby care'], n: ['family', 'education'], a: ['gaming', 'lifestyle'] }
+  ,jwl: { l: '💍 مجوهرات وإكسسوارات', w: ['مجوهرات', 'ذهب', 'خاتم', 'سوار', 'قلاده', 'اكسسوار', 'فضه', 'jewelry', 'gold', 'ring', 'bracelet'], d: ['jewelry', 'gold jewelry', 'rings'], r: ['accessories', 'bracelets', 'necklace'], n: ['fashion', 'luxury'], a: ['gifts', 'wedding'] },
+  wat: { l: '⌚ ساعات', w: ['ساعه', 'ساعات', 'watch', 'watches', 'smartwatch', 'رولكس'], d: ['watches', 'smart watch', 'luxury watches'], r: ['wristwatch', 'men fashion', 'accessories'], n: ['gadgets', 'fashion'], a: ['jewelry', 'luxury'] },
+  bag: { l: '👜 حقائب وأحذية', w: ['حقيبه', 'حقايب', 'شنطه', 'شنط', 'جزمه', 'نعال', 'صندل', 'bag', 'handbag', 'shoes', 'sneakers'], d: ['handbags', 'shoes', 'sneakers'], r: ['bags', 'footwear', 'designer bags'], n: ['fashion', 'accessories'], a: ['shopping', 'beauty'] },
+  spt: { l: '🏋️ رياضة ولياقة', w: ['رياضه', 'لياقه', 'جيم', 'نادي رياضي', 'تمارين', 'بروتين', 'gym', 'fitness', 'workout', 'protein'], d: ['fitness', 'gym', 'workout'], r: ['bodybuilding', 'sports nutrition', 'yoga'], n: ['health', 'running'], a: ['football', 'lifestyle'] },
+  hlt: { l: '💊 صحة ومكملات غذائية', w: ['مكملات', 'فيتامين', 'فيتامينات', 'تنحيف', 'رجيم', 'دايت', 'صحه', 'vitamin', 'supplement', 'diet', 'weight loss'], d: ['health supplements', 'vitamins', 'weight loss'], r: ['nutrition', 'healthy eating', 'wellness'], n: ['fitness', 'diet'], a: ['skincare', 'lifestyle'] },
+  med: { l: '🦷 عيادات وخدمات طبية', w: ['عياده', 'اسنان', 'طبيب', 'دكتور', 'تقويم', 'بوتوكس', 'ليزر', 'dental', 'clinic', 'dentist', 'doctor'], d: ['dental care', 'dermatology', 'cosmetic surgery'], r: ['clinic', 'medical', 'health care'], n: ['beauty', 'skincare'], a: ['wellness', 'lifestyle'] },
+  car: { l: '🚗 سيارات وملحقاتها', w: ['سياره', 'سيارات', 'اطارات', 'زيت محرك', 'قطع غيار', 'car', 'cars', 'tires', 'auto', 'motorcycle'], d: ['cars', 'car accessories', 'auto parts'], r: ['automotive', 'car care', 'tuning'], n: ['motorcycles', 'travel'], a: ['technology', 'gadgets'] },
+  rea: { l: '🏡 عقارات', w: ['عقار', 'عقارات', 'شقه', 'شقق', 'ارض', 'اراضي', 'بيت للبيع', 'real estate', 'property', 'apartment'], d: ['real estate', 'property', 'apartments'], r: ['home buying', 'investment', 'interior design'], n: ['home', 'finance'], a: ['business', 'luxury'] },
+  edu: { l: '🎓 تعليم ودورات', w: ['دوره', 'دورات', 'تعليم', 'كورس', 'كورسات', 'لغه', 'محاضره', 'course', 'courses', 'education', 'training'], d: ['online courses', 'education', 'learning'], r: ['study', 'languages', 'training'], n: ['career', 'self improvement'], a: ['business', 'technology'] },
+  trv: { l: '✈️ سفر وسياحة', w: ['سفر', 'سياحه', 'فندق', 'فنادق', 'رحله', 'رحلات', 'حجز طيران', 'travel', 'hotel', 'tourism', 'flight'], d: ['travel', 'hotels', 'tourism'], r: ['vacation', 'flights', 'adventure'], n: ['photography', 'lifestyle'], a: ['food', 'shopping'] },
+  gam: { l: '🎮 ألعاب فيديو', w: ['العاب فيديو', 'بلايستيشن', 'قيمنج', 'ببجي', 'فورتنايت', 'gaming', 'playstation', 'xbox', 'pubg'], d: ['video games', 'gaming', 'mobile games'], r: ['esports', 'game streaming', 'playstation'], n: ['technology', 'gadgets'], a: ['anime', 'music'] },
+  pet: { l: '🐱 حيوانات أليفة', w: ['قطط', 'قطه', 'كلاب', 'كلب', 'حيوانات اليفه', 'طيور', 'pet', 'pets', 'cat', 'dog'], d: ['pets', 'cats', 'dogs'], r: ['pet care', 'pet food', 'animals'], n: ['family', 'lifestyle'], a: ['home', 'nature'] },
+  cln: { l: '🧼 تنظيف ومستلزمات منزلية', w: ['تنظيف', 'منظفات', 'غسيل', 'معقم', 'مطهر', 'cleaning', 'detergent', 'laundry'], d: ['cleaning products', 'household', 'laundry'], r: ['home organization', 'housekeeping', 'kitchen'], n: ['home', 'family'], a: ['diy', 'lifestyle'] },
+  app: { l: '🔌 أجهزة كهربائية ومنزلية', w: ['كهربائيه', 'اجهزه', 'ثلاجه', 'غساله', 'مكيف', 'خلاط', 'مكنسه', 'appliance', 'appliances', 'refrigerator', 'blender'], d: ['home appliances', 'kitchen appliances', 'electronics'], r: ['small appliances', 'smart home', 'air conditioner'], n: ['home', 'technology'], a: ['gadgets', 'shopping'] },
+  wed: { l: '💒 أعراس ومناسبات', w: ['عرس', 'اعراس', 'زفاف', 'عروس', 'خطوبه', 'مناسبات', 'حفله', 'wedding', 'bridal', 'party'], d: ['wedding', 'bridal', 'event planning'], r: ['party', 'gifts', 'flowers'], n: ['fashion', 'beauty'], a: ['photography', 'home decor'] },
+  nut: { l: '🍯 عسل وتمور ومواد غذائية', w: ['عسل', 'تمر', 'تمور', 'بهارات', 'مكسرات', 'زيت زيتون', 'honey', 'dates', 'nuts', 'spices'], d: ['honey', 'dates', 'organic food'], r: ['healthy food', 'snacks', 'spices'], n: ['food', 'cooking'], a: ['health', 'lifestyle'] },
+  stn: { l: '🎁 هدايا وقرطاسية', w: ['هدايا', 'هديه', 'قرطاسيه', 'دفاتر', 'اقلام', 'gift', 'gifts', 'stationery'], d: ['gifts', 'gift ideas', 'stationery'], r: ['crafts', 'handmade', 'school supplies'], n: ['family', 'decor'], a: ['education', 'art'] }
 };
 const matchMarket = t => { const s = norm(t); if (!s) return null; let best = null, sc = 0;
   for (const k of Object.keys(MK)) { let c = 0; MK[k].w.forEach(w => { if (s.includes(norm(w))) c += norm(w).length; }); if (c > sc) { sc = c; best = k; } }
@@ -111,7 +128,7 @@ if (!P.on) {          // مطفأ: نفس السلوك القديم
   return [{ json: { ctx: P.ctx, chatId: P.chatId, text: 'ما فهمت الأمر. اكتب /help لتشوف الأوامر.', edit: false, state: '', cacheSets: '[]' } }];
 }
 const head = t => t + '\n' + LINE + '\n';
-const menuKb = () => { const ks = Object.keys(MK), kb = []; for (let i = 0; i < ks.length; i += 2) kb.push(ks.slice(i, i + 2).map(k => ({ t: MK[k].l, c: 'sa:mk:' + k }))); if (SV.length) kb.push([{ t: '📂 جماهيري المحفوظة (' + SV.length + ')', c: 'sa:ls' }]); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
+const menuKb = () => { const ks = Object.keys(MK), per = 10, pages = Math.ceil(ks.length / per), pg = P.act === 'mp' ? Math.min(pages - 1, Math.max(0, parseInt(P.arg, 10) || 0)) : 0, part = ks.slice(pg * per, pg * per + per), kb = []; for (let i = 0; i < part.length; i += 2) kb.push(part.slice(i, i + 2).map(k => ({ t: MK[k].l, c: 'sa:mk:' + k }))); if (pages > 1) kb.push([...(pg > 0 ? [{ t: '⬅️ السابق', c: 'sa:mp:' + (pg - 1) }] : []), { t: (pg + 1) + '/' + pages, c: 'sa:mp:' + pg }, ...(pg < pages - 1 ? [{ t: '➡️ التالي', c: 'sa:mp:' + (pg + 1) }] : [])]); if (SV.length) kb.push([{ t: '📂 جماهيري المحفوظة (' + SV.length + ')', c: 'sa:ls' }]); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
 const menuText = (pre) => head('🎯 منشئ الجمهور الذكي') + (pre ? pre + '\n\n' : '') + 'اختر سوق منتجك (أو اكتب /audience <اسم المنتج>):\nأقترح اهتمامات تيك توك الحقيقية المرتبطة بمنتجك، وإنت تختار.\nما أختار الجمهور نيابة عنك، وما أنشئ أي حملة.';
 if (!P.acct) return done(head('🎯 منشئ الجمهور الذكي') + 'ما عندك حساب تيك توك مفعّل أقرأ منه. اربط حساب أول.', home);
 const E = (name, sig) => (sig ? name : name);
@@ -127,6 +144,7 @@ const op = P.act, arg = P.arg;
 
 // ───── الجماهير المحفوظة بالاسم (p161): قائمة / عرض / حذف / حفظ باسم (الاسم برسالة عادية) ─────
 if (S && op !== 'sn' && !P.naming && S.awn) { S.awn = 0; S.pn = []; }
+if (op === 'mp') return done(menuText(), menuKb(), S, sets);
 const GA = s => GEN[s.g] ? GEN[s.g][0] : 'الكل';
 const AA = s => AGES[s.ag] ? AGES[s.ag][0] : 'كل الأعمار';
 if (op === 'ls') {
