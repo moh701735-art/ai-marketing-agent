@@ -1,0 +1,38 @@
+-- 96_smart_audience.sql : إعدادات/cache Smart Audience (مخطط مستقل). يطبّق 72_smart_audience.sql بنفسه.
+\i 72_smart_audience.sql
+SELECT t.ok('SA-01 default OFF', (SELECT value FROM smart_audience.settings WHERE key='enabled') = 'false'::jsonb);
+SELECT t.ok('SA-02 app_runtime: execute on 4 functions only, no table privilege',
+  has_function_privilege('app_runtime','smart_audience.config(text)','EXECUTE') AND has_function_privilege('app_runtime','smart_audience.cache_set(text,text,jsonb,int)','EXECUTE')
+  AND NOT has_table_privilege('app_runtime','smart_audience.cache','SELECT') AND NOT has_table_privilege('app_runtime','smart_audience.settings','UPDATE'));
+SELECT t.ok('SA-03 not executable by PUBLIC / app_jobs',
+  NOT has_function_privilege('app_jobs','smart_audience.cache_list(text)','EXECUTE')
+  AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='smart_audience'
+                  AND EXISTS (SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee=0 AND a.privilege_type='EXECUTE')));
+SELECT t.ok('SA-04 all functions SECURITY DEFINER with pinned search_path',
+  NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='smart_audience'
+              AND (NOT p.prosecdef OR NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig,'{}')) c WHERE c LIKE 'search_path=%'))));
+UPDATE smart_audience.settings SET value='true'::jsonb WHERE key='enabled';
+\i 72_smart_audience.sql
+SELECT t.ok('SA-05 re-apply keeps stored flag (idempotent)', (SELECT value FROM smart_audience.settings WHERE key='enabled') = 'true'::jsonb);
+SELECT encode(ext.digest('secret-a','sha256'),'hex') AS ha, encode(ext.digest('secret-b','sha256'),'hex') AS hb \gset
+SET ROLE app_runtime;
+SELECT ctx AS sa FROM api.resolve_context('botAAAAAAAAAAAAAAAAAAAAAAAA', decode(:'ha','hex'), 1002) \gset
+SELECT ctx AS sb FROM api.resolve_context('botBBBBBBBBBBBBBBBBBBBBBBBB', decode(:'hb','hex'), 2001) \gset
+SELECT t.ok('SA-06 both tenants enabled; config has thresholds + location', smart_audience.enabled(:'sa') AND smart_audience.enabled(:'sb')
+  AND (smart_audience.config(:'sa')->'thresholds'->>'small') = '500000' AND (smart_audience.config(:'sa')->>'location_id') = '99237');
+SELECT t.ok('SA-07 cache set/list round trip for A', smart_audience.cache_set(:'sa','disc:bty','{"x":1}'::jsonb,3600) AND (SELECT count(*) FROM smart_audience.cache_list(:'sa') WHERE key='disc:bty') = 1);
+SELECT t.ok('SA-08 tenant isolation: B does not see A cache', (SELECT count(*) FROM smart_audience.cache_list(:'sb')) = 0);
+SELECT t.ok('SA-09 same key for B is independent', smart_audience.cache_set(:'sb','disc:bty','{"x":2}'::jsonb,3600) AND (SELECT (value->>'x') FROM smart_audience.cache_list(:'sa') WHERE key='disc:bty') = '1');
+SELECT t.ok('SA-10 invalid key / ttl refused', NOT smart_audience.cache_set(:'sa','BAD KEY','{}'::jsonb,3600) AND NOT smart_audience.cache_set(:'sa','ok','{}'::jsonb,5));
+SELECT t.raises('SA-11 invalid ctx refused', 'SELECT smart_audience.config(''bad.ctx'')', '28000', 'invalid_ctx');
+RESET ROLE;
+UPDATE core.tenants SET features = features || '{"smart_audience": false}'::jsonb WHERE tenant_id='a0000000-0000-0000-0000-000000000001';
+SET ROLE app_runtime;
+SELECT t.ok('SA-12 per-tenant opt-out affects only that tenant', NOT smart_audience.enabled(:'sa') AND smart_audience.enabled(:'sb'));
+RESET ROLE;
+UPDATE core.tenants SET features = features - 'smart_audience' WHERE tenant_id='a0000000-0000-0000-0000-000000000001';
+UPDATE smart_audience.settings SET value='false'::jsonb WHERE key='enabled';
+SET ROLE app_runtime;
+SELECT t.ok('SA-13 global OFF disables everyone', NOT smart_audience.enabled(:'sa') AND NOT smart_audience.enabled(:'sb'));
+RESET ROLE;
+DELETE FROM smart_audience.cache;
