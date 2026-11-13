@@ -46,8 +46,8 @@ if "'sa_name'" not in ing:
     ing = lit1(ing, OLDQ, NEWQ, 'ingress Wiz: state sql')
     mt = re.findall(r"(?m)^\s*(?:const|let)\s+t\s*=\s*([^;\n]*);", ing)
     if len(mt) < 1: fail('ingress: cannot find the raw-text definition of t')
-    texpr = mt[0].strip()
-    if not re.fullmatch(r"[A-Za-z0-9_.()'| ,\[\]\"\\-]*", texpr) or 'd.' not in texpr: fail('ingress: unexpected text expression: %r' % texpr[:120])
+    if 'd.text' not in mt[0]: fail('ingress: t is not built from d.text: %r' % mt[0][:120])
+    texpr = "String(d.text || '').trim()"
     ing = lit1(ing, "let W = null; try { W = $input.first().json; } catch (e) {}", "let W = null; try { W = $input.first().json; } catch (e) {}\nconst SAN = (W && String(W.step || '') === 'sa_name' && !d.cb) ? (" + texpr + ") : '';", 'ingress W line')
     ing = sub1(ing, r"(?m)^([ \t]*if \(!d\.cb && W && /\^aw_/\.test\(String\(W\.step \|\| ''\)\)[^\n]*\{ cmd = 'wiz'; args = ''; \}[^\n]*\n)", lambda m: m.group(1) + "  if (SAN && !SAN.startsWith('/') && cmd !== 'wiz') { cmd = 'audience'; args = SAN; }      // اسم جمهور محفوظ (منشئ الجمهور ينتظر اسم)\n", 'ingress wizard route line', "cmd = 'wiz'; args = ''")
 
