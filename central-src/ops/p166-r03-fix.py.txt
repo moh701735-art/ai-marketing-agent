@@ -1,0 +1,16 @@
+import os, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = BASE + 'n8n/wf_readiness.py'
+s = open(p, encoding='utf-8').read()
+OLD = "&& !r.data.result.last_error_message &&"
+NEW = "&& (!r.data.result.last_error_message || (Date.now() / 1000 - Number(r.data.result.last_error_date || Date.now() / 1000)) > 900) &&"
+if NEW in s: print('APPLY166_OK changed=0'); sys.exit(0)
+if s.count(OLD) != 1: sys.exit('PATCH FAIL (nothing written): R03 anchor count=%d' % s.count(OLD))
+s = s.replace(OLD, NEW)
+try: compile(s, 'wf_readiness.py', 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(p, p + '.pre166'); open(p, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(p + '.pre166', p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-250:])
+print('APPLY166_OK changed=1 (R03: خطأ webhook أقدم من 15 دقيقة ما يسقط الفحص)')
