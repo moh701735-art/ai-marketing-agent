@@ -1,0 +1,36 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+NODOCKER = bool(os.environ.get('P168_NODOCKER'))
+p = BASE + 'deploy/Caddyfile'
+s = open(p, encoding='utf-8').read()
+if '/tiktok-code' in s: print('APPLY168_OK changed=0'); sys.exit(0)
+HTML = ('<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>auth code</title>'
+        '<body style="font-family:sans-serif;max-width:560px;margin:40px auto;padding:0 16px;direction:rtl;text-align:center">'
+        '<h2>كود التفويض</h2><p>انسخ الكود والصقه بالتيرمنال (مخفي). لا ترسله لأحد بالمحادثة.</p>'
+        '<textarea id=c rows=3 readonly style="width:100%;font-size:18px;direction:ltr" onclick="this.select()"></textarea>'
+        '<p style="color:#666">الكود يعمل مرة وحدة وينتهي خلال دقايق.</p>'
+        "<script>var p=new URLSearchParams(location.search);document.getElementById('c').value=p.get('auth_code')||p.get('code')||'ما لقيت auth_code بالرابط';history.replaceState(null,'','/tiktok-code')</script>")
+assert '{' not in HTML and '}' not in HTML and '`' not in HTML
+def mk(ind):
+    i2 = ind + '    '
+    return (ind + 'handle /tiktok-code {\n' + i2 + 'header Content-Type "text/html; charset=utf-8"\n' + i2 + 'header Cache-Control "no-store"\n' + i2 + 'header Referrer-Policy "no-referrer"\n' +
+            i2 + 'respond `' + HTML + '` 200\n' + ind + '}\n')
+m = list(re.finditer(r'(?m)^([ \t]*)handle \{\n[ \t]*respond "" 404', s))
+if len(m) != 1: sys.exit('PATCH FAIL (nothing written): fallback handle anchor count=%d' % len(m))
+new = s[:m[0].start()] + mk(m[0].group(1)) + s[m[0].start():]
+shutil.copy(p, p + '.pre168')
+open(p, 'w', encoding='utf-8').write(new)       # كتابة بنفس الملف (inode) حتى يشوفها الحاوية
+def restore():
+    open(p, 'w', encoding='utf-8').write(s)
+if not NODOCKER:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k, v = l.rstrip('\n').split('=', 1); env[k.strip()] = v.strip().strip('"\'')
+    cc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-caddy'
+    v = subprocess.run(['docker', 'exec', cc, 'caddy', 'validate', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'], capture_output=True, text=True)
+    if v.returncode: restore(); sys.exit('PATCH FAIL: caddy validate failed, restored: ' + (v.stderr or v.stdout).strip()[-300:])
+    r = subprocess.run(['docker', 'exec', cc, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'], capture_output=True, text=True)
+    if r.returncode:
+        restore(); subprocess.run(['docker', 'exec', cc, 'caddy', 'reload', '--config', '/etc/caddy/Caddyfile', '--adapter', 'caddyfile'], capture_output=True, text=True)
+        sys.exit('PATCH FAIL: caddy reload failed, restored: ' + (r.stderr or r.stdout).strip()[-300:])
+print('APPLY168_OK changed=1 — https://agent.mohammedai.tech/tiktok-code')
