@@ -1,0 +1,16 @@
+import os, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = BASE + 'n8n/wf_ingress.py'
+s = open(p, encoding='utf-8').read()
+OLD = "const SAN = (W && String(W.step || '') === 'sa_name' && !d.cb) ? (String(d.text || '').trim()) : '';"
+NEW = "const SAN = (!d.cb && $input.all().some(i => i.json && String(i.json.step || '') === 'sa_name')) ? (String(d.text || '').trim()) : '';"
+if NEW in s: print('APPLY163_OK changed=0'); sys.exit(0)
+if s.count(OLD) != 1: sys.exit('PATCH FAIL (nothing written): SAN anchor count=%d' % s.count(OLD))
+s = s.replace(OLD, NEW)
+try: compile(s, 'wf_ingress.py', 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(p, p + '.pre163'); open(p, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(p + '.pre163', p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-250:])
+print('APPLY163_OK changed=1 (اسم الجمهور يُلتقط حتى لو عندك جلسة معالج حملة قديمة)')
