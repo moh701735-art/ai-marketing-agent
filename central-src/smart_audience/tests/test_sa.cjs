@@ -14,7 +14,7 @@ const REC = (names) => ({ ok: true, data: { data: { recommended_keywords: names.
 // نتائج Broker: seeds ← كلمات مختلفة لكل seed ، est ← EST
 const mkResults = (estRes, recFn) => plans => plans.map(p => p.k === 'seed' ? (recFn ? recFn(p) : REC([p.seed + ' a', p.seed + ' b'])) : p.k === 'est' ? estRes : p.k === 'chk' ? { ok: true, data: { data: { keywords: p.params.keyword_ids.map(id => ({ keyword_id: id, status: 'EFFECTIVE' })) } } } : { ok: false });
 const open = (mk, rows, estRes, recFn) => RENDER(cb('sa:mk:' + mk), rows || ROWS(), mkResults(estRes || BASEEST, recFn));
-const kbOK = kb => { assert(kb.length <= 8, 'rows ' + kb.length); kb.forEach(r => { assert(r.length <= 3, 'cols'); r.forEach(b => { assert(/^[a-z0-9_:\-]{1,48}$/.test(b.c), 'cb ' + b.c); assert(b.t.length > 0); }); }); };
+const kbOK = kb => { assert(kb.length <= 8, 'rows ' + kb.length); kb.forEach(r => { assert(r.length <= 3, 'cols'); r.forEach(b => { assert.strictEqual(typeof b.t, 'string', 'label must be a string: ' + JSON.stringify(b.t)); assert(!/[\x00-\x1f]/.test(b.t), 'control char'); assert(/^[a-z0-9_:\-]{1,48}$/.test(b.c), 'cb ' + b.c); assert(b.t.length > 0); }); }); };
 const stOf = o => JSON.parse(o.state);
 const click = (S, c, estRes) => RENDER(cb(c), ROWS(S), mkResults(estRes || BASEEST));
 
@@ -69,4 +69,9 @@ T('36 workflow wiring: data→plan→need; need→render / need→broker→rende
 T('37 keyboard never exceeds 8 rows at the widest level with pagination (Broker limit)', () => { const names = Array.from({ length: 40 }, (_, i) => 'skin item ' + i); const o = open('bty', null, BASEEST, p => REC(names.slice(0, 12))); let S = stOf(o.out); S = stOf(click(S, 'sa:lv:x').out); for (const c of ['sa:tb:d', 'sa:tb:r', 'sa:tb:n', 'sa:tb:a', 'sa:pg:1']) { const r = click(S, c); kbOK(r.out.keyboard); S = stOf(r.out); } });
 T('38 save SQL never casts the raw state param (CASE constants are folded at plan time) and keeps trace', () => { assert(!/\$3::jsonb/.test(D.save_sql)); assert(/coalesce\(nullif\(\$3::text, ''\), '\{\}'\)::jsonb/.test(D.save_sql)); });
 T('39 trace branches exist and are side branches (plan/render/reply → trace)', () => { const L = D.links.map(x => x.join('>')); ['SA: plan>SA: trace after plan>0', 'SA: render>SA: trace after render>0', 'SA: reply>SA: trace after reply>0'].forEach(x => assert(L.includes(x), x)); });
+T('40 main menu (button «sa» and /audience without text): valid Broker keyboard, 9 string market labels (regression: duplicate MK.n key made labels arrays)', () => {
+  const r1 = RENDER(cb('sa'), ROWS(), mkResults(BASEEST)); kbOK(r1.out.keyboard);
+  const labels = r1.out.keyboard.flat().filter(b => /^sa:mk:/.test(b.c)).map(b => b.t); assert.strictEqual(labels.length, 9); labels.forEach(l => assert(/[\u0600-\u06FF]/.test(l), 'Arabic market label: ' + l));
+  const r2 = RENDER(cmd(''), ROWS(), mkResults(BASEEST)); kbOK(r2.out.keyboard); assert(r1.out.text.length <= 3800);
+  const o = open('bty'); assert(o.out.text.includes('عناية بالبشرة'), 'market header uses the Arabic name'); });
 console.log(n + ' passed');

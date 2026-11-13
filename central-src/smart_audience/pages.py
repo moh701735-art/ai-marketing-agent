@@ -28,15 +28,15 @@ const AGES = { all: ['كل الأعمار', null], '1824': ['18–24', ['AGE_18_
 const GEN = { a: ['الكل', null], f: ['إناث', 'GENDER_FEMALE'], m: ['ذكور', 'GENDER_MALE'] };
 // قاموس الأسواق: يُستعمل فقط كمفاتيح بحث عن اهتمامات تيك توك الحقيقية (لا يُعرض ولا يُرسل منه شي مباشرة). tiers: seeds لكل مستوى.
 const MK = {
-  bty: { n: '🧴 عناية بالبشرة / تبييض', w: ['تبييض', 'بشره', 'كريم', 'عنايه', 'سيروم', 'تصبغ', 'تفتيح', 'whitening', 'skin', 'cream', 'serum'], d: ['skin whitening', 'skin brightening', 'pigmentation'], r: ['skincare', 'body care', 'personal care'], n: ['cosmetics', 'beauty', 'makeup'], a: ['hair care', 'beauty salon'] },
-  hair: { n: '💇 شعر وصبغات', w: ['شعر', 'صبغ', 'صبغه', 'شامبو', 'كيراتين', 'حنه', 'hair', 'dye', 'shampoo', 'keratin'], d: ['hair dye', 'hair color', 'hair coloring'], r: ['hair care', 'hair treatment', 'shampoo'], n: ['beauty salon', 'hair salon', 'hairstyle'], a: ['skincare', 'beauty'] },
-  mkp: { n: '💄 مكياج ومستحضرات تجميل', w: ['مكياج', 'روج', 'ماسكرا', 'تجميل', 'مستحضرات', 'makeup', 'cosmetics', 'lipstick'], d: ['makeup', 'lipstick', 'mascara'], r: ['cosmetics', 'beauty products', 'makeup tutorial'], n: ['beauty', 'skincare', 'fashion'], a: ['hair care', 'nail art'] },
-  mob: { n: '📱 موبايلات وإلكترونيات', w: ['موبايل', 'هاتف', 'جوال', 'ايفون', 'سامسونج', 'شاحن', 'سماعه', 'mobile', 'phone', 'iphone', 'samsung'], d: ['smartphone', 'mobile phone', 'iphone'], r: ['android', 'phone accessories', 'mobile accessories'], n: ['gadgets', 'technology', 'electronics'], a: ['gaming', 'tech reviews'] },
-  clo: { n: '👗 ملابس وأزياء', w: ['ملابس', 'قميص', 'فستان', 'بنطلون', 'جاكيت', 'عبايه', 'حذاء', 'احذيه', 'clothes', 'dress', 'shirt', 'fashion'], d: ['clothes', 'fashion', 'dresses'], r: ['outfit', 'streetwear', "women's fashion"], n: ['shoes', 'accessories', 'style'], a: ['beauty', 'bags'] },
-  prf: { n: '🌸 عطور', w: ['عطر', 'عطور', 'بخور', 'دهن عود', 'perfume', 'fragrance', 'cologne'], d: ['perfume', 'fragrance', 'cologne'], r: ['luxury', 'body spray', 'beauty'], n: ['fashion', 'gifts'], a: ['skincare', 'makeup'] },
-  fod: { n: '🍰 مطاعم وأكل وحلويات', w: ['مطعم', 'اكل', 'حلويات', 'كيك', 'قهوه', 'وجبات', 'food', 'cake', 'coffee', 'restaurant'], d: ['food', 'desserts', 'restaurant'], r: ['cooking', 'recipes', 'coffee'], n: ['foodie', 'baking'], a: ['travel', 'lifestyle'] },
-  hom: { n: '🏠 أثاث ومنزل', w: ['اثاث', 'مطبخ', 'ديكور', 'سجاد', 'منزل', 'furniture', 'decor', 'kitchen'], d: ['furniture', 'home decor', 'kitchen'], r: ['interior design', 'home improvement', 'diy'], n: ['home', 'organization'], a: ['gardening', 'lifestyle'] },
-  kid: { n: '🧸 أطفال وألعاب', w: ['اطفال', 'طفل', 'العاب', 'حفاضات', 'رضيع', 'kids', 'baby', 'toys'], d: ['baby products', 'kids toys', 'toys'], r: ['parenting', 'kids fashion', 'baby care'], n: ['family', 'education'], a: ['gaming', 'lifestyle'] }
+  bty: { l: '🧴 عناية بالبشرة / تبييض', w: ['تبييض', 'بشره', 'كريم', 'عنايه', 'سيروم', 'تصبغ', 'تفتيح', 'whitening', 'skin', 'cream', 'serum'], d: ['skin whitening', 'skin brightening', 'pigmentation'], r: ['skincare', 'body care', 'personal care'], n: ['cosmetics', 'beauty', 'makeup'], a: ['hair care', 'beauty salon'] },
+  hair: { l: '💇 شعر وصبغات', w: ['شعر', 'صبغ', 'صبغه', 'شامبو', 'كيراتين', 'حنه', 'hair', 'dye', 'shampoo', 'keratin'], d: ['hair dye', 'hair color', 'hair coloring'], r: ['hair care', 'hair treatment', 'shampoo'], n: ['beauty salon', 'hair salon', 'hairstyle'], a: ['skincare', 'beauty'] },
+  mkp: { l: '💄 مكياج ومستحضرات تجميل', w: ['مكياج', 'روج', 'ماسكرا', 'تجميل', 'مستحضرات', 'makeup', 'cosmetics', 'lipstick'], d: ['makeup', 'lipstick', 'mascara'], r: ['cosmetics', 'beauty products', 'makeup tutorial'], n: ['beauty', 'skincare', 'fashion'], a: ['hair care', 'nail art'] },
+  mob: { l: '📱 موبايلات وإلكترونيات', w: ['موبايل', 'هاتف', 'جوال', 'ايفون', 'سامسونج', 'شاحن', 'سماعه', 'mobile', 'phone', 'iphone', 'samsung'], d: ['smartphone', 'mobile phone', 'iphone'], r: ['android', 'phone accessories', 'mobile accessories'], n: ['gadgets', 'technology', 'electronics'], a: ['gaming', 'tech reviews'] },
+  clo: { l: '👗 ملابس وأزياء', w: ['ملابس', 'قميص', 'فستان', 'بنطلون', 'جاكيت', 'عبايه', 'حذاء', 'احذيه', 'clothes', 'dress', 'shirt', 'fashion'], d: ['clothes', 'fashion', 'dresses'], r: ['outfit', 'streetwear', "women's fashion"], n: ['shoes', 'accessories', 'style'], a: ['beauty', 'bags'] },
+  prf: { l: '🌸 عطور', w: ['عطر', 'عطور', 'بخور', 'دهن عود', 'perfume', 'fragrance', 'cologne'], d: ['perfume', 'fragrance', 'cologne'], r: ['luxury', 'body spray', 'beauty'], n: ['fashion', 'gifts'], a: ['skincare', 'makeup'] },
+  fod: { l: '🍰 مطاعم وأكل وحلويات', w: ['مطعم', 'اكل', 'حلويات', 'كيك', 'قهوه', 'وجبات', 'food', 'cake', 'coffee', 'restaurant'], d: ['food', 'desserts', 'restaurant'], r: ['cooking', 'recipes', 'coffee'], n: ['foodie', 'baking'], a: ['travel', 'lifestyle'] },
+  hom: { l: '🏠 أثاث ومنزل', w: ['اثاث', 'مطبخ', 'ديكور', 'سجاد', 'منزل', 'furniture', 'decor', 'kitchen'], d: ['furniture', 'home decor', 'kitchen'], r: ['interior design', 'home improvement', 'diy'], n: ['home', 'organization'], a: ['gardening', 'lifestyle'] },
+  kid: { l: '🧸 أطفال وألعاب', w: ['اطفال', 'طفل', 'العاب', 'حفاضات', 'رضيع', 'kids', 'baby', 'toys'], d: ['baby products', 'kids toys', 'toys'], r: ['parenting', 'kids fashion', 'baby care'], n: ['family', 'education'], a: ['gaming', 'lifestyle'] }
 };
 const matchMarket = t => { const s = norm(t); if (!s) return null; let best = null, sc = 0;
   for (const k of Object.keys(MK)) { let c = 0; MK[k].w.forEach(w => { if (s.includes(norm(w))) c += norm(w).length; }); if (c > sc) { sc = c; best = k; } }
@@ -107,7 +107,7 @@ if (!P.on) {          // مطفأ: نفس السلوك القديم
   return [{ json: { ctx: P.ctx, chatId: P.chatId, text: 'ما فهمت الأمر. اكتب /help لتشوف الأوامر.', edit: false, state: '', cacheSets: '[]' } }];
 }
 const head = t => t + '\n' + LINE + '\n';
-const menuKb = () => { const ks = Object.keys(MK), kb = []; for (let i = 0; i < ks.length; i += 2) kb.push(ks.slice(i, i + 2).map(k => ({ t: MK[k].n, c: 'sa:mk:' + k }))); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
+const menuKb = () => { const ks = Object.keys(MK), kb = []; for (let i = 0; i < ks.length; i += 2) kb.push(ks.slice(i, i + 2).map(k => ({ t: MK[k].l, c: 'sa:mk:' + k }))); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
 const menuText = (pre) => head('🎯 منشئ الجمهور الذكي') + (pre ? pre + '\n\n' : '') + 'اختر سوق منتجك (أو اكتب /audience <اسم المنتج>):\nأقترح اهتمامات تيك توك الحقيقية المرتبطة بمنتجك، وإنت تختار.\nما أختار الجمهور نيابة عنك، وما أنشئ أي حملة.';
 if (!P.acct) return done(head('🎯 منشئ الجمهور الذكي') + 'ما عندك حساب تيك توك مفعّل أقرأ منه. اربط حساب أول.', home);
 const E = (name, sig) => (sig ? name : name);
@@ -182,7 +182,7 @@ if (S.tb === 'all') { const q = norm(S.q || ''); list = list.filter(x => x.c.n &
 const per = (tabs.length > 3 ? 6 : 9), pages = Math.max(1, Math.ceil(list.length / per));      // حد الـBroker 8 صفوف: مع 4 تبويبات 6 اهتمامات بالصفحة S.pg = Math.min(S.pg || 0, pages - 1);
 const part = list.slice(S.pg * per, S.pg * per + per);
 const e = S.est; const rt = ratingOf(e);
-let t = head('🎯 اختيار الجمهور — ' + sh(MK[S.mk].n, 28));
+let t = head('🎯 اختيار الجمهور — ' + sh(MK[S.mk].l, 28));
 t += '🎯 جمهورك الحالي\n' + (e ? N0(e.lo) + ' – ' + N0(e.up) + (e.st != null ? '  (مرحلة تيك توك ' + e.st + ')' : '') : NOEST + (S.estErr || '')) + '\n';
 t += '🌍 الدولة: ' + (cfg.country || '—') + ' 🇮🇶 | الجنس: ' + GEN[S.g][0] + ' | العمر: ' + AGES[S.ag][0] + '\n☑ الاهتمامات المختارة: ' + S.sel.length + '\n📊 حالة الجمهور: ' + (e ? (rt || 'غير مقيَّم (العتبات غير مضبوطة)') : '—') + '\n';
 t += (e ? NOTE_INT + '\n' : '') + '\n' + (S.tb === 'all' ? '🔎 بحث: «' + sh(S.q, 30) + '» (' + list.length + ')' : TIERS[S.tb][0] + ' ' + TIERS[S.tb][1] + ' (' + list.length + ')') + ' — المستوى: ' + LV[S.lv][0] + (pages > 1 ? '\nصفحة ' + (S.pg + 1) + '/' + pages : '') + '\nاضغط المربع لتختار ☐ ← ☑ (وكرر لإلغاء الاختيار).';
