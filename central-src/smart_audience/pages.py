@@ -179,7 +179,7 @@ if (op === 'ok') {
 const lvTiers = LV[S.lv][1]; const tabs = lvTiers; if (S.tb !== 'all' && !tabs.includes(S.tb)) S.tb = tabs[0];
 let list = S.cands.map((c, i) => ({ c, i }));
 if (S.tb === 'all') { const q = norm(S.q || ''); list = list.filter(x => x.c.n && norm(x.c.n).includes(q)); } else list = list.filter(x => x.c.t === S.tb);
-const per = 9, pages = Math.max(1, Math.ceil(list.length / per)); S.pg = Math.min(S.pg || 0, pages - 1);
+const per = (tabs.length > 3 ? 6 : 9), pages = Math.max(1, Math.ceil(list.length / per));      // حد الـBroker 8 صفوف: مع 4 تبويبات 6 اهتمامات بالصفحة S.pg = Math.min(S.pg || 0, pages - 1);
 const part = list.slice(S.pg * per, S.pg * per + per);
 const e = S.est; const rt = ratingOf(e);
 let t = head('🎯 اختيار الجمهور — ' + sh(MK[S.mk].n, 28));
@@ -217,7 +217,7 @@ def build(b, w, sw, idx, reply, CRT):
     call = call_broker(w, "SA: read via Broker", mode="each")
     render = code(w, "SA: render", LIB + JS_RENDER)
     save = pg(w, "SA: save state + cache",
-              "SELECT CASE WHEN $3::text <> '' THEN api.ui_set($1, 'sa:' || $2, 'v', $3::jsonb, 3600)::text END AS saved, "
+              "SELECT CASE WHEN $3::text <> '' THEN api.ui_set($1, 'sa:' || $2, 'v', coalesce(nullif($3::text, ''), '{}')::jsonb, 3600)::text END AS saved, "      # تحويل آمن للحالة الفارغة (p156)
               "api.ui_set($1, 'sa:t2', 'v', jsonb_build_object('at', now()::text, 'len', length($3::text)), 3600)::text AS trace, "      # تتبّع مؤقت (تشخيص p155)
               "(SELECT count(*) FROM jsonb_to_recordset($4::jsonb) AS x(k text, v jsonb, t int) WHERE smart_audience.cache_set($1, x.k, x.v, x.t)) AS cached",
               "={{ [$json.ctx, String($json.chatId), $json.state || '', $json.cacheSets || '[]'] }}", CRT, always=True)
@@ -228,4 +228,10 @@ def build(b, w, sw, idx, reply, CRT):
     w.link(need, call, 1)
     w.chain(call, render)
     w.chain(render, save, out)
+    # تتبّع تشخيصي مؤقت (p156): فروع جانبية تكتب sa:t3 (بعد الخطة) و sa:t4 (بعد بناء الرد) و sa:t5 (بعد عقدة الرد). فشلها لا يؤثر على المسار.
+    for tn, src, key in (("SA: trace after plan", plan, "sa:t3"), ("SA: trace after render", render, "sa:t4"), ("SA: trace after reply", out, "sa:t5")):
+        t = pg(w, tn, "SELECT api.ui_set($1, '" + key + "', 'v', jsonb_build_object('at', now()::text, 'n', $2::text), 3600)::text AS t",
+               "={{ [$json.ctx, String(JSON.stringify($json).length)] }}", CRT, always=True)
+        w.nodes[-1]["onError"] = "continueRegularOutput"
+        w.link(src, t)
     w.link(sw, data, idx)
