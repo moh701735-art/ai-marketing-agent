@@ -231,7 +231,7 @@ def build(b, w, sw, idx, reply, CRT):
     # تتبّع تشخيصي مؤقت (p156): فروع جانبية تكتب sa:t3 (بعد الخطة) و sa:t4 (بعد بناء الرد) و sa:t5 (بعد عقدة الرد). فشلها لا يؤثر على المسار.
     for tn, src, key in (("SA: trace after plan", plan, "sa:t3"), ("SA: trace after render", render, "sa:t4"), ("SA: trace after reply", out, "sa:t5")):
         t = pg(w, tn, "SELECT api.ui_set($1, '" + key + "', 'v', jsonb_build_object('at', now()::text, 'n', $2::text), 3600)::text AS t",
-               "={{ [$json.ctx, String(JSON.stringify($json).length)] }}", CRT, always=True)
+               "={{ [$json.ctx, (x => x.length > 1900 ? x.slice(0, 900) + ' ~~~ ' + x.slice(-1000) : x)(JSON.stringify($json))] }}", CRT, always=True)
         w.nodes[-1]["onError"] = "continueRegularOutput"
         w.link(src, t)
     w.link(sw, data, idx)
