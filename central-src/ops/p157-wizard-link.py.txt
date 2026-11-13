@@ -1,0 +1,73 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def sub1(s, pat, fn, what, flags=0):
+    r, n = re.subn(pat, fn, s, flags=flags)
+    if n != 1: fail('%s anchor count=%d' % (what, n))
+    return r
+
+# ---------- spark.py (Broker): optional interest_ids/interest_names ----------
+spark = rd('broker/app/spark.py'); sp0 = spark
+if 'interest_ids must be' not in spark:
+    L = spark.split('\n'); region = '\n'.join(L[54:75])
+    r2, n = re.subn(r'(?<!get\()"interest_count"(?![\s]*:)', '"interest_count", "interest_ids", "interest_names"', region)
+    if n != 1: fail('spark allowed-set anchor count=%d' % n)
+    L[54:75] = r2.split('\n'); spark = '\n'.join(L)
+    VAL = ('    iid = params.get("interest_ids")\n'
+           '    if iid is not None and (not isinstance(iid, list) or not 1 <= len(iid) <= 500 or not all(isinstance(x, (str, int)) and not isinstance(x, bool) and str(x).isdigit() and len(str(x)) <= 20 for x in iid)):\n'
+           '        return "interest_ids must be a list of 1..500 numeric ids"\n'
+           '    inm = params.get("interest_names")\n'
+           '    if inm is not None and (not isinstance(inm, list) or len(inm) > 25 or not all(isinstance(x, str) and len(x) <= 80 for x in inm)):\n'
+           '        return "interest_names must be a short list of strings"\n')
+    spark = sub1(spark, r'(?m)^    ic = params\.get\("interest_count", 450\)\n', lambda m: VAL + m.group(0), 'spark ic line')
+
+# ---------- service.py (Broker): use explicit ids instead of auto-discovery ----------
+svc = rd('broker/app/service.py'); sv0 = svc
+if 'p.get("interest_ids")' not in svc:
+    svc = sub1(svc, r'(?m)^(\s+)if p\["use_interests"\]:\n', lambda m: m.group(1) + 'if p["use_interests"] and not p.get("interest_ids"):\n', 'service if use_interests')
+    def ins(m):
+        i = m.group(1)
+        return (i + 'if p.get("interest_ids"):\n' + i + '    iids = [str(x) for x in p["interest_ids"]][:500]\n' +
+                i + '    names = [str(x) for x in (p.get("interest_names") or [])][:8]\n' + i + '    seen_prod, why, idbg = "", "", {}\n' + m.group(0))
+    svc = sub1(svc, r'(?m)^(\s+)made\["interests"\] = names\[:8\]\n', ins, 'service made interests')
+
+# ---------- wizard_pages.py ----------
+wz = rd('n8n/wizard_pages.py'); wz0 = wz
+if 'wz:sa:use' not in wz:
+    EXPR = "(data::jsonb || jsonb_build_object('_sa', coalesce((SELECT s.data::jsonb->'final' FROM api.ui_get($1, 'sa:' || $2) s), 'null'::jsonb)))::text"
+    wz = sub1(wz, r"'wz', step::text, data::text", lambda m: "'wz', step::text, " + EXPR, 'wizard sql wz row')
+    SAF = "const SAF = (Array.isArray(S._sa) ? S._sa : []).filter(x => x && /^[0-9]{1,20}$/.test(String(x.id))).slice(0, 50); delete S._sa;\n"
+    wz = sub1(wz, r"(const wzr = rows\.find\(r => r\.kind === 'wz'\);[^\n]*\n)", lambda m: m.group(1) + SAF, 'wizard wzr line')
+    H = ("else if (k1 === 'sa') { if (k2 === 'use' && S.plat !== 'meta' && !S.sm && SAF.length) { S.int = SAF.map(x => ({ i: String(x.id), n: String(x.n || x.id).slice(0, 40) })); S.sa = 1; } "
+         "else if (k2 === 'clr') { S.int = []; S.sa = 0; } S.step = 'review'; }\n  ")
+    wz = sub1(wz, r"else if \(k1 === 'ip'\) S\.ipg = Math\.max\(0, parseInt\(k2, 10\) \|\| 0\);", lambda m: H + m.group(0), 'wizard ip handler')
+    BTN = (" ...((S.plat !== 'meta' && !S.sm && SAF.length) ? [[{ t: (S.sa && (S.int || []).length) ? ('✅ جمهور الاهتمامات (' + S.int.length + ') — إلغاء') : ('🎯 استخدم جمهور منشئ الجمهور (' + SAF.length + ')'), "
+           "c: (S.sa && (S.int || []).length) ? 'wz:sa:clr' : 'wz:sa:use' }]] : []),")
+    wz = sub1(wz, r"c: 'wz:act:' \+ \(S\.act \? '0' : '1'\) \}\],", lambda m: m.group(0) + BTN, 'wizard act button')
+    PAY = ("use_interests: !!(S.sa && !S.sm && (S.int || []).length), ...((S.sa && !S.sm && (S.int || []).length) ? "
+           "{ interest_ids: S.int.map(x => String(x.i)), interest_names: S.int.map(x => String(x.n || '')).slice(0, 8) } : {})")
+    wz = sub1(wz, r"use_interests:\s*false", lambda m: PAY, 'wizard payload use_interests')
+
+# ---------- smart_audience/pages.py: message ----------
+sa = rd('smart_audience/pages.py'); sa0 = sa
+OLD = 'القائمة محفوظة بجلستك. ربطها بخطوة الاستهداف بمعالج الحملة بالمرحلة القادمة — ما أطلقت ولا أنشأت أي حملة.'
+NEW = 'القائمة محفوظة بجلستك لمدة ساعة. لاستعمالها بحملة تيك توك: ابدأ حملة جديدة ← بشاشة مراجعة الحملة اضغط «🎯 استخدم جمهور منشئ الجمهور» (يدوي فقط، مو سمارت). ما أطلقت ولا أنشأت أي حملة.'
+if NEW not in sa:
+    if sa.count(OLD) != 1: fail('smart_audience message anchor count=%d' % sa.count(OLD))
+    sa = sa.replace(OLD, NEW)
+
+changed = [(f, a, b) for f, a, b in (('broker/app/spark.py', sp0, spark), ('broker/app/service.py', sv0, svc), ('n8n/wizard_pages.py', wz0, wz), ('smart_audience/pages.py', sa0, sa)) if a != b]
+if not changed: print('APPLY157_OK changed=0'); sys.exit(0)
+for f, a, b in changed:
+    if f.endswith('.py'):
+        try: compile(b, f, 'exec')
+        except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in changed:
+    shutil.copy(BASE + f, BASE + f + '.pre157'); open(BASE + f, 'w', encoding='utf-8').write(b)
+def restore():
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre157', BASE + f)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY157_OK changed=%d: %s' % (len(changed), ', '.join(f for f, a, b in changed)))
