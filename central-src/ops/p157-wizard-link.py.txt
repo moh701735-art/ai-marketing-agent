@@ -2,9 +2,11 @@ import os, re, shutil, subprocess, sys
 BASE = '/opt/central/'
 def rd(p): return open(BASE + p, encoding='utf-8').read()
 def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
-def sub1(s, pat, fn, what, flags=0):
+def sub1(s, pat, fn, what, kw=None, flags=0):
     r, n = re.subn(pat, fn, s, flags=flags)
-    if n != 1: fail('%s anchor count=%d' % (what, n))
+    if n != 1:
+        ex = [repr(l[:160]) for l in s.split('\n') if kw and kw in l][:3]
+        fail('%s anchor count=%d; lines with %r: %s' % (what, n, kw, ' | '.join(ex) or 'none'))
     return r
 
 # ---------- spark.py (Broker): optional interest_ids/interest_names ----------
@@ -20,17 +22,17 @@ if 'interest_ids must be' not in spark:
            '    inm = params.get("interest_names")\n'
            '    if inm is not None and (not isinstance(inm, list) or len(inm) > 25 or not all(isinstance(x, str) and len(x) <= 80 for x in inm)):\n'
            '        return "interest_names must be a short list of strings"\n')
-    spark = sub1(spark, r'(?m)^    ic = params\.get\("interest_count", 450\)\n', lambda m: VAL + m.group(0), 'spark ic line')
+    spark = sub1(spark, r'(?m)^    ic = params\.get\("interest_count", 450\)[^\n]*\n', lambda m: VAL + m.group(0), 'spark ic line', 'interest_count", 450')
 
 # ---------- service.py (Broker): use explicit ids instead of auto-discovery ----------
 svc = rd('broker/app/service.py'); sv0 = svc
 if 'p.get("interest_ids")' not in svc:
-    svc = sub1(svc, r'(?m)^(\s+)if p\["use_interests"\]:\n', lambda m: m.group(1) + 'if p["use_interests"] and not p.get("interest_ids"):\n', 'service if use_interests')
+    svc = sub1(svc, r'(?m)^([ \t]+)if p\["use_interests"\][ \t]*:([^\n]*)\n', lambda m: m.group(1) + 'if p["use_interests"] and not p.get("interest_ids"):' + m.group(2) + '\n', 'service if use_interests', 'use_interests"]')
     def ins(m):
         i = m.group(1)
         return (i + 'if p.get("interest_ids"):\n' + i + '    iids = [str(x) for x in p["interest_ids"]][:500]\n' +
                 i + '    names = [str(x) for x in (p.get("interest_names") or [])][:8]\n' + i + '    seen_prod, why, idbg = "", "", {}\n' + m.group(0))
-    svc = sub1(svc, r'(?m)^(\s+)made\["interests"\] = names\[:8\]\n', ins, 'service made interests')
+    svc = sub1(svc, r'(?m)^([ \t]+)made\["interests"\][ \t]*=[^\n]*\n', ins, 'service made interests', 'made["interests"]')
 
 # ---------- wizard_pages.py ----------
 wz = rd('n8n/wizard_pages.py'); wz0 = wz
@@ -58,16 +60,16 @@ if NEW not in sa:
     sa = sa.replace(OLD, NEW)
 
 changed = [(f, a, b) for f, a, b in (('broker/app/spark.py', sp0, spark), ('broker/app/service.py', sv0, svc), ('n8n/wizard_pages.py', wz0, wz), ('smart_audience/pages.py', sa0, sa)) if a != b]
-if not changed: print('APPLY157_OK changed=0'); sys.exit(0)
+if not changed: print('APPLY158_OK changed=0'); sys.exit(0)
 for f, a, b in changed:
     if f.endswith('.py'):
         try: compile(b, f, 'exec')
         except SyntaxError as e: fail('syntax %s: %s' % (f, e))
 for f, a, b in changed:
-    shutil.copy(BASE + f, BASE + f + '.pre157'); open(BASE + f, 'w', encoding='utf-8').write(b)
+    shutil.copy(BASE + f, BASE + f + '.pre158'); open(BASE + f, 'w', encoding='utf-8').write(b)
 def restore():
-    for f, a, b in changed: shutil.copy(BASE + f + '.pre157', BASE + f)
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre158', BASE + f)
 if os.path.exists(BASE + 'n8n/build.py'):
     r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
     if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
-print('APPLY157_OK changed=%d: %s' % (len(changed), ', '.join(f for f, a, b in changed)))
+print('APPLY158_OK changed=%d: %s' % (len(changed), ', '.join(f for f, a, b in changed)))
