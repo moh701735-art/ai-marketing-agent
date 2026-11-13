@@ -8,4 +8,6 @@ function run(code, route, inputs, plan) {
 const PLAN = (route, rows) => run(D.plan, route, rows);
 // results: دالة (plans) => نتائج Broker بنفس ترتيب العناصر
 const RENDER = (route, rows, results) => { const plans = PLAN(route, rows); const out = run(D.render, route, plans[0].need ? results(plans) : [], plans); return { plans, out: out[0] }; };
-module.exports = { PLAN, RENDER, D };
+// عقدة الرد: render = ناتج SA: render ، saveRes = ناتج عقدة الحفظ (فيه wr)
+const REPLY = (render, saveRes) => new Function('$', D.reply)(n => { if (n === 'SA: render') return { first: () => ({ json: render }) }; if (n === 'SA: save state + cache') return { first: () => ({ json: saveRes }) }; throw new Error('node ' + n); })[0].json;
+module.exports = { PLAN, RENDER, REPLY, D };

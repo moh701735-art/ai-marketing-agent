@@ -1,5 +1,5 @@
 // اختبارات Smart Audience على العقد الحقيقية (node smart_audience/tests/test_sa.cjs بعد python3 smart_audience/tests/dump.py)
-const assert = require('assert'); const { PLAN, RENDER, D } = require('./harness.cjs');
+const assert = require('assert'); const { PLAN, RENDER, REPLY, D } = require('./harness.cjs');
 let n = 0; const T = (name, f) => { try { f(); n++; console.log('ok   ' + name); } catch (e) { console.log('FAIL ' + name + '\n  ' + (e.stack || e.message).split('\n').slice(0, 3).join('\n  ')); process.exitCode = 1; } };
 const TH = { small: 500000, medium: 2000000, large: 6000000, very_large: 12000000 };
 const CFG = (o) => ({ kind: 'cfg', a: JSON.stringify({ enabled: true, thresholds: TH, location_id: '99237', country: 'العراق', ...(o || {}) }) });
@@ -74,4 +74,54 @@ T('40 main menu (button «sa» and /audience without text): valid Broker keyboar
   const labels = r1.out.keyboard.flat().filter(b => /^sa:mk:/.test(b.c)).map(b => b.t); assert.strictEqual(labels.length, 9); labels.forEach(l => assert(/[\u0600-\u06FF]/.test(l), 'Arabic market label: ' + l));
   const r2 = RENDER(cmd(''), ROWS(), mkResults(BASEEST)); kbOK(r2.out.keyboard); assert(r1.out.text.length <= 3800);
   const o = open('bty'); assert(o.out.text.includes('عناية بالبشرة'), 'market header uses the Arabic name'); });
+
+// ───── p161: جماهير محفوظة بالاسم ─────
+const SVR = (id, nm, iv) => ({ kind: 'saved', a: String(id), b: nm, c: JSON.stringify(iv || [['111', 'perfume'], ['222', 'fragrance']]), d: JSON.stringify({ g: 'f', ag: '1824', est: { lo: 9000000, up: 11000000, st: 3 } }), e: '30', f: String((iv || [1, 2]).length) });
+const NOW = () => Math.floor(Date.now() / 1000);
+const withSel = () => { let S = stOf(open('bty').out); S = stOf(click(S, 'sa:t:0').out); S = stOf(click(S, 'sa:t:1').out); return S; };
+const ROWSV = (st, saved) => [...ROWS(st), ...(saved || [])];
+T('41 «💾 حفظ باسم» needs a selection; with one it asks for a plain-text name and remembers the frozen list', () => {
+  const S0 = stOf(open('bty').out); const r0 = RENDER(cb('sa:sn'), ROWS(S0), mkResults(BASEEST)); assert(r0.out.text.includes('اختر اهتمامات أول')); assert(!r0.out.wr);
+  const S = withSel(); const r = RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)); kbOK(r.out.keyboard); assert(r.out.text.includes('اكتب اسم الجمهور')); assert(!r.out.wr);
+  const S2 = stOf(r.out); assert(S2.awn >= NOW() - 5 && S2.pn.length === 2 && S2.pn.every(x => /^\d{3,25}$/.test(x[0]))); });
+T('42 naming text: no market matching, no Broker call, builds a save request with the frozen interests', () => {
+  const S = withSel(); let S2 = stOf(RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)).out);
+  const P = PLAN(cmd('عطور نسائية'), ROWS(S2)); assert.strictEqual(P.length, 1); assert(!P[0].need && P[0].naming === true);
+  const r = RENDER(cmd('عطور نسائية'), ROWS(S2), mkResults(BASEEST)); kbOK(r.out.keyboard); const wr = JSON.parse(r.out.wr);
+  assert.strictEqual(wr.op, 'save'); assert.strictEqual(wr.name, 'عطور نسائية'); assert.strictEqual(wr.iv.length, 2); assert(wr.iv.every(x => Array.isArray(x) && x.length === 2));
+  assert.strictEqual(wr.meta.g, 'a'); const S3 = stOf(r.out); assert(!S3.awn && S3.pn.length === 0); assert(r.out.text.includes('انحفظ') && r.out.text.includes('📂 المحفوظة')); });
+T('43 naming window: expired (>5 min) or not asked → text behaves as the normal market/search input', () => {
+  const S = withSel(); let S2 = stOf(RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)).out); S2.awn = NOW() - 400;
+  const P = PLAN(cmd('عطور'), ROWS(S2)); assert(!P[0].naming); assert(P.some(p => p.mk === 'prf'));
+  assert(!PLAN(cmd('عطور'), ROWS(S))[0].naming); });
+T('44 invalid names: empty / >30 chars → asked again, still waiting, nothing written', () => {
+  const S = withSel(); const S2 = stOf(RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)).out);
+  const r = RENDER(cmd('x'.repeat(31)), ROWS(S2), mkResults(BASEEST)); assert(!r.out.wr); assert(r.out.text.includes('1 إلى 30')); assert(stOf(r.out).awn > 0); kbOK(r.out.keyboard); });
+T('45 any other button cancels the naming wait (no accidental names)', () => {
+  const S = withSel(); const S2 = stOf(RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)).out);
+  const r = RENDER(cb('sa:tb:r'), ROWS(S2), mkResults(BASEEST)); assert(!stOf(r.out).awn); const r2 = RENDER(cb('sa:nx'), ROWS(S2), mkResults(BASEEST)); assert(!stOf(r2.out).awn); assert(!r2.out.wr); });
+T('46 list / view / delete-confirm / delete: valid keyboards, delete builds a numeric-id request only', () => {
+  const rows = ROWSV(withSel(), [SVR(7, 'عطور نسائية'), SVR(8, 'شعر', [['333', 'hair dye']])]);
+  const l = RENDER(cb('sa:ls'), rows, mkResults(BASEEST)); kbOK(l.out.keyboard); assert(l.out.text.includes('عطور نسائية')); assert(l.out.keyboard.flat().some(b => b.c === 'sa:vw:7'));
+  const v = RENDER(cb('sa:vw:7'), rows, mkResults(BASEEST)); kbOK(v.out.keyboard); assert(v.out.text.includes('perfume') && v.out.text.includes('9,000,000')); assert(!v.out.wr);
+  const d = RENDER(cb('sa:dl:7'), rows, mkResults(BASEEST)); kbOK(d.out.keyboard); assert(d.out.keyboard.flat().some(b => b.c === 'sa:dy:7')); assert(!d.out.wr);
+  const y = RENDER(cb('sa:dy:7'), rows, mkResults(BASEEST)); kbOK(y.out.keyboard); assert.deepStrictEqual(JSON.parse(y.out.wr), { op: 'del', id: '7' });
+  const bad = RENDER(cb('sa:dy:7;drop'), rows, mkResults(BASEEST)); assert(!bad.out.wr || JSON.parse(bad.out.wr).id === '0'); assert(!RENDER(cb('sa:vw:999'), rows, mkResults(BASEEST)).out.wr); });
+T('47 saved list is reachable without a session; main menu shows the saved-audiences row and stays within 8 rows', () => {
+  const rows = [...ROWS(null), SVR(7, 'عطور')]; const l = RENDER(cb('sa:ls'), rows, mkResults(BASEEST)); kbOK(l.out.keyboard); assert(l.out.text.includes('عطور'));
+  const m = RENDER(cb('sa'), rows, mkResults(BASEEST)); kbOK(m.out.keyboard); assert(m.out.keyboard.flat().some(b => b.c === 'sa:ls' && b.t.includes('(1)')));
+  const e = RENDER(cb('sa:ls'), ROWS(null), mkResults(BASEEST)); kbOK(e.out.keyboard); assert(e.out.text.includes('ما عندك جماهير')); });
+T('48 main page + final screen carry the save-with-name button, valid keyboards', () => {
+  const S = withSel(); const m = RENDER(cb('sa:tb:d'), ROWS(S), mkResults(BASEEST)); kbOK(m.out.keyboard); assert(m.out.keyboard.flat().some(b => b.c === 'sa:sn'));
+  const o = RENDER(cb('sa:ok'), ROWS(S), p => p.map(x => ({ ok: false }))); kbOK(o.out.keyboard); assert(o.out.keyboard.flat().some(b => b.c === 'sa:sn') && o.out.keyboard.flat().some(b => b.c === 'sa:ls')); });
+T('49 reply node never says «done» unless the DB confirmed (no fake success)', () => {
+  const S = withSel(); const S2 = stOf(RENDER(cb('sa:sn'), ROWS(S), mkResults(BASEEST)).out); const r = RENDER(cmd('عطور'), ROWS(S2), mkResults(BASEEST)).out;
+  const ok = REPLY(r, { wr: JSON.stringify({ ok: true, id: 5, n: 2, replaced: false }) }); assert(ok.text.includes('انحفظ') && !ok.text.includes('ما تمّت'));
+  const rp = REPLY(r, { wr: JSON.stringify({ ok: true, id: 5, n: 2, replaced: true }) }); assert(rp.text.includes('استبدلت'));
+  for (const bad of [{ wr: JSON.stringify({ ok: false, err: 'limit' }) }, { wr: JSON.stringify({ ok: false, err: 'name' }) }, {}, { error: 'sql' }, { wr: 'not json' }]) { const x = REPLY(r, bad); assert(x.text.includes('ما تمّت العملية') && !x.text.includes('✅ انحفظ'), JSON.stringify(bad)); kbOK(x.keyboard); }
+  assert(REPLY(r, { wr: JSON.stringify({ ok: false, err: 'limit' }) }).text.includes('20'));
+  const plain = RENDER(cb('sa'), ROWS(null), mkResults(BASEEST)).out; assert.strictEqual(REPLY(plain, {}).text, plain.text); });
+T('50 save node passes the write request, only calls saved_apply when asked, and data query reads saved list', () => {
+  assert(/saved_apply\(\$1, coalesce\(nullif\(\$5::text, ''\), '\{\}'\)::jsonb\)/.test(D.save_sql) && /CASE WHEN \$5::text <> ''/.test(D.save_sql) && D.save_qr.includes('$json.wr'));
+  assert(/smart_audience\.saved_list\(\$1\)/.test(D.sql)); });
 console.log(n + ' passed');

@@ -23,6 +23,6 @@ w = W(); b = B(w); sw = "Command"
 def reply(name, js): n = b.code(w, name, js); w.link(n, "Prep send"); return n
 m.build(b, w, sw, 33, reply, {"id": "c"})
 nodes = {n["name"]: n["parameters"] for n in w.nodes}
-json.dump({"plan": nodes["SA: plan"]["jsCode"], "render": nodes["SA: render"]["jsCode"], "sql": nodes["SA: data"]["query"], "save_sql": nodes["SA: save state + cache"]["query"],
+json.dump({"plan": nodes["SA: plan"]["jsCode"], "render": nodes["SA: render"]["jsCode"], "sql": nodes["SA: data"]["query"], "save_sql": nodes["SA: save state + cache"]["query"], "save_qr": nodes["SA: save state + cache"]["queryReplacement"], "reply": nodes["SA: reply"]["jsCode"], "data_qr": nodes["SA: data"]["queryReplacement"],
            "links": w.links, "names": list(nodes)}, open("/tmp/sa_nodes.json", "w"), ensure_ascii=False)
 print("nodes:", len(nodes), "links:", len(w.links))

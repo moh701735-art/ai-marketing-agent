@@ -6,12 +6,13 @@
 - كل اهتمام معروض هو keyword_id حقيقي رجّعه tiktok.recommend_interests (قاموس الأسواق يُستعمل كمفاتيح بحث فقط). لا يُرسل أي ID خارج ما رجّعه تيك توك.
 - التقدير: tiktok.estimate_audience (قراءة فقط) يُعرض كما رجع (user_count{lower_end,upper_end} + user_count_stage). **تأكد بالفحص (p153): التقدير يتفاعل مع الدولة/الجنس/العمر ولا يتفاعل مع الاهتمامات** — ولذلك الواجهة تقول ذلك صراحة ولا تقدّم رقماً «يتحرك» باختيار الاهتمامات.
 - لا إنشاء حملات ولا أي عملية كتابة. «متابعة» تتحقق من الاختيار وتحفظ القائمة النهائية بحالة الجلسة (sa:<chat>) لربطها بمعالج الحملة بالمرحلة 2.
-callback_data: sa | sa:mk:<سوق> | sa:t:<رقم> | sa:tb:<d|r|n|a> | sa:pg:<n> | sa:lv:<p|b|w|x> | sa:g:<a|f|m> | sa:ag:<all|1824|2534|3544|45p> | sa:r | sa:sv | sa:cmp | sa:cx | sa:ok | sa:cfg"""
+callback_data: sa | sa:mk:<سوق> | sa:t:<رقم> | sa:tb:<d|r|n|a> | sa:pg:<n> | sa:lv:<p|b|w|x> | sa:g:<a|f|m> | sa:ag:<all|1824|2534|3544|45p> | sa:r | sa:sv | sa:cmp | sa:cx | sa:ok | sa:cfg | sa:sn | sa:nx | sa:ls | sa:vw:<id> | sa:dl:<id> | sa:dy:<id>"""
 
 SQL_DATA = ("SELECT 'cfg'::text AS kind, smart_audience.config($1)::text AS a, NULL::text AS b, NULL::text AS c, NULL::text AS d, NULL::text AS e, NULL::text AS f "
             "UNION ALL SELECT 'state', data::text, age_s::text, NULL, NULL, NULL, NULL FROM api.ui_get($1, 'sa:' || $2) "
             "UNION ALL SELECT 'cache', key, value::text, age_s::text, NULL, NULL, NULL FROM smart_audience.cache_list($1) "
             "UNION ALL SELECT 'trace', api.ui_set($1, 'sa:t1', 'v', jsonb_build_object('at', now()::text, 'chat', $2::text), 3600)::text, NULL, NULL, NULL, NULL, NULL "      # تتبّع مؤقت (تشخيص p155)
+            "UNION ALL SELECT 'saved', id::text, name, interests::text, meta::text, age_s::text, cnt::text FROM smart_audience.saved_list($1) "
             "UNION ALL SELECT 'acct', external_id::text, name::text, platform::text, currency::text, status::text, enabled::text FROM api.list_ad_accounts($1)")
 
 LIB = r"""
@@ -69,13 +70,15 @@ let op = '', arg = '', text = '';
 if (isCb) { const p = String(d.cb).split(':'); op = p[1] || ''; arg = p.slice(2).join(':'); } else { op = 'text'; text = String(d.args || '').trim(); }
 base.act = op; base.arg = arg; base.text = text;
 const S0 = (st && typeof st === 'object') ? st : null; base.st = S0;
+base.saved = rows.filter(r => r.kind === 'saved').map(r => { try { return { id: String(r.a), nm: String(r.b), iv: JSON.parse(r.c), meta: JSON.parse(r.d) || {}, cnt: Number(r.f) || 0 }; } catch (e) { return null; } }).filter(x => x && /^\d{1,18}$/.test(x.id) && Array.isArray(x.iv));
+base.naming = !isCb && !!(S0 && S0.awn && (Math.floor(Date.now() / 1000) - Number(S0.awn)) <= 300);   // ينتظر اسم جمهور (5 دقايق)
 const items = [];
 const need = (k, extra) => items.push({ json: { ...base, need: true, k, ...extra } });
 const lvOf = () => (S0 && S0.lv) || 'b';
 if (on && base.acct) {
   let mk = null, search = null;
   if (op === 'mk') mk = MK[arg] ? arg : null;
-  else if (op === 'text') { mk = matchMarket(text); if (!mk && S0 && S0.cands && text) search = text; }
+  else if (op === 'text' && !base.naming) { mk = matchMarket(text); if (!mk && S0 && S0.cands && text) search = text; }
   base.mk = mk; base.search = search;
   const gOf = () => (op === 'g' ? (GEN[arg] ? arg : 'a') : ((S0 && S0.g) || 'a')), aOf = () => (op === 'ag' ? (AGES[arg] ? arg : 'all') : ((S0 && S0.ag) || 'all'));
   const prepEst = () => { const g = (mk ? 'a' : gOf()), ag = (mk ? 'all' : aOf()); const sig = estSig(cfg, g, ag); base.g2 = g; base.ag2 = ag; base.sig = sig;
@@ -100,14 +103,15 @@ JS_RENDER = r"""
 const plans = $('SA: plan').all().map(i => i.json); const P = plans[0];
 const results = P.need ? $input.all().map(i => i.json) : [];
 const cfg = P.cfg || {}; const S0 = P.st || null;
-const done = (text, kb, S, cacheSets) => [{ json: { ctx: P.ctx, chatId: P.chatId, text: String(text).slice(0, 3800), keyboard: (kb || [[{ t: '🏠 الرئيسية', c: 'h' }]]).slice(0, 8), edit: P.edit, state: S == null ? '' : JSON.stringify(S), cacheSets: JSON.stringify(cacheSets || []) } }];
+const done = (text, kb, S, cacheSets, wr) => [{ json: { ctx: P.ctx, chatId: P.chatId, text: String(text).slice(0, 3800), keyboard: (kb || [[{ t: '🏠 الرئيسية', c: 'h' }]]).slice(0, 8), edit: P.edit, state: S == null ? '' : JSON.stringify(S), cacheSets: JSON.stringify(cacheSets || []), wr: wr ? JSON.stringify(wr) : '' } }];
+const SV = Array.isArray(P.saved) ? P.saved : [];
 const home = [[{ t: '🏠 الرئيسية', c: 'h' }]];
 if (!P.on) {          // مطفأ: نفس السلوك القديم
   if (P.edit) return done('❌ خيار غير معروف.', home);
   return [{ json: { ctx: P.ctx, chatId: P.chatId, text: 'ما فهمت الأمر. اكتب /help لتشوف الأوامر.', edit: false, state: '', cacheSets: '[]' } }];
 }
 const head = t => t + '\n' + LINE + '\n';
-const menuKb = () => { const ks = Object.keys(MK), kb = []; for (let i = 0; i < ks.length; i += 2) kb.push(ks.slice(i, i + 2).map(k => ({ t: MK[k].l, c: 'sa:mk:' + k }))); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
+const menuKb = () => { const ks = Object.keys(MK), kb = []; for (let i = 0; i < ks.length; i += 2) kb.push(ks.slice(i, i + 2).map(k => ({ t: MK[k].l, c: 'sa:mk:' + k }))); if (SV.length) kb.push([{ t: '📂 جماهيري المحفوظة (' + SV.length + ')', c: 'sa:ls' }]); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };
 const menuText = (pre) => head('🎯 منشئ الجمهور الذكي') + (pre ? pre + '\n\n' : '') + 'اختر سوق منتجك (أو اكتب /audience <اسم المنتج>):\nأقترح اهتمامات تيك توك الحقيقية المرتبطة بمنتجك، وإنت تختار.\nما أختار الجمهور نيابة عنك، وما أنشئ أي حملة.';
 if (!P.acct) return done(head('🎯 منشئ الجمهور الذكي') + 'ما عندك حساب تيك توك مفعّل أقرأ منه. اربط حساب أول.', home);
 const E = (name, sig) => (sig ? name : name);
@@ -120,6 +124,46 @@ const estFrom = (sig) => {                       // نتيجة التقدير: �
 const sets = [];
 let S = S0 ? JSON.parse(JSON.stringify(S0)) : null;
 const op = P.act, arg = P.arg;
+
+// ───── الجماهير المحفوظة بالاسم (p161): قائمة / عرض / حذف / حفظ باسم (الاسم برسالة عادية) ─────
+if (S && op !== 'sn' && !P.naming && S.awn) { S.awn = 0; S.pn = []; }
+const GA = s => GEN[s.g] ? GEN[s.g][0] : 'الكل';
+const AA = s => AGES[s.ag] ? AGES[s.ag][0] : 'كل الأعمار';
+if (op === 'ls') {
+  let t = head('📂 جماهيري المحفوظة');
+  if (!SV.length) t += 'ما عندك جماهير محفوظة. اختر اهتمامات من منشئ الجمهور واضغط «💾 حفظ باسم».';
+  else t += 'اضغط على جمهور لتشوف اهتماماته أو تحذفه. تلقاها بمراجعة حملة تيك توك بزر «📂 المحفوظة».\n\n' + SV.slice(0, 7).map((x, i) => (i + 1) + '. ' + sh(x.nm, 30) + ' — ' + x.iv.length + ' اهتمام').join('\n');
+  return done(t, [...SV.slice(0, 7).map(x => [{ t: '📂 ' + sh(x.nm, 28) + ' (' + x.iv.length + ')', c: 'sa:vw:' + x.id }]), [{ t: '🎯 المنشئ', c: 'sa' }, { t: '🏠 الرئيسية', c: 'h' }]], S, sets);
+}
+if (op === 'vw' || op === 'dl') {
+  const x = SV.find(v => v.id === arg);
+  if (!x) return done(head('📂 جماهيري المحفوظة') + 'ما لقيت هذا الجمهور (يمكن انحذف).', [[{ t: '📂 القائمة', c: 'sa:ls' }]], S, sets);
+  if (op === 'dl') return done(head('🗑 حذف جمهور') + 'تحذف «' + sh(x.nm, 30) + '»؟ ما يتأثر أي حملة سابقة.', [[{ t: '✅ نعم، احذف', c: 'sa:dy:' + x.id }, { t: '↩️ لا', c: 'sa:vw:' + x.id }]], S, sets);
+  const m = x.meta || {}; const e = m.est && m.est.lo != null ? m.est : null;
+  const t = head('📂 ' + sh(x.nm, 30)) + 'الاهتمامات (' + x.iv.length + '):\n' + x.iv.slice(0, 25).map((a, i) => (i + 1) + '. ' + sh(a[1], 40)).join('\n') + (x.iv.length > 25 ? '\n…' : '') +
+    '\n\n' + (m.g || m.ag ? 'وقت الحفظ — الجنس: ' + (GEN[m.g] ? GEN[m.g][0] : '—') + ' | العمر: ' + (AGES[m.ag] ? AGES[m.ag][0] : '—') + '\n' : '') + (e ? '👥 تقدير تيك توك وقتها: ' + N0(e.lo) + ' – ' + N0(e.up) + '\n' : '') + NOTE_INT + '\n\nما أطلقت ولا غيّرت أي حملة.';
+  return done(t, [[{ t: '🗑 حذف', c: 'sa:dl:' + x.id }, { t: '⬅️ القائمة', c: 'sa:ls' }], [{ t: '🏠 الرئيسية', c: 'h' }]], S, sets);
+}
+if (op === 'dy') {
+  const x = SV.find(v => v.id === arg);
+  return done(head('🗑 حذف جمهور') + '✅ انحذف «' + sh(x ? x.nm : '', 30) + '».', [[{ t: '📂 جماهيري المحفوظة', c: 'sa:ls' }], [{ t: '🏠 الرئيسية', c: 'h' }]], S, sets, { op: 'del', id: /^\d{1,18}$/.test(String(arg)) ? String(arg) : '0' });
+}
+if (op === 'sn') {
+  if (!S || !Array.isArray(S.sel) || !S.sel.length || !Array.isArray(S.cands)) return done(head('💾 حفظ الجمهور') + 'اختر اهتمامات أول (اضغط المربعات ☐ ← ☑) وبعدها اضغط «💾 حفظ باسم».', [[{ t: '🎯 المنشئ', c: 'sa' }]], S, sets);
+  S.pn = S.sel.map(id => { const c = S.cands.find(x => x.id === id); return c && /^\d{3,25}$/.test(String(id)) ? [String(id), String(c.n || id).slice(0, 60)] : null; }).filter(Boolean).slice(0, 50);
+  if (!S.pn.length) return done(head('💾 حفظ الجمهور') + 'ما لقيت اهتمامات صالحة بالاختيار.', [[{ t: '🎯 المنشئ', c: 'sa' }]], S, sets);
+  S.awn = Math.floor(Date.now() / 1000);
+  return done(head('💾 حفظ الجمهور') + 'اكتب اسم الجمهور برسالة عادية (حتى 30 حرف)، مثل: «عطور نسائية».\nالاهتمامات: ' + S.pn.length + ' | الجنس: ' + GA(S) + ' | العمر: ' + AA(S) + '\nلازم تكتب الاسم خلال 5 دقايق، أو اضغط إلغاء.', [[{ t: '❌ إلغاء', c: 'sa:nx' }]], S, sets);
+}
+if (P.naming && S && S.awn && Array.isArray(S.pn) && S.pn.length) {
+  const nm = String(P.text || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!nm || nm.length > 30) return done(head('💾 حفظ الجمهور') + '⚠️ الاسم لازم يكون من 1 إلى 30 حرف (كتبت ' + nm.length + '). اكتب اسم ثاني أو اضغط إلغاء.', [[{ t: '❌ إلغاء', c: 'sa:nx' }]], S, sets);
+  const iv = S.pn.slice(); S.awn = 0; S.pn = [];
+  return done(head('✅ انحفظ الجمهور') + '«' + nm + '» — ' + iv.length + ' اهتمام (الجنس: ' + GA(S) + ' | العمر: ' + AA(S) + ').\nتلقاه عند رفع حملة تيك توك بشاشة المراجعة بزر «📂 المحفوظة».\n\nما أطلقت ولا غيّرت أي حملة.',
+    [[{ t: '📂 جماهيري المحفوظة', c: 'sa:ls' }], [{ t: '⬅️ رجوع للاختيار', c: 'sa:tb:' + (S.tb || 'd') }], [{ t: '🏠 الرئيسية', c: 'h' }]], S, sets,
+    { op: 'save', name: nm, iv, meta: { g: S.g, ag: S.ag, est: S.est ? { lo: S.est.lo, up: S.est.up, st: S.est.st } : null } });
+}
+if (op === 'nx' && S) { S.awn = 0; S.pn = []; }
 // ───── فتح سوق جديد: اكتشاف الاهتمامات ─────
 if (P.mk) {
   const M = MK[P.mk]; let cands = null;
@@ -173,7 +217,7 @@ if (op === 'ok') {
   if (!ids.length) return done(head('🎯 الجمهور') + 'ما اخترت أي اهتمام صالح. ارجع واختر من المربعات.' + note, [[{ t: '⬅️ رجوع للاختيار', c: 'sa:tb:' + (S.tb || 'd') }]], S, sets);
   S.final = ids.map(id => ({ id, n: known[id].n })); S.done = true;
   const t = head('✅ اهتماماتك المعتمدة') + 'الدولة: ' + (cfg.country || '—') + ' | الجنس: ' + GEN[S.g][0] + ' | العمر: ' + AGES[S.ag][0] + '\n\n' + S.final.map((x, i) => (i + 1) + '. ' + sh(x.n, 40) + '  (' + x.id + ')').join('\n') + '\n\n👥 ' + (S.est ? N0(S.est.lo) + ' – ' + N0(S.est.up) + ' ' + (ratingOf(S.est) || '') : 'التقدير غير متوفر') + '\n' + NOTE_INT + note + '\n\nالقائمة محفوظة بجلستك لمدة ساعة. لاستعمالها بحملة تيك توك: ابدأ حملة جديدة ← بشاشة مراجعة الحملة اضغط «🎯 استخدم جمهور منشئ الجمهور» (يدوي فقط، مو سمارت). ما أطلقت ولا أنشأت أي حملة.';
-  return done(t, [[{ t: '⬅️ رجوع للاختيار', c: 'sa:tb:' + (S.tb || 'd') }], [{ t: '🏠 الرئيسية', c: 'h' }]], S, sets);
+  return done(t, [[{ t: '💾 حفظ باسم', c: 'sa:sn' }, { t: '📂 المحفوظة', c: 'sa:ls' }], [{ t: '⬅️ رجوع للاختيار', c: 'sa:tb:' + (S.tb || 'd') }], [{ t: '🏠 الرئيسية', c: 'h' }]], S, sets);
 }
 // ───── صفحة الاختيار الرئيسية ─────
 const lvTiers = LV[S.lv][1]; const tabs = lvTiers; if (S.tb !== 'all' && !tabs.includes(S.tb)) S.tb = tabs[0];
@@ -193,7 +237,7 @@ for (let i = 0; i < part.length; i += 3) kb.push(part.slice(i, i + 3).map(x => (
 if (pages > 1) kb.push([...(S.pg > 0 ? [{ t: '⬅️ السابق', c: 'sa:pg:' + (S.pg - 1) }] : []), ...(S.pg < pages - 1 ? [{ t: '➡️ التالي', c: 'sa:pg:' + (S.pg + 1) }] : [])]);
 kb.push([{ t: '👤 ' + GEN[S.g][0], c: 'sa:g:' + (S.g === 'a' ? 'f' : S.g === 'f' ? 'm' : 'a') }, { t: '🎂 ' + AGES[S.ag][0], c: 'sa:ag:' + (S.ag === 'all' ? '1824' : S.ag === '1824' ? '2534' : S.ag === '2534' ? '3544' : S.ag === '3544' ? '45p' : 'all') }, { t: '🎯 ' + LV[S.lv][0], c: 'sa:lv:' + (S.lv === 'p' ? 'b' : S.lv === 'b' ? 'w' : S.lv === 'w' ? 'x' : 'p') }]);
 kb.push([{ t: '🔄 تحديث الجمهور', c: 'sa:r' }, { t: '💾 احفظ للمقارنة', c: 'sa:sv' }, { t: '⚖️ مقارنة', c: 'sa:cmp' }]);
-kb.push([{ t: '➡️ متابعة', c: 'sa:ok' }, { t: '⬅️ الأسواق', c: 'sa' }]);
+kb.push([{ t: '➡️ متابعة', c: 'sa:ok' }, { t: '💾 حفظ باسم', c: 'sa:sn' }, { t: '⬅️ الأسواق', c: 'sa' }]);
 return done(t, kb, S, sets);
 """
 
@@ -203,8 +247,15 @@ return [{ json: r }];
 """
 
 JS_REPLY = r"""
-const r = $('SA: render').first().json;
-return [{ json: { ctx: r.ctx, chatId: r.chatId, text: r.text, keyboard: r.keyboard, edit: r.edit } }];
+const r = $('SA: render').first().json; let text = r.text, kb = r.keyboard;
+if (r.wr) {                                   // عملية كتابة بالقاعدة (حفظ/حذف جمهور): ما نقول «تم» إلا إذا القاعدة أكدت
+  let res = null; try { res = JSON.parse($('SA: save state + cache').first().json.wr); } catch (e) {}
+  if (!res || res.ok !== true) {
+    const E = { name: 'الاسم لازم يكون من 1 إلى 30 حرف.', interests: 'قائمة الاهتمامات غير صالحة.', limit: 'وصلت الحد الأقصى (20 جمهور محفوظ). احذف واحد من «📂 جماهيري المحفوظة» وجرّب.', notfound: 'ما لقيت هذا الجمهور (يمكن انحذف قبل).', disabled: 'الميزة مطفأة.' };
+    text = '⚠️ ما تمّت العملية: ' + ((res && res.err && E[res.err]) || 'ما كدرت أكمل هسه، جرّب مرة ثانية.'); kb = [[{ t: '📂 جماهيري المحفوظة', c: 'sa:ls' }], [{ t: '🏠 الرئيسية', c: 'h' }]];
+  } else if (res.replaced) text += '\n(استبدلت جمهور قديم بنفس الاسم)';
+}
+return [{ json: { ctx: r.ctx, chatId: r.chatId, text, keyboard: kb, edit: r.edit } }];
 """
 
 
@@ -219,8 +270,9 @@ def build(b, w, sw, idx, reply, CRT):
     save = pg(w, "SA: save state + cache",
               "SELECT CASE WHEN $3::text <> '' THEN api.ui_set($1, 'sa:' || $2, 'v', coalesce(nullif($3::text, ''), '{}')::jsonb, 3600)::text END AS saved, "      # تحويل آمن للحالة الفارغة (p156)
               "api.ui_set($1, 'sa:t2', 'v', jsonb_build_object('at', now()::text, 'len', length($3::text)), 3600)::text AS trace, "      # تتبّع مؤقت (تشخيص p155)
-              "(SELECT count(*) FROM jsonb_to_recordset($4::jsonb) AS x(k text, v jsonb, t int) WHERE smart_audience.cache_set($1, x.k, x.v, x.t)) AS cached",
-              "={{ [$json.ctx, String($json.chatId), $json.state || '', $json.cacheSets || '[]'] }}", CRT, always=True)
+              "(SELECT count(*) FROM jsonb_to_recordset($4::jsonb) AS x(k text, v jsonb, t int) WHERE smart_audience.cache_set($1, x.k, x.v, x.t)) AS cached, "
+              "CASE WHEN $5::text <> '' THEN smart_audience.saved_apply($1, coalesce(nullif($5::text, ''), '{}')::jsonb)::text END AS wr",
+              "={{ [$json.ctx, String($json.chatId), $json.state || '', $json.cacheSets || '[]', $json.wr || ''] }}", CRT, always=True)
     w.nodes[-1]["onError"] = "continueRegularOutput"
     out = reply("SA: reply", JS_REPLY)
     w.chain(data, plan, need)
