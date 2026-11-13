@@ -124,13 +124,16 @@ T('49 reply node never says «done» unless the DB confirmed (no fake success)',
 T('50 save node passes the write request, only calls saved_apply when asked, and data query reads saved list', () => {
   assert(/saved_apply\(\$1, coalesce\(nullif\(\$5::text, ''\), '\{\}'\)::jsonb\)/.test(D.save_sql) && /CASE WHEN \$5::text <> ''/.test(D.save_sql) && D.save_qr.includes('$json.wr'));
   assert(/smart_audience\.saved_list\(\$1\)/.test(D.sql)); });
-T('51 more markets: 26 markets over menu pages (≤10 per page), every page a valid keyboard, every market opens with its seed requests', () => {
+T('51 more markets: 68 markets over menu pages (≤10 per page), every page a valid keyboard, every market opens with its seed requests', () => {
   const R0 = RENDER(cb('sa'), ROWS(null), mkResults(BASEEST)); assert(R0.out.keyboard.flat().some(b => b.c === 'sa:mp:1'));
-  const seen = new Set(); for (let pg = 0; pg < 3; pg++) { const r = RENDER(cb('sa:mp:' + pg), ROWS(null), mkResults(BASEEST)); kbOK(r.out.keyboard); assert(!r.out.wr); r.out.keyboard.flat().filter(b => /^sa:mk:/.test(b.c)).forEach(b => seen.add(b.c.slice(6))); }
-  assert.strictEqual(seen.size, 26, 'all markets reachable: ' + seen.size);
+  const seen = new Set(); for (let pg = 0; pg < 7; pg++) { const r = RENDER(cb('sa:mp:' + pg), ROWS(null), mkResults(BASEEST)); kbOK(r.out.keyboard); assert(!r.out.wr); r.out.keyboard.flat().filter(b => /^sa:mk:/.test(b.c)).forEach(b => seen.add(b.c.slice(6))); }
+  assert.strictEqual(seen.size, 68, 'all markets reachable: ' + seen.size);
   for (const k of seen) { const P = PLAN(cb('sa:mk:' + k), ROWS()); assert.strictEqual(P.filter(p => p.k === 'seed').length, 3 + 2 + 2 + 2, k); P.filter(p => p.k === 'seed').forEach(p => assert(/^[a-z' -]{3,30}$/.test(p.seed), k + ' seed ' + p.seed)); }
   const ar = r => RENDER(cb('sa:mk:' + r), ROWS(), mkResults(BASEEST)).out.text; assert(ar('wat').includes('ساعات')); });
 T('52 product words reach the new markets (and old ones still win their own words)', () => {
   const PR2 = { 'ساعة يد': 'wat', 'خاتم ذهب': 'jwl', 'ملابس رياضية': 'clo', 'شقق للبيع': 'rea', 'دورة تعليمية': 'edu', 'سفر وسياحة': 'trv', 'مكيف': 'app', 'عسل': 'nut', 'قطط': 'pet', 'عيادة اسنان': 'med', 'عروس وزفاف': 'wed', 'تبييض': 'bty', 'موبايل': 'mob', 'عطر': 'prf' };
   for (const [prod, mk] of Object.entries(PR2)) { const P = PLAN(cmd(prod), ROWS()); assert.strictEqual(P[0].mk, mk, prod + ' → ' + P[0].mk); } });
+T('53 new markets: sample product words land on the right market', () => {
+  const PR3 = { 'ستائر': 'cur', 'سجاد': 'rug', 'كرسي مكتب': 'ofc', 'مرتبة': 'bed', 'قدور': 'kit', 'ثريا': 'lit', 'مثقاب': 'tol', 'سيراميك': 'bld', 'نباتات': 'gar', 'دراجة': 'cyc', 'تخييم': 'cmp', 'سنارة': 'fsh', 'دشداشة': 'men', 'حجاب': 'wom', 'ملابس اطفال': 'kcl', 'بيجامة': 'und', 'نظارات': 'gls', 'حلاقة': 'grm', 'اظافر': 'nal', 'صالون': 'sal', 'اعشاب': 'hrb', 'كاميرا مراقبة': 'cam', 'طاقة شمسية': 'sol', 'لابتوب': 'pcs', 'طباعة': 'prt', 'تسويق': 'mkt', 'تصوير': 'pho', 'عصير': 'bev', 'لحوم': 'mea', 'غسيل سيارات': 'cwa', 'معرض سيارات': 'cdl', 'شحن': 'shp', 'ترفيه': 'ent', 'صيانة': 'mnt', 'جهاز ضغط': 'mdv', 'كتب': 'bok', 'لوحات': 'art', 'شموع': 'hnd', 'عمرة': 'hjj', 'سجادة صلاة': 'isl', 'مستلزمات حمل': 'mat', 'راوتر': 'net' };
+  for (const [prod, mk] of Object.entries(PR3)) { const P = PLAN(cmd(prod), ROWS()); assert.strictEqual(P[0].mk, mk, prod + ' → ' + P[0].mk); } });
 console.log(n + ' passed');
