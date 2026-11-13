@@ -1,0 +1,10 @@
+cat > /tmp/p145.b64 <<'EOF'
+/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4AGtASFdADSbSme4Ujxz98E0CgCeUVRszD12bJPNfnRo
+AcFPm6391wvqzdZmHGg30LMq4FF1NRdPciEHv+DuLYQ0lExjf9loAytaxPcwD8SnWOmNRGuefEtj
+lXKCAiFUMgtyT9btHtX9/jeCuawpu9IlDK0w88Zxq1EihDxrgK4aYM03Zihht0QNSNWXIM8n3ufp
+n60kS7OOiXhAf6MS1FhT4hYETgVWFsxONFMp6OrKr+Db4oCisy6w9icMa/wWa8V2a6Z+IexVGH4q
+lSbVNtz1c+8qhC/E2QvMC6JlHX/ESo+h39wGSnllkDt8b0z+d2pDiWBelFDPdyL7fbiXeppOW9E3
+w75X5eA43ZeYlCkpwxVnlHlNnNMw9ZXIcdlDvG0KbOjAEsUAAAAAxjtE3srn6H0AAb0CrgMAAHlX
+M7CxxGf7AgAAAAAEWVo=
+EOF
+base64 -d < /tmp/p145.b64 | xz -d | python3 && cd /opt/central && export PG_CONTAINER=central-stg-pg BROKER_NETWORK=central-stg_backend BROKER_IMAGE=central-broker:prod ENV_FILE=deploy/.env TENANT_DB=central && python3 ops/set-bot-profile.py
