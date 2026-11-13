@@ -11,6 +11,7 @@ callback_data: sa | sa:mk:<سوق> | sa:t:<رقم> | sa:tb:<d|r|n|a> | sa:pg:<n>
 SQL_DATA = ("SELECT 'cfg'::text AS kind, smart_audience.config($1)::text AS a, NULL::text AS b, NULL::text AS c, NULL::text AS d, NULL::text AS e, NULL::text AS f "
             "UNION ALL SELECT 'state', data::text, age_s::text, NULL, NULL, NULL, NULL FROM api.ui_get($1, 'sa:' || $2) "
             "UNION ALL SELECT 'cache', key, value::text, age_s::text, NULL, NULL, NULL FROM smart_audience.cache_list($1) "
+            "UNION ALL SELECT 'trace', api.ui_set($1, 'sa:t1', 'v', jsonb_build_object('at', now()::text, 'chat', $2::text), 3600)::text, NULL, NULL, NULL, NULL, NULL "      # تتبّع مؤقت (تشخيص p155)
             "UNION ALL SELECT 'acct', external_id::text, name::text, platform::text, currency::text, status::text, enabled::text FROM api.list_ad_accounts($1)")
 
 LIB = r"""
@@ -217,6 +218,7 @@ def build(b, w, sw, idx, reply, CRT):
     render = code(w, "SA: render", LIB + JS_RENDER)
     save = pg(w, "SA: save state + cache",
               "SELECT CASE WHEN $3::text <> '' THEN api.ui_set($1, 'sa:' || $2, 'v', $3::jsonb, 3600)::text END AS saved, "
+              "api.ui_set($1, 'sa:t2', 'v', jsonb_build_object('at', now()::text, 'len', length($3::text)), 3600)::text AS trace, "      # تتبّع مؤقت (تشخيص p155)
               "(SELECT count(*) FROM jsonb_to_recordset($4::jsonb) AS x(k text, v jsonb, t int) WHERE smart_audience.cache_set($1, x.k, x.v, x.t)) AS cached",
               "={{ [$json.ctx, String($json.chatId), $json.state || '', $json.cacheSets || '[]'] }}", CRT, always=True)
     w.nodes[-1]["onError"] = "continueRegularOutput"
