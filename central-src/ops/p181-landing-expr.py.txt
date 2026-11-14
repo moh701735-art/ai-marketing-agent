@@ -1,0 +1,19 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read(); s0 = s
+OLD_RE = r"landing_url: \(String\(d\.text\) \|\| ''\)\.match\(/https\?:\\/\\/\[\^\\s<>\"'#\]\{8,400\}/g\) \|\| \[\]\)\.find\(u => !/tiktok\\\.com/i\.test\(u\) && u !== videoUrl\) \|\| ''"
+NEW = "landing_url: (String(d.text || '').match(/https?:\\/\\/[^\\s<>\"'#]{8,400}/g) || []).find(u => !/tiktok\\.com/i.test(u) && u !== videoUrl) || ''"
+if NEW in s: print('APPLY181_OK changed=0'); sys.exit(0)
+ms = list(re.finditer(OLD_RE, s))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:230]) for l in s.split('\n') if 'landing_url' in l][:3]
+    sys.exit('PATCH FAIL (nothing written): landing_url expression count=%d; lines: %s' % (len(ms), ' | '.join(ex) or 'none'))
+s = s[:ms[0].start()] + NEW + s[ms[0].end():]
+try: compile(s, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre181'); open(BASE + p, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(BASE + p + '.pre181', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY181_OK changed=1 (تعبير رابط الوجهة: أقواس صحيحة)')
