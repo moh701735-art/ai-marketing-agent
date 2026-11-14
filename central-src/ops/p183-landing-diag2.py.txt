@@ -1,0 +1,17 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+p = 'broker/app/spark.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'has_key=' in s: print('APPLY183_OK changed=0'); sys.exit(0)
+pat = r'(?m)^([ \t]*)return None, "landing_url must be an https link for the traffic objective \(received: " \+ repr\(lu\)\[:90\] \+ ", keys=" \+ [^\n]*\)"[ \t]*$'
+ms = list(re.finditer(pat, s))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:220]) for l in s.split('\n') if 'landing_url must be' in l][:3]
+    sys.exit('PATCH FAIL (nothing written): validation line count=%d; lines: %s' % (len(ms), ' | '.join(ex) or 'none'))
+I = ms[0].group(1)
+new = I + 'return None, "landing_url bad: got=" + repr(lu)[:40] + " has_key=" + str("landing_url" in params) + " n=" + str(len(params)) + " end=" + ",".join(sorted(str(k) for k in params))[-70:]'
+s = s[:ms[0].start()] + new + s[ms[0].end():]
+try: compile(s, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre183'); open(BASE + p, 'w', encoding='utf-8').write(s)
+print('APPLY183_OK changed=1')
