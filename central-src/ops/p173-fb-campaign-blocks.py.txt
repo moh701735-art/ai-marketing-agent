@@ -1,0 +1,74 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+FAILS = []
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def one(s, pat, what, kw=None):
+    ms = list(re.finditer(pat, s))
+    if len(ms) != 1:
+        ex = [repr(l.strip()[:150]) for l in s.split('\n') if kw and kw in l][:3]
+        FAILS.append('%s count=%d lines[%s]: %s' % (what, len(ms), kw, ' | '.join(ex) or 'none'))
+        return None
+    return ms[0]
+
+jr = rd('n8n/wf_job_report.py'); jr0 = jr
+ing = rd('n8n/wf_ingress.py')
+if 'metacamp-block' not in jr:
+    # 1) معاملات قراءة الحملات من /fbreport (حرفياً، بشرط أنها قيم ثابتة فقط)
+    m = one(ing, r"kind: 'ins', op: 'meta\.read_insights', params: (\{[^{}]*\})", 'fbreport params', "meta.read_insights")
+    params = m.group(1) if m else None
+    if params:
+        t = re.sub(r"'[^'\n]*'", "''", params); t = re.sub(r"\b[A-Za-z_]\w*\s*:", "", t); t = re.sub(r"\b(?:true|false|null)\b|\d+(?:\.\d+)?", "", t)
+        if not re.fullmatch(r"[\s{},\[\]']*", t): FAILS.append('fbreport params are not plain literals: ' + params[:200]); params = None
+    if params and 'actions' not in params: FAILS.append('fbreport params lack actions field: ' + params[:200]); params = None
+    # 2) خطة التقرير الساعي: نسخة مستوى الحملة لكل حساب ميتا (تُوضع بالبداية حتى تُعالَج قبل سطر الحساب)
+    m_ret = one(jr, r"\n([ \t]*)return items;[ \t]*\n\"\"\"\)", 'plan return', 'return items')
+    # 3) معالجة النتائج: فرع الحملات قبل فرع الحساب
+    m_br = one(jr, r"\n([ \t]*)if \(p\.platform === 'meta'\) \{", 'meta branch', "p.platform === 'meta'")
+    # 4) تجميع البلوكات بالنص النهائي
+    m_tl = one(jr, r"\n([ \t]*)if \(g\.meta\.length\) tail\.push\(g\.meta\.join\('\\n'\)\);", 'tail meta line', 'g.meta.length')
+    m_nd = one(jr, r"!g\.meta\.length && !g\.bad\.length", 'no-spend condition', '!g.meta.length')
+    if FAILS: fail('; '.join(FAILS))
+    BR = r"""
+  if (p.platform === 'meta' && p.kind === 'camp') {      // metacamp-block: بلوك لكل حملة فيسبوك
+    try {
+      if (!r.ok) return;
+      const rows = (r.data && r.data.data) || [];
+      const getA = (a, t) => { try { if (Array.isArray(a)) { const x = a.find(y => y && y.action_type === t); return x ? Number(x.value) || 0 : 0; } return a && a[t] ? Number(a[t]) || 0 : 0; } catch (e) { return 0; } };
+      g.fb = g.fb || []; g.fbDone = g.fbDone || {};
+      for (const c of rows) {
+        const sp = n2(c.spend); if (!(sp > 0)) continue;
+        const cur = String(c.account_currency || '').toUpperCase(), isI = cur === 'IQD';
+        const mny = v => isI ? Math.round(v).toLocaleString('en-US') + ' د.ع' : '$' + (Math.round(v * 100) / 100).toFixed(2);
+        const msg = getA(c.actions, 'onsite_conversion.messaging_conversation_started_7d');
+        const u = isI ? sp / 1555 : sp, price = msg > 0 ? u / msg : null;
+        const verdict = (msg < 2 && u < 1.93) ? '⏳ بيانات غير كافية' : msg === 0 ? '❌ فاشلة (لا رسائل)' : price <= 0.40 ? '✅ ناجحة' : price <= 0.60 ? '⚠️ متوسطة' : '❌ فاشلة';
+        const L = ['👤 ' + p.label, '📣 حملة: ' + String(c.campaign_name || c.campaign_id).slice(0, 40) + ' (فيسبوك)', '💰 الإنفاق: ' + mny(sp), '👁 الظهور: ' + Math.round(n2(c.impressions)).toLocaleString('en-US'),
+          '💬 الرسائل: ' + msg, '💵 سعر الرسالة: ' + (msg > 0 ? mny(isI ? price * 1555 : price) : '-'), '📈 CTR: ' + n2(c.ctr).toFixed(2) + '%', '📊 الحكم: ' + verdict];
+        if (msg >= 2 && price > 0.40) L.push('⚠️ سعر الرسالة فوق 0.40$ — ما أوقفتها تلقائياً (فيسبوك)، أوقفها من مدير الإعلانات');
+        g.fb.push({ sp, t: L.join('\n') });
+      }
+      if (g.fb.length) g.fbDone[p.label] = true;
+    } catch (e) {}
+    return;
+  }
+  if (p.platform === 'meta' && g.fbDone && g.fbDone[p.label]) return;    // الحساب انعرض ببلوكات حملاته
+"""
+    TL = r"""
+  if (g.fb && g.fb.length) { const _f = g.fb.sort((a, b) => b.sp - a.sp); tail.push(_f.slice(0, 12).map(x => x.t).join('\n\n') + (_f.length > 12 ? '\n\n… و' + (_f.length - 12) + ' حملة فيسبوك أخرى' : '')); }
+"""
+    RET = ("\n%sconst _mc = items.filter(x => x.json && x.json.platform === 'meta' && !x.json.kind);\n%sitems.unshift(..._mc.map(x => ({ json: { ...x.json, kind: 'camp', params: " + params + " } })));\n")
+    # تطبيق من النهاية للبداية حتى ما تتزحزح المواقع
+    edits = [(m_nd.start(), m_nd.end(), "!g.meta.length && !(g.fb && g.fb.length) && !g.bad.length"),
+             (m_tl.start(), m_tl.end(), TL.rstrip('\n') + m_tl.group(0)),
+             (m_br.start(), m_br.end(), BR.rstrip('\n') + m_br.group(0)),
+             (m_ret.start(), m_ret.end(), (RET % (m_ret.group(1), m_ret.group(1))).rstrip('\n') + m_ret.group(0))]
+    for a, b, rep in sorted(edits, reverse=True): jr = jr[:a] + rep + jr[b:]
+if jr == jr0: print('APPLY173_OK changed=0'); sys.exit(0)
+try: compile(jr, 'wf_job_report.py', 'exec')
+except SyntaxError as e: fail('syntax: %s' % e)
+shutil.copy(BASE + 'n8n/wf_job_report.py', BASE + 'n8n/wf_job_report.py.pre173'); open(BASE + 'n8n/wf_job_report.py', 'w', encoding='utf-8').write(jr)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(BASE + 'n8n/wf_job_report.py.pre173', BASE + 'n8n/wf_job_report.py'); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY173_OK changed=1 (بلوكات حملات فيسبوك بالتقرير الساعي)')
