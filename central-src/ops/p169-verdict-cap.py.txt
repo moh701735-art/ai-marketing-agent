@@ -1,0 +1,46 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+NODB = bool(os.environ.get('P169_NODB'))
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def sub1(s, pat, rep, what):
+    r, n = re.subn(pat, rep, s)
+    if n != 1: fail('%s anchor count=%d' % (what, n))
+    return r
+
+jr = rd('n8n/wf_job_report.py'); jr0 = jr
+ing = rd('n8n/wf_ingress.py'); ing0 = ing
+if '1.93' not in jr:
+    jr = sub1(jr, r'const CAP = 0\.30,', 'const CAP = 0.40,', 'job_report CAP')
+    jr = sub1(jr, r'cpr <= CAP \* 2', 'cpr <= 0.60', 'job_report medium threshold')
+    jr = sub1(jr, r'k\.spend_usd\s*>=\s*1\s*\?', 'k.spend_usd >= 1.93 ?', 'job_report zero-result threshold')
+    jr = sub1(jr, r'(\n[ \t]*)(if \(cpr <= CAP\) return)', lambda m: m.group(1) + "if ((k.results || 0) < 2 && (k.spend_usd || 0) < 1.93) return ['⏳', 'بيانات غير كافية'];" + m.group(1) + m.group(2), 'job_report min-data rule')
+    jr = sub1(jr, r"(B\.push\('[^'\n]*CTR: ' \+ ctr\.toFixed\(2\) \+ '%'\);)", lambda m: m.group(1) + "\n  B.push('📊 الحكم: ' + v[0] + ' ' + v[1]);", 'job_report verdict line')
+if 'alerts=0.20,0.30,0.4' not in ing:
+    ing = sub1(ing, r'(let cap = sm \? Number\(sm\[1\]\) : )0\.30', r'\g<1>0.40', 'activate default stop')
+    ing = sub1(ing, r'(: )\[0\.15, 0\.20, 0\.30\];', r'\g<1>[0.20, 0.30, 0.40];', 'activate default alerts')
+    ing = sub1(ing, r"stop=0\.30 alerts=0\.15,0\.20,0\.3'", "stop=0.40 alerts=0.20,0.30,0.4'", 'activate example text')
+    ing = sub1(ing, r'0\.15 / 0\.20 / 0\.30\$', '0.20 / 0.30 / 0.40$', 'activation message thresholds')
+    ing = sub1(ing, r'const CAP = 0\.30,', 'const CAP = 0.40,', 'ingress report CAP')
+
+changed = [(f, a, b) for f, a, b in (('n8n/wf_job_report.py', jr0, jr), ('n8n/wf_ingress.py', ing0, ing)) if a != b]
+for f, a, b in changed:
+    try: compile(b, f, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in changed:
+    shutil.copy(BASE + f, BASE + f + '.pre169'); open(BASE + f, 'w', encoding='utf-8').write(b)
+def restore():
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre169', BASE + f)
+if changed and os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+sqlmsg = 'db skipped'
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k, v = l.rstrip('\n').split('=', 1); env[k.strip()] = v.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-c', "update core.campaigns set rule_stop = 0.4 where rule_stop = 0.3 returning 1"], capture_output=True, text=True)
+    if r.returncode: sys.exit('APPLY169 files OK but DB update failed: ' + r.stderr.strip()[-200:])
+    sqlmsg = 'campaigns updated 0.3->0.4: %d' % len([x for x in r.stdout.split('\n') if x.strip() == '1'])
+print('APPLY169_OK files=%d; %s' % (len(changed), sqlmsg))
