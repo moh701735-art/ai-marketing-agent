@@ -1,0 +1,29 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+p = 'n8n/wf_ingress.py'
+ing = rd(p); ing0 = ing
+if '📊 الحكم' not in ing:
+    ANCH = "blocks.push({ sp, t: B.join('\\n') });"
+    n = ing.count(ANCH)
+    if n != 1:
+        ex = [repr(l.strip()[:120]) for l in ing.split('\n') if 'blocks.push' in l][:3]
+        fail('facebook block anchor count=%d; lines with blocks.push: %s' % (n, ' | '.join(ex) or 'none'))
+    V = ("try { const _u = String(cur || '').toUpperCase() === 'IQD' ? sp / 1555 : sp, _m = Number(msg) || 0; "
+         "B.push('📊 الحكم: ' + (_m < 2 && _u < 1.93 ? '⏳ بيانات غير كافية' : _m === 0 ? '❌ فاشلة (لا رسائل)' : (_u / _m <= 0.40 ? '✅ ناجحة' : _u / _m <= 0.60 ? '⚠️ متوسطة' : '❌ فاشلة'))); } catch (e) {}\n    ")
+    ing = ing.replace(ANCH, V + ANCH)
+    # توحيد حد «الضعيفة» 1$ -> 1.93$ (منطق + نص) فقط إذا كلاهما يطابق مرة وحدة
+    nl = len(re.findall(r'k\.spend_usd\s*>=\s*1\s*\?', ing)); nt = ing.count('صرفت $1 فأكثر')
+    if nl == 1 and nt == 1:
+        ing = re.sub(r'k\.spend_usd\s*>=\s*1\s*\?', 'k.spend_usd >= 1.93 ?', ing)
+        ing = ing.replace('صرفت $1 فأكثر', 'صرفت $1.93 فأكثر')
+    else: print('NOTE: weak-threshold unification skipped (logic matches=%d, text matches=%d)' % (nl, nt))
+try: compile(ing, p, 'exec')
+except SyntaxError as e: fail('syntax: %s' % e)
+if ing == ing0: print('APPLY172_OK changed=0'); sys.exit(0)
+shutil.copy(BASE + p, BASE + p + '.pre172'); open(BASE + p, 'w', encoding='utf-8').write(ing)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(BASE + p + '.pre172', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY172_OK changed=1 (حكم بلوك فيسبوك)')
