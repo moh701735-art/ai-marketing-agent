@@ -1,0 +1,63 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+FAILS = []
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def one(s, pat, what, kw=None, flags=re.M):
+    ms = list(re.finditer(pat, s, flags))
+    if len(ms) != 1:
+        ex = [repr(l.strip()[:150]) for l in s.split('\n') if kw and kw in l][:3]
+        FAILS.append('%s count=%d lines[%s]: %s' % (what, len(ms), kw, ' | '.join(ex) or 'none')); return None
+    return ms[0]
+def splice(s, edits):
+    for a, b, rep in sorted(edits, key=lambda e: -e[0]): s = s[:a] + rep + s[b:]
+    return s
+
+sp = rd('broker/app/spark.py'); sp0 = sp
+sv = rd('broker/app/service.py'); sv0 = sv
+ing = rd('n8n/wf_ingress.py'); ing0 = ing
+if '"traffic"' not in sp:
+    e_sp, e_sv, e_ing = [], [], []
+    m = one(sp, r'OBJECTIVES\s*=\s*\{[^{}]*\}', 'spark OBJECTIVES', 'OBJECTIVES')
+    if m: e_sp.append((m.end() - 1, m.end() - 1, ', "traffic": "TRAFFIC"' if not m.group(0).rstrip('}').rstrip().endswith(',') else ' "traffic": "TRAFFIC"'))
+    m = one(sp, r'(?m)^([ \t]*\w+\s*=\s*\{"campaign_name",)', 'spark allowed params set', '"campaign_name"')
+    if m: e_sp.append((m.end(), m.end(), ' "landing_url",'))
+    m = one(sp, r'(?m)^([ \t]*)iid = params\.get\("interest_ids"\)\n', 'spark validate anchor (p158 interest_ids)', 'interest_ids')
+    if m:
+        I = m.group(1)
+        V = (I + 'lu = params.get("landing_url")\n' + I + 'if params.get("objective") == "traffic":\n' +
+             I + '    if not isinstance(lu, str) or not re.fullmatch(r"https://[^\\s\\x00-\\x1f<>\\"\']{4,500}", lu):\n' +
+             I + '        return "landing_url must be an https link for the traffic objective"\n' +
+             I + 'elif lu is not None:\n' + I + '    return "landing_url is only for the traffic objective"\n')
+        e_sp.append((m.start(), m.start(), V))
+    m = one(sp, r'(?m)^([ \t]+)else:\n([ \t]+)a\.update\(optimization_goal="LEAD_GENERATION"', 'spark adgroup else-branch (leads)', 'LEAD_GENERATION')
+    if m:
+        a1, a2 = m.group(1), m.group(2)
+        e_sp.append((m.start(), m.start(), a1 + 'elif p["objective"] == "traffic":      # زيارات لرابط خارجي (p176)\n' + a2 + 'a.update(optimization_goal="CLICK", promotion_type="WEBSITE", billing_event="CPC",\n' + a2 + '         age_groups=["AGE_18_24", "AGE_25_34", "AGE_35_44", "AGE_45_54"])\n'))
+    m = one(sv, r'(?m)^([ \t]+)if card:\n([ \t]+)x\["card_id"\] = card', 'service ad card anchor', 'card_id')
+    if m: e_sv.append((m.start(), m.start(), m.group(1) + 'if p.get("objective") == "traffic" and p.get("landing_url"):      # p176\n' + m.group(1) + '    x["landing_page_url"] = str(p["landing_url"])\n'))
+    m = one(ing, r"(\{[^{}\n]*?)[ \t,]*\}\[it\.objective\]", 'n8n mode map', '[it.objective]')
+    if m: e_ing.append((m.start(), m.end(), m.group(1).rstrip() + ", 'TRAFFIC': 'traffic' }[it.objective]"))
+    m = one(ing, r"(?m)^([ \t]*)if \(!mode\) return \[", 'n8n no-mode message', 'if (!mode)')
+    if m:
+        I = m.group(1)
+        DEST = (I + "const _dest = (String(d.text || '').match(/https?:\\/\\/[^\\s<>\"'#]{8,400}/g) || []).find(u => !/tiktok\\.com/i.test(u) && u !== videoUrl) || '';      // رابط وجهة حملة الزيارات (p176)\n" +
+                I + "if (mode === 'traffic' && !_dest) return [{ json: { ctx: d.ctx, chatId: d.chatId, text: 'حملة الزيارات تحتاج رابط الوجهة (https://…) داخل الرسالة.' } }];\n")
+        e_ing.append((m.start(), m.start(), DEST))
+    m = one(ing, r"JSON\.stringify\(launch\)", 'n8n launch json', 'JSON.stringify(launch)')
+    if m: e_ing.append((m.start(), m.end(), "JSON.stringify(mode === 'traffic' ? { ...launch, objective: 'traffic', landing_url: _dest } : launch)"))
+    if FAILS: fail('; '.join(FAILS))
+    sp = splice(sp, e_sp); sv = splice(sv, e_sv); ing = splice(ing, e_ing)
+changed = [(f, a, b) for f, a, b in (('broker/app/spark.py', sp0, sp), ('broker/app/service.py', sv0, sv), ('n8n/wf_ingress.py', ing0, ing)) if a != b]
+if not changed: print('APPLY176_OK changed=0'); sys.exit(0)
+for f, a, b in changed:
+    try: compile(b, f, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in changed:
+    shutil.copy(BASE + f, BASE + f + '.pre176'); open(BASE + f, 'w', encoding='utf-8').write(b)
+def restore():
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre176', BASE + f)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY176_OK changed=%d (هدف الزيارات: TRAFFIC + CLICK + رابط وجهة، الحملة متوقفة دائماً)' % len(changed))
