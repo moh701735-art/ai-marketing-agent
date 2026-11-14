@@ -1,0 +1,27 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+ing = open(BASE + p, encoding='utf-8').read(); ing0 = ing
+FAILS = []
+if 'const isTG =' not in ing:
+    pat = r"(?m)^([ \t]*)const (\w+)\s*=\s*allLinks\.filter\(u\s*=>\s*!isTT\(u\)\)\[0\];"
+    ms = list(re.finditer(pat, ing))
+    if len(ms) != 1:
+        ex = [repr(l.strip()[:160]) for l in ing.split('\n') if 'allLinks' in l][:4]
+        FAILS.append('video link candidate count=%d; lines with allLinks: %s' % (len(ms), ' | '.join(ex) or 'none'))
+    elif 'const codes' not in ing[:ms[0].start()][-2500:]:
+        FAILS.append('const codes is not defined before the video link line (needed for the Spark-code rule)')
+    if FAILS: sys.exit('PATCH FAIL (nothing written): ' + '; '.join(FAILS))
+    m = ms[0]; I = m.group(1); V = m.group(2)
+    new = (I + "const isTG = u => /^https?:\\/\\/(?:www\\.)?(?:t\\.me|telegram\\.me|telegram\\.dog)\\//i.test(u);      // رابط تيليجرام = وجهة/قناة، مو فيديو (p175)\n" +
+           I + "const isVF = u => /\\.(?:mp4|mov|m4v|webm)(?:[?#]|$)/i.test(u);\n" +
+           I + "const " + V + " = allLinks.filter(u => !isTT(u) && !isTG(u) && (!codes.length || isVF(u)))[0];      // مع كود Spark: فقط ملف فيديو مباشر يُعتبر فيديو، غيره رابط وجهة")
+    ing = ing[:m.start()] + new + ing[m.end():]
+if ing == ing0: print('APPLY175_OK changed=0'); sys.exit(0)
+try: compile(ing, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre175'); open(BASE + p, 'w', encoding='utf-8').write(ing)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(BASE + p + '.pre175', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY175_OK changed=1 (رابط تيليجرام ما يعتبر فيديو + مع كود Spark الروابط = وجهة)')
