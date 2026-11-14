@@ -1,0 +1,17 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+p = 'broker/app/spark.py'
+s = open(BASE + p, encoding='utf-8').read(); s0 = s
+if '(received: ' in s: print('APPLY179_OK changed=0'); sys.exit(0)
+pats = [(r'(?m)^([ \t]*)return None, "landing_url must be an https link for the traffic objective"[ \t]*$',
+         lambda m: m.group(1) + 'return None, "landing_url must be an https link for the traffic objective (received: " + repr(lu)[:90] + ")"'),
+        (r'(?m)^([ \t]*)return None, "landing_url is only for the traffic objective"[ \t]*$',
+         lambda m: m.group(1) + 'return None, "landing_url is only for the traffic objective (objective=" + repr(params.get("objective"))[:30] + ")"')]
+for pat, fn in pats:
+    ms = list(re.finditer(pat, s))
+    if len(ms) != 1: sys.exit('PATCH FAIL (nothing written): validation line count=%d for %s' % (len(ms), pat[:60]))
+    s = re.sub(pat, fn, s, count=1)
+try: compile(s, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre179'); open(BASE + p, 'w', encoding='utf-8').write(s)
+print('APPLY179_OK changed=1 (رسالة خطأ landing_url تكتب القيمة الواصلة)')
