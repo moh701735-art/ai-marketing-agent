@@ -1,0 +1,71 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+FAILS = []
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def one(s, pat, what, kw=None, flags=0):
+    ms = list(re.finditer(pat, s, flags))
+    if len(ms) != 1:
+        ex = [repr(l.strip()[:150]) for l in s.split('\n') if kw and kw in l][:3]
+        FAILS.append('%s count=%d lines[%s]: %s' % (what, len(ms), kw, ' | '.join(ex) or 'none')); return None
+    return ms[0]
+
+sv = rd('broker/app/service.py'); sv0 = sv
+ing = rd('n8n/wf_ingress.py'); ing0 = ing
+if '_fw(' not in sv:
+    md = one(sv, r'(?m)^([ \t]*)(async )?def _find_campaign\(', '_find_campaign def', '_find_campaign')
+    mc = one(sv, r'(?m)^[ \t]*(?:async )?def _campaign_check\(', '_campaign_check def', '_campaign_check')
+    if md and mc and mc.start() > md.start():
+        body = sv[md.start():mc.start()]
+        mf = [m for m in re.finditer(r'(?m)^([ \t]*)failed = \[\]\n', body)]
+        mcall = [m for m in re.finditer(r'await self\.call\(', body)]
+        mapp = [m for m in re.finditer(r'(?m)^([ \t]*)failed\.append\(acct\)\n', body)]
+        mret = [m for m in re.finditer(r'("accounts_failed":\s*[^,}\n]+)', body)]
+        for nm, lst, exp in (('failed = []', mf, 1), ('await self.call(', mcall, 1), ('failed.append(acct)', mapp, 2), ('accounts_failed', mret, 1)):
+            if len(lst) != exp: FAILS.append('%s inside _find_campaign count=%d expected %d' % (nm, len(lst), exp))
+    else:
+        body = None
+    mi = one(ing, r"(\(d\.accounts_failed \? ' \(' \+ d\.accounts_failed \+ '[^'\n]*' : ''\))", 'n8n not-found message', 'accounts_failed')
+    if FAILS: fail('; '.join(FAILS))
+    ind = md.group(1)
+    RC = (ind + "async def _rc(self, *a, **k):      # قراءة مع إعادة محاولة واحدة عند حد الطلبات (p174)\n" +
+          ind + "    env = await self.call(*a, **k)\n" +
+          ind + "    try:\n" +
+          ind + "        if isinstance(env, dict) and env.get('ok') is not True:\n" +
+          ind + "            blob = (str(env.get('status')) + ' ' + str(env.get('error')) + ' ' + str(env.get('data'))).lower()\n" +
+          ind + "            if '429' in blob or 'rate' in blob or 'frequency' in blob or 'too many' in blob:\n" +
+          ind + "                await asyncio.sleep(1.5)\n" +
+          ind + "                env = await self.call(*a, **k)\n" +
+          ind + "    except Exception:\n" +
+          ind + "        pass\n" +
+          ind + "    return env\n\n")
+    FW = ("{I}why = {{}}\n{I}def _fw(env):      # سبب فشل قراءة حساب (p174)\n{I}    try:\n"
+          "{I}        d = (env or {{}}).get('data') or {{}}\n{I}        er = (env or {{}}).get('error') or {{}}\n"
+          "{I}        d = d if isinstance(d, dict) else {{}}\n{I}        er = er if isinstance(er, dict) else {{'message': str(er)}}\n"
+          "{I}        parts = [str((env or {{}}).get('status') or ''), str(er.get('class') or ''), str(d.get('code') or er.get('code') or ''), str(d.get('message') or er.get('message') or '')[:70]]\n"
+          "{I}        return ' '.join(p for p in parts if p).strip() or 'no_response'\n{I}    except Exception:\n{I}        return 'error'\n")
+    # تطبيق داخل جسم الدالة من النهاية للبداية
+    edits = []
+    f0 = mf[0]; edits.append((f0.end(), f0.end(), FW.format(I=f0.group(1))))
+    edits.append((mcall[0].start(), mcall[0].end(), 'await self._rc('))
+    for m in mapp: edits.append((m.start(), m.start(), "%swhy[acct] = _fw(locals().get('env'))\n" % m.group(1)))
+    edits.append((mret[0].end(), mret[0].end(), ', "failed_why": [{"account": a, "why": why.get(a, "")} for a in failed[:5]]'))
+    for a, b, rep in sorted(edits, key=lambda e: -e[0]): body = body[:a] + rep + body[b:]
+    exc = re.subn(r"except Exception:\n([ \t]*)why\[acct\] = _fw\(locals\(\)\.get\('env'\)\)\n", lambda m: "except Exception as _ex:\n" + m.group(1) + "why[acct] = 'exception ' + type(_ex).__name__ + ': ' + str(_ex)[:70]\n", body)
+    if exc[1] != 1: fail('exception-path anchor count=%d' % exc[1])
+    body = exc[0]
+    sv = sv[:md.start()] + RC + body + sv[mc.start():]
+    ing = ing[:mi.start()] + mi.group(1) + " + (d.accounts_failed && Array.isArray(d.failed_why) && d.failed_why.length ? '\\n⚠️ سبب الفشل: ' + d.failed_why.slice(0, 3).map(x => String(x.why || '?')).join(' | ') : '')" + ing[mi.end():]
+changed = [(f, a, b) for f, a, b in (('broker/app/service.py', sv0, sv), ('n8n/wf_ingress.py', ing0, ing)) if a != b]
+if not changed: print('APPLY174_OK changed=0'); sys.exit(0)
+for f, a, b in changed:
+    try: compile(b, f, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in changed:
+    shutil.copy(BASE + f, BASE + f + '.pre174'); open(BASE + f, 'w', encoding='utf-8').write(b)
+def restore():
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre174', BASE + f)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY174_OK changed=%d (إعادة محاولة + سبب فشل الحسابات بالبحث عن حملة)' % len(changed))
