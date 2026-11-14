@@ -1,0 +1,21 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'broker/app/spark.py'
+s = open(BASE + p, encoding='utf-8').read(); s0 = s
+MSG = [r'interest_ids must be[^"\n]*', r'interest_names must be[^"\n]*', r'landing_url must be[^"\n]*', r'landing_url is only[^"\n]*']
+FAILS = []
+tot = 0
+for m in MSG:
+    pat = r'(?m)^([ \t]*)return ("' + m + r'")[ \t]*$'
+    bare = list(re.finditer(pat, s))
+    done = list(re.finditer(r'(?m)^[ \t]*return None, "' + m + r'"[ \t]*$', s))
+    if len(bare) == 1: s = re.sub(pat, lambda mm: mm.group(1) + 'return None, ' + mm.group(2), s, count=1); tot += 1
+    elif len(bare) == 0 and len(done) == 1: pass
+    elif len(bare) == 0 and m.startswith('landing_url'): FAILS.append('missing validation line for %r (p177 not applied?)' % m)
+    elif len(bare) != 0 or len(done) != 1: FAILS.append('%r bare=%d tuple=%d' % (m, len(bare), len(done)))
+if FAILS: sys.exit('PATCH FAIL (nothing written): ' + '; '.join(FAILS))
+if s == s0: print('APPLY178_OK changed=0'); sys.exit(0)
+try: compile(s, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre178'); open(BASE + p, 'w', encoding='utf-8').write(s)
+print('APPLY178_OK changed=1 (validate يرجّع (None, رسالة) مثل بقية الفحوصات: %d)' % tot)
