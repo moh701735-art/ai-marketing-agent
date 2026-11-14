@@ -1,0 +1,54 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+NODB = bool(os.environ.get('P169_NODB'))
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+FAILS = []
+def sub1(s, pat, rep, what, kw=None, optional=False):
+    r, n = re.subn(pat, rep, s)
+    if n != 1:
+        ex = [repr(l.strip()[:130]) for l in s.split('\n') if kw and kw in l][:2]
+        if optional: print('NOTE (cosmetic, skipped): %s count=%d' % (what, n)); return s
+        FAILS.append('%s count=%d lines[%s]: %s' % (what, n, kw, ' | '.join(ex) or 'none'))
+        return s
+    return r
+
+jr = rd('n8n/wf_job_report.py'); jr0 = jr
+ing = rd('n8n/wf_ingress.py'); ing0 = ing
+if '1.93' not in jr:
+    jr = sub1(jr, r'const CAP = 0\.30,', 'const CAP = 0.40,', 'job_report CAP', 'const CAP')
+    jr = sub1(jr, r'cpr <= CAP \* 2', 'cpr <= 0.60', 'job_report medium threshold', 'CAP * 2')
+    jr = sub1(jr, r'k\.spend_usd\s*>=\s*1\s*\?', 'k.spend_usd >= 1.93 ?', 'job_report zero-result threshold', 'spend_usd >=')
+    jr = sub1(jr, r'(\n[ \t]*)(if \(cpr <= CAP\) return)', lambda m: m.group(1) + "if ((k.results || 0) < 2 && (k.spend_usd || 0) < 1.93) return ['⏳', 'بيانات غير كافية'];" + m.group(1) + m.group(2), 'job_report min-data rule', 'cpr <= CAP')
+    jr = sub1(jr, r"(B\.push\('[^'\n]*CTR: ' \+ ctr\.toFixed\(2\) \+ '%'\);)", lambda m: m.group(1) + "\n  B.push('📊 الحكم: ' + v[0] + ' ' + v[1]);", 'job_report verdict line', 'CTR:')
+if 'alerts=0.20,0.30,0.4' not in ing:
+    ing = sub1(ing, r'(let cap = sm \? Number\(sm\[1\]\) : )0\.30', r'\g<1>0.40', 'activate default stop', 'Number(sm[1])')
+    ing = sub1(ing, r'(: )\[0\.15, 0\.20, 0\.30\];', r'\g<1>[0.20, 0.30, 0.40];', 'activate default alerts', 'alerts')
+    ing = sub1(ing, r'stop=0\.30 alerts=0\.15,0\.20,0\.3', 'stop=0.40 alerts=0.20,0.30,0.4', 'activate example text', 'stop=0.30', True)
+    ing_new, nmsg = re.subn(r'0\.15\s*/\s*0\.20\s*/\s*0\.30', '0.20 / 0.30 / 0.40', ing)
+    if nmsg == 1: ing = ing_new
+    else: print('NOTE: activation message text unchanged (cosmetic only), matches=%d' % nmsg)
+    ing = sub1(ing, r'const CAP = 0\.30,', 'const CAP = 0.40,', 'ingress report CAP', 'const CAP')
+
+if FAILS: fail('; '.join(FAILS))
+changed = [(f, a, b) for f, a, b in (('n8n/wf_job_report.py', jr0, jr), ('n8n/wf_ingress.py', ing0, ing)) if a != b]
+for f, a, b in changed:
+    try: compile(b, f, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in changed:
+    shutil.copy(BASE + f, BASE + f + '.pre171'); open(BASE + f, 'w', encoding='utf-8').write(b)
+def restore():
+    for f, a, b in changed: shutil.copy(BASE + f + '.pre171', BASE + f)
+if changed and os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: restore(); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+sqlmsg = 'db skipped'
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k, v = l.rstrip('\n').split('=', 1); env[k.strip()] = v.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-c', "update core.campaigns set rule_stop = 0.4 where rule_stop = 0.3 returning 1"], capture_output=True, text=True)
+    if r.returncode: sys.exit('APPLY171 files OK but DB update failed: ' + r.stderr.strip()[-200:])
+    sqlmsg = 'campaigns updated 0.3->0.4: %d' % len([x for x in r.stdout.split('\n') if x.strip() == '1'])
+print('APPLY171_OK files=%d; %s' % (len(changed), sqlmsg))
