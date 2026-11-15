@@ -1,0 +1,17 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+p = 'broker/app/service.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p187' in s: print('APPLY187_OK changed=0'); sys.exit(0)
+pat = r'(?m)^([ \t]*)else:[ \t]*\n(?:[ \t]*#[^\n]*\n)*[ \t]*pages\s*,\s*\w+\s*=[^\n]*read_instant_pages'
+ms = list(re.finditer(pat, s))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:200]) for l in s.split('\n') if 'read_instant_pages' in l][:3]
+    sys.exit('PATCH FAIL (nothing written): else/read_instant_pages anchor count=%d; lines: %s' % (len(ms), ' | '.join(ex) or 'none'))
+I = ms[0].group(1)
+add = I + 'elif p["objective"] == "traffic":   # p187: حملة الزيارات برابط خارجي، بدون صفحة فورية\n' + I + '    page = {}\n'
+s2 = s[:ms[0].start()] + add + s[ms[0].start():]
+try: compile(s2, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre187'); open(BASE + p, 'w', encoding='utf-8').write(s2)
+print('APPLY187_OK changed=1 (traffic skips instant pages)')
