@@ -1,0 +1,17 @@
+import subprocess, re
+def sh(*a):
+    r = subprocess.run(a, capture_output=True, text=True)
+    return (r.stdout or '') + (r.stderr or '')
+dbs = sh('docker','exec','central-stg-pg','psql','-U','postgres','-tAc','select datname from pg_database where not datistemplate').split()
+print('DBS', dbs)
+for d in dbs:
+    t = sh('docker','exec','central-stg-pg','psql','-U','postgres','-d',d,'-tAc',"select to_regclass('vault.api_call_log')").strip()
+    print('DB', d, '=>', t or 'none')
+    if t and 'ERROR' not in t:
+        o = sh('docker','exec','central-stg-pg','psql','-U','postgres','-d',d,'-c',"select * from vault.api_call_log where platform='llm' order by ctid desc limit 12")
+        print(ascii(o)[:2500])
+s = open('/opt/central/broker/app/service.py', encoding='utf-8').read().split('\n')
+i = next((k for k,l in enumerate(s) if 'llm.parse_appeal' in l), None)
+if i:
+    print('--- loop header lines before parse_appeal')
+    for l in s[max(0,i-22):i]: print(ascii(l)[:170])
