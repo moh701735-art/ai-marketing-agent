@@ -67,7 +67,7 @@ const S = P.S; const R = {};
 if (P.need) { $('SN2: plan').all().map(i => i.json).forEach((it, i) => { R[it.k] = $input.all().map(x => x.json)[i] || {}; }); }
 const home = [[{ t: '🏠 الرئيسية', c: 'h' }]];
 const done = (text, kb) => [{ json: { ctx: P.ctx, chatId: P.chatId, text: String(text).slice(0, 3800), keyboard: (kb || home).slice(0, 8), edit: P.edit, state: JSON.stringify(S) } }];
-if (!P.linked) return [{ json: { ctx: P.ctx, chatId: P.chatId, text: '👻 سناب شات: حسابك الإعلاني غير مربوط بالنظام.\nاطلب من الإدارة ربطه، وبعدها تقدر تستعمل هذي الشاشة.', keyboard: home, edit: P.edit, state: '' } }];
+if (!P.linked) return [{ json: { ctx: P.ctx, chatId: P.chatId, text: '👻 سناب شات صار متوفر بالنظام الإعلاني ✅\n\nحسابك الإعلاني بسناب غير مربوط بعد. لتفعيله نحتاج منك:\n1️⃣ حساب سناب بيه منظمة (Organization) وأنت مديرها.\n2️⃣ تفتح رابط الموافقة الي نرسله لك وتضغط Allow.\n\nتواصل مع الإدارة وننجز ربطه بدقايق.', keyboard: home, edit: P.edit, state: '' } }];
 const stepNo = () => (STEPS.indexOf(S.st) + 1) + '/' + STEPS.length;
 const head = t => '👻 حملة سناب شات (مسودة استهداف)\n' + LINE + '\n' + t + '  [' + stepNo() + ']\n';
 const back = (to) => ({ t: '⬅️ رجوع', c: 'sn:b:' + to });
