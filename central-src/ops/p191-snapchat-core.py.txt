@@ -1,0 +1,116 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+SQL = "-- 74_snapchat.sql : إضافة منصة snapchat (قراءة فقط بالمرحلة الأولى). ترقية آمنة (idempotent) ولا تمس بيانات موجودة.\n-- 1) نوع المنصة  2) قيود CHECK على platform_connections و ad_accounts (بمقارنة نصية حتى لا نستعمل قيمة enum جديدة بنفس المعاملة)\n-- 3) أي دالة بـapi/core/private فيها قائمة المنصات ('meta','tiktok','telegram') تُعاد كتابتها بإضافة 'snapchat' (broker_authorize وغيرها).\n\\set ON_ERROR_STOP on\nSET ROLE app_owner;\n\nALTER TYPE core.platform ADD VALUE IF NOT EXISTS 'snapchat';\n\nALTER TABLE core.platform_connections DROP CONSTRAINT IF EXISTS platform_connections_platform_check;\nALTER TABLE core.platform_connections ADD CONSTRAINT platform_connections_platform_check CHECK (platform::text IN ('meta','tiktok','snapchat'));\nALTER TABLE core.ad_accounts DROP CONSTRAINT IF EXISTS ad_accounts_platform_check;\nALTER TABLE core.ad_accounts ADD CONSTRAINT ad_accounts_platform_check CHECK (platform::text IN ('meta','tiktok','snapchat'));\n\nDO $mig$\nDECLARE r record; def text; pat constant text := '''meta''\\s*,\\s*''tiktok''\\s*,\\s*''telegram''';\nBEGIN\n  FOR r IN SELECT p.oid, n.nspname, p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace\n           WHERE n.nspname IN ('api','core','private') AND p.prokind = 'f' AND p.prosrc ~ pat LOOP\n    def := pg_get_functiondef(r.oid);\n    IF def ~ pat AND def !~ 'snapchat' THEN\n      EXECUTE regexp_replace(def, pat, '''meta'',''tiktok'',''telegram'',''snapchat''', 'g');\n      RAISE NOTICE 'snapchat added to %.%', r.nspname, r.proname;\n    END IF;\n  END LOOP;\nEND $mig$;\n\nRESET ROLE;\n\n-- 4) الخزنة: نوع سر جديد snap_oauth (JSON فيه access/refresh/exp/client) يُضاف لقيد kind على vault.secrets إن وُجد بنفس القاعدة.\nDO $v$\nDECLARE c record; nd text;\nBEGIN\n  IF to_regclass('vault.secrets') IS NULL THEN RETURN; END IF;\n  FOR c IN SELECT conname, pg_get_constraintdef(oid) AS d FROM pg_constraint\n           WHERE conrelid = 'vault.secrets'::regclass AND contype = 'c'\n             AND pg_get_constraintdef(oid) LIKE '%meta_user_token%' AND pg_get_constraintdef(oid) NOT LIKE '%snap_oauth%' LOOP\n    nd := regexp_replace(c.d, 'ARRAY\\[', 'ARRAY[''snap_oauth''::text, ');\n    EXECUTE format('ALTER TABLE vault.secrets DROP CONSTRAINT %I', c.conname);\n    EXECUTE format('ALTER TABLE vault.secrets ADD CONSTRAINT %I %s', c.conname, nd);\n    RAISE NOTICE 'snap_oauth kind added on vault.secrets (%)', c.conname;\n  END LOOP;\nEXCEPTION WHEN insufficient_privilege THEN\n  RAISE WARNING 'snap_oauth kind NOT added on vault.secrets (run this file as the vault owner/superuser)';\nEND $v$;\n\n"
+MIG = BASE + 'db/74_snapchat.sql'
+if os.path.exists(BASE + 'broker/app/catalog.py') and 'snapchat.me' in open(BASE + 'broker/app/catalog.py', encoding='utf-8').read():
+    print('APPLY191_OK changed=0'); sys.exit(0)
+if not os.path.isdir(BASE + 'db'): sys.exit('PATCH FAIL (nothing written): %sdb not found' % BASE)
+fails = []; writes = []
+
+# ---- config.py: base url
+pc = 'broker/app/config.py'
+sc = open(BASE + pc, encoding='utf-8').read()
+pat = r'"tiktok":\s*env\["BROKER_TIKTOK_BASE_URL"\]'
+n = len(re.findall(pat, sc))
+if n < 1:
+    ex = [ascii(l.strip()[:200]) for l in sc.split('\n') if 'BASE_URL' in l][:5]
+    fails.append('config base_urls anchor count=0; lines: ' + ' | '.join(ex))
+else:
+    scn = re.sub(pat, lambda m: m.group(0) + ', "snapchat": env.get("BROKER_SNAPCHAT_BASE_URL", "https://adsapi.snapchat.com/v1")', sc)
+    writes.append((pc, sc, scn))
+
+# ---- service.py: token hook + _snap_token method
+ps = 'broker/app/service.py'
+ss = open(BASE + ps, encoding='utf-8').read()
+hk = [m for m in re.finditer(r'(?m)^([ \t]*)(\w+), (\w+), (\w+) = await self\.store\.open_latest\(tenant, (\w+)\)[ \t]*$', ss)
+      if 220 <= ss.count('\n', 0, m.start()) + 1 <= 360]
+mb = list(re.finditer(r'(?m)^    def _build\(self, op: catalog\.Op', ss))
+if len(hk) != 1:
+    ex = [ascii(l.strip()[:200]) for l in ss.split('\n') if 'open_latest(tenant' in l][:5]
+    fails.append('token hook anchor count=%d; lines: %s' % (len(hk), ' | '.join(ex)))
+if len(mb) != 1:
+    fails.append('_build anchor count=%d' % len(mb))
+METHOD = """    async def _snap_token(self, tenant, ref, raw):
+        \"\"\"سناب (p191): القيمة المخزنة JSON {a,r,e,c,s}؛ تجديد التوكن قبل انتهائه بدقيقتين. أي فشل: يُرجع التوكن الحالي ويظهر الخطأ الحقيقي من سناب.\"\"\"
+        import asyncio as _aio, json as _json, time as _time
+        try:
+            d = _json.loads(raw)
+            a, r, e, c, s = d["a"], d["r"], float(d["e"]), d["c"], d["s"]
+        except (ValueError, KeyError, TypeError):
+            return raw
+        if e - _time.time() > 120:
+            return a
+        lock = getattr(self, "_snap_lock", None)
+        if lock is None:
+            lock = self._snap_lock = _aio.Lock()
+        async with lock:
+            try:
+                _v, _k, cur = await self.store.open_latest(tenant, ref)
+                d2 = _json.loads(cur)
+                if float(d2["e"]) - _time.time() > 120:
+                    return d2["a"]
+                d = d2; r = d2["r"]
+            except Exception:
+                pass
+            try:
+                resp = await self.client.post("https://accounts.snapchat.com/login/oauth2/access_token",
+                    data={"grant_type": "refresh_token", "refresh_token": r, "client_id": c, "client_secret": s}, timeout=20.0)
+                j = resp.json() if resp.status_code == 200 else {}
+            except Exception:
+                return a
+            a2 = j.get("access_token")
+            if not a2:
+                return a
+            d["a"] = a2
+            d["r"] = j.get("refresh_token") or r
+            d["e"] = _time.time() + int(j.get("expires_in") or 1800)
+            try:
+                redact.KNOWN.add(a2); redact.KNOWN.add(d["r"])
+            except Exception:
+                pass
+            try:
+                await self.store.put(tenant, "snap_oauth", ref, _json.dumps(d))
+            except Exception:
+                pass
+            return a2
+
+"""
+if len(hk) == 1 and len(mb) == 1:
+    h = hk[0]; I = h.group(1); tok = h.group(4); ref = h.group(5)
+    hook = '\n' + I + 'if op.platform == "snapchat":   # p191\n' + I + '    ' + tok + ' = await self._snap_token(tenant, ' + ref + ', ' + tok + ')'
+    # الهوك بعد _build بالملف: نُدخله أولاً (الموضع الأبعد) ثم الدالة قبل _build
+    if h.end() < mb[0].start(): fails.append('hook is before _build (unexpected layout)')
+    else:
+        s2 = ss[:h.end()] + hook + ss[h.end():]
+        s2 = s2[:mb[0].start()] + METHOD + s2[mb[0].start():]
+        writes.append((ps, ss, s2))
+
+# ---- catalog.py: read-only snapchat ops
+pk = 'broker/app/catalog.py'
+sk = open(BASE + pk, encoding='utf-8').read()
+mk = list(re.finditer(r'(?m)^([ \t]*)Op\("meta\.read_account",[^\n]*\n', sk))
+if len(mk) != 1:
+    ex = [ascii(l.strip()[:200]) for l in sk.split('\n') if 'meta.read_account' in l][:3]
+    fails.append('catalog meta.read_account anchor count=%d; lines: %s' % (len(mk), ' | '.join(ex)))
+else:
+    I = mk[0].group(1)
+    ops = [
+     'Op("snapchat.me", "snapchat", "GET", "/me", needs_account=False, bearer=True),',
+     'Op("snapchat.orgs", "snapchat", "GET", "/me/organizations", needs_account=False, bearer=True),',
+     'Op("snapchat.adaccounts", "snapchat", "GET", "/organizations/{oid}/adaccounts", needs_account=False, bearer=True, params={"oid": P("safe", required=True)}),',
+     'Op("snapchat.campaigns", "snapchat", "GET", "/adaccounts/{oid}/campaigns", needs_account=False, bearer=True, params={"oid": P("safe", required=True), "limit": P("int", lo=1, hi=1000)}),',
+     'Op("snapchat.stats", "snapchat", "GET", "/campaigns/{oid}/stats", needs_account=False, bearer=True, params={"oid": P("safe", required=True), "granularity": P("enum", values=("TOTAL", "DAY", "HOUR")), "fields": P("safe"), "start_time": P("safe"), "end_time": P("safe")}, defaults={"granularity": "TOTAL", "fields": "impressions,swipes,spend"}),',
+     'Op("snapchat.account_stats", "snapchat", "GET", "/adaccounts/{oid}/stats", needs_account=False, bearer=True, params={"oid": P("safe", required=True), "granularity": P("enum", values=("TOTAL", "DAY", "HOUR")), "fields": P("safe"), "start_time": P("safe"), "end_time": P("safe")}, defaults={"granularity": "TOTAL", "fields": "impressions,swipes,spend"}),',
+    ]
+    add = ''.join(I + o + '   # p191\n' for o in ops)
+    skn = sk[:mk[0].end()] + add + sk[mk[0].end():]
+    writes.append((pk, sk, skn))
+
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+for p, old, new in writes:
+    try: compile(new, p, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s %s' % (p, e))
+for p, old, new in writes:
+    shutil.copy(BASE + p, BASE + p + '.pre191'); open(BASE + p, 'w', encoding='utf-8').write(new)
+open(MIG, 'w', encoding='utf-8').write(SQL)
+print('APPLY191_OK changed=%d + db/74_snapchat.sql' % len(writes))
