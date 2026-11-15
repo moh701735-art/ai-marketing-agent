@@ -1,0 +1,17 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+p = 'broker/app/service.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p188' in s: print('APPLY188_OK changed=0'); sys.exit(0)
+pat = r'(?m)^([ \t]*)made\["page_title"\][ \t]*=[ \t]*([^\n]+)$'
+ms = list(re.finditer(pat, s))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:240]) for l in s.split('\n') if 'page_title' in l][:4]
+    sys.exit('PATCH FAIL (nothing written): page_title anchor count=%d; lines: %s' % (len(ms), ' | '.join(ex) or 'none'))
+m = ms[0]
+new = m.group(1) + 'made["page_title"] = "" if p["objective"] == "traffic" else (' + m.group(2).rstrip() + ')   # p188'
+s2 = s[:m.start()] + new + s[m.end():]
+try: compile(s2, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre188'); open(BASE + p, 'w', encoding='utf-8').write(s2)
+print('APPLY188_OK changed=1 (traffic page_title empty)')
