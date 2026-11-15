@@ -1,0 +1,9 @@
+import subprocess
+def q(sql):
+    r = subprocess.run(['docker','exec','central-stg-pg','psql','-U','postgres','-d','central','-At','-c',sql], capture_output=True, text=True)
+    return (r.stdout + r.stderr).strip()
+print('PLATFORMS      :', q("select string_agg(e::text, ',') from unnest(enum_range(null::core.platform)) e"))
+print('CONN_CHECK     :', q("select pg_get_constraintdef(oid) from pg_constraint where conname='platform_connections_platform_check'"))
+print('ADACC_CHECK    :', q("select pg_get_constraintdef(oid) from pg_constraint where conname='ad_accounts_platform_check'"))
+print('VAULT_KIND     :', q("select pg_get_constraintdef(oid) from pg_constraint where conrelid='vault.secrets'::regclass and contype='c' and pg_get_constraintdef(oid) like '%kind%'"))
+print('AUTH_FN_HAS_SNAP:', q("select bool_and(prosrc like '%snapchat%') from pg_proc where proname='broker_authorize'"))
