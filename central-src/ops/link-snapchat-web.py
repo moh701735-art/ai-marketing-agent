@@ -133,7 +133,11 @@ def do_link(multi):
     try:
         at.vault([{"tenant_id": s["tid"], "kind": "snap_oauth", "secret_ref": ref, "value": json.dumps(s["tok"])}])
     except Exception as e:
-        return form_page("فشل حفظ التوكن بالخزنة (R05): %s" % type(e).__name__)
+        msg = str(e)
+        for v in list(s["tok"].values()) + [json.dumps(s["tok"])]:
+            if isinstance(v, str) and len(v) > 6: msg = msg.replace(v, "***")
+        print("VAULT ERROR:", msg[:500])
+        return form_page("فشل حفظ التوكن بالخزنة (R05): %s. التفاصيل مكتوبة بالتيرمنال." % type(e).__name__)
     vars_ = {"tid": s["tid"], "user": "snap_" + s["uid"][:60], "ref": ref}
     stmts = ["BEGIN;",
              "INSERT INTO core.platform_connections (tenant_id, platform, auth_mode, external_user_id, secret_ref) "

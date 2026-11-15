@@ -1,0 +1,27 @@
+import subprocess
+def psql(db, sql):
+    r = subprocess.run(['docker', 'exec', '-i', 'central-stg-pg', 'psql', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '|', '-c', sql], capture_output=True, text=True)
+    return r.returncode, (r.stdout + r.stderr).strip()
+FIND_C = ("select coalesce(nullif(conrelid::regclass::text,'-'),''), coalesce(nullif(contypid::regtype::text,'-'),''), conname, pg_get_constraintdef(oid) "
+          "from pg_constraint where contype='c' and pg_get_constraintdef(oid) like '%meta_user_token%' and pg_get_constraintdef(oid) not like '%snap_oauth%'")
+FIND_E = ("select t.typnamespace::regnamespace::text||'.'||t.typname from pg_type t join pg_enum e on e.enumtypid=t.oid "
+          "where e.enumlabel='meta_user_token' and not exists (select 1 from pg_enum e2 where e2.enumtypid=t.oid and e2.enumlabel='snap_oauth')")
+total = 0
+for db in ('vault', 'central'):
+    rc, out = psql(db, FIND_C)
+    if rc: print(db, 'find failed:', out[:200]); continue
+    for line in [l for l in out.split('\n') if l.strip()]:
+        rel, dom, name, d = line.split('|', 3)
+        nd = d.replace('ARRAY[', "ARRAY['snap_oauth'::text, ", 1)
+        if rel: sql = 'BEGIN; ALTER TABLE %s DROP CONSTRAINT "%s"; ALTER TABLE %s ADD CONSTRAINT "%s" %s; COMMIT;' % (rel, name, rel, name, nd)
+        else: sql = 'BEGIN; ALTER DOMAIN %s DROP CONSTRAINT "%s"; ALTER DOMAIN %s ADD CONSTRAINT "%s" %s; COMMIT;' % (dom, name, dom, name, nd)
+        rc2, o2 = psql(db, sql)
+        print('%s: %s %s -> rc=%d %s' % (db, rel or dom, name, rc2, o2[:160] if rc2 else 'updated')); total += (rc2 == 0)
+    rc, out = psql(db, FIND_E)
+    for t in [l for l in out.split('\n') if l.strip() and rc == 0]:
+        rc3, o3 = psql(db, "ALTER TYPE %s ADD VALUE IF NOT EXISTS 'snap_oauth'" % t)
+        print('%s: enum %s -> rc=%d %s' % (db, t, rc3, o3[:160] if rc3 else 'updated')); total += (rc3 == 0)
+print('--- remaining (should be empty):')
+for db in ('vault', 'central'):
+    print(db, 'constraints:', psql(db, FIND_C)[1][:200] or 'none', '| enums:', psql(db, FIND_E)[1][:200] or 'none')
+print('P191C_DONE changed=%d' % total)
