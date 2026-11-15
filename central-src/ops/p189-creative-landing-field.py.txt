@@ -1,0 +1,26 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+p = 'broker/app/catalog.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p189' in s: print('APPLY189_OK changed=0'); sys.exit(0)
+fails = []
+pat1 = r'("call_to_action",\s*"page_id",\s*"card_id",\s*"auto_message_id")(\s*\})'
+m1 = list(re.finditer(pat1, s))
+if len(m1) != 1:
+    ex = [ascii(l.strip()[:260]) for l in s.split('\n') if 'card_id' in l][:3]
+    fails.append('allowed-keys anchor count=%d; lines: %s' % (len(m1), ' | '.join(ex) or 'none'))
+m2 = None
+if len(m1) == 1:
+    pat2 = r'(?m)^([ \t]*)_check\("tiktok_item_id",\s*P\("id"\),\s*c\["tiktok_item_id"\]\)[ \t]*\n'
+    m2 = pat2 and re.compile(pat2).search(s, m1[0].end())
+    if not m2:
+        fails.append('tiktok_item_id _check anchor after allowed-keys not found')
+if fails:
+    sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I = m2.group(1)
+add = I + 'if "landing_page_url" in c:   # p189\n' + I + '    _check("landing_page_url", P("text", max_len=500), c["landing_page_url"])\n'
+s2 = s[:m1[0].start()] + m1[0].group(1) + ', "landing_page_url"' + m1[0].group(2) + s[m1[0].end():m2.end()] + add + s[m2.end():]
+try: compile(s2, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre189'); open(BASE + p, 'w', encoding='utf-8').write(s2)
+print('APPLY189_OK changed=1 (Spark creatives accept landing_page_url)')
