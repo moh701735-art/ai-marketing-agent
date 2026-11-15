@@ -1,0 +1,41 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+pw = 'n8n/wizard_pages.py'
+s = open(BASE + pw, encoding='utf-8').read()
+if 'S.ig' in s and "c: 'wz:p:ig'" in s: print('APPLY194D_OK changed=0'); sys.exit(0)
+fails = []
+IGF = "Object.keys(PLN).map(k => PLN[k][0]).filter(c => /^instagram_/.test(c))"
+edits = []   # (name, compiled regex, replacement function)
+def need(name, pat, repl, flags=0):
+    ms = list(re.finditer(pat, s, flags))
+    if len(ms) != 1:
+        ctx = ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if name.split(':')[1] in l)[:500]
+        fails.append('%s anchor count=%d; lines: %s' % (name, len(ms), ctx))
+    else: edits.append((ms[0], repl(ms[0])))
+need('E1:k1 === \'p\'', r"\(k1 === 'p' && \(k2 === 'tt' \|\| k2 === 'fb'\)\) \{ S\.plat = k2 === 'fb' \? 'meta' : 'tiktok';",
+     lambda m: "(k1 === 'p' && (k2 === 'tt' || k2 === 'fb' || k2 === 'ig')) { S.ig = k2 === 'ig' ? 1 : 0; S.pl = k2 === 'ig' ? " + IGF + " : []; S.plat = k2 === 'tt' ? 'tiktok' : 'meta';")
+need('E2:Object.keys(PLN)', r"const ks = Object\.keys\(PLN\);", lambda m: "const ks = Object.keys(PLN).filter(k => !S.ig || /^instagram_/.test(PLN[k][0]));")
+need("E3:wz:pa", r"\{ t: '[^'\n]*', c: 'wz:pa' \}", lambda m: "...(S.ig ? [] : [" + m.group(0) + "])")
+need('E4:pl all', r"S\.pl = Object\.keys\(PLN\)\.map\(k => PLN\[k\]\[0\]\);", lambda m: "S.pl = Object.keys(PLN).map(k => PLN[k][0]).filter(c => !S.ig || /^instagram_/.test(c));")
+need("E5:k1 === 'pa'", r"\(k1 === 'pa'\)\s*\{\s*S\.pl = \[\];\s*S\.step = 'mm';\s*\}", lambda m: "(k1 === 'pa') { S.pl = S.ig ? " + IGF + " : []; S.step = 'mm'; }")
+need("E6:k1 === 'pd'", r"\(k1 === 'pd'\)\s*(?:\{\s*S\.step = 'mm';\s*\}|S\.step = 'mm';)", lambda m: "(k1 === 'pd') { if (S.ig && !(S.pl && S.pl.length)) S.pl = " + IGF + "; S.step = 'mm'; }")
+# E7: صف المنصات: [تيك توك، فيسبوك] ثم [إنستغرام، سناب] ثم الإلغاء
+m_sn = list(re.finditer(r",\s*\{ t: '[^'\n]*', c: 'sn:s' \}\]", s))
+m_fb = list(re.finditer(r"c:\s*'wz:p:fb'\s*\}\]", s))
+if len(m_sn) == 1:
+    mm = m_sn[0]; sn_btn = re.search(r"\{ t: '[^'\n]*', c: 'sn:s' \}", mm.group(0)).group(0)
+    edits.append((mm, "], [{ t: '\U0001F4F8 \u0625\u0646\u0633\u062a\u063a\u0631\u0627\u0645', c: 'wz:p:ig' }, " + sn_btn + "]"))
+elif len(m_fb) == 1 and not m_sn:
+    edits.append((m_fb[0], "c: 'wz:p:fb' }], [{ t: '\U0001F4F8 \u0625\u0646\u0633\u062a\u063a\u0631\u0627\u0645', c: 'wz:p:ig' }, { t: '\U0001F47B \u0633\u0646\u0627\u0628 \u0634\u0627\u062a', c: 'sn:s' }]"))
+else: fails.append('E7 platform row anchors: sn:s=%d, wz:p:fb=%d' % (len(m_sn), len(m_fb)))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+edits.sort(key=lambda e: -e[0].start()); n = s
+for m, rep in edits: n = n[:m.start()] + rep + n[m.end():]
+try: compile(n, pw, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + pw, BASE + pw + '.pre194d'); open(BASE + pw, 'w', encoding='utf-8').write(n)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + pw + '.pre194d', BASE + pw); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY194D_OK changed=%d (Instagram button + Instagram-only placements)' % len(edits))
