@@ -1,0 +1,22 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+MARK = '/*BKIND*/'
+if MARK in s: print('APPLY186_OK changed=0'); sys.exit(0)
+pat = r"it\.budget_kind\s*===\s*(['\"])[^'\"\n]{1,20}\1"
+ms = list(re.finditer(pat, s))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:260]) for l in s.split('\n') if 'budget_kind' in l][:4]
+    sys.exit('PATCH FAIL (nothing written): budget_kind anchor count=%d; lines: %s' % (len(ms), ' | '.join(ex) or 'none'))
+m = ms[0]
+DAILY = r"/(يومي|باليوم|كل يوم|لكل يوم|daily|per\s*day|\/\s*day)/i"
+new = "(" + m.group(0) + " && " + MARK + " " + DAILY + ".test(String(d.text || '')))"
+s2 = s[:m.start()] + new + s[m.end():]
+try: compile(s2, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre186'); open(BASE + p, 'w', encoding='utf-8').write(s2)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode: shutil.copy(BASE + p + '.pre186', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY186_OK changed=1 (budget is TOTAL unless user explicitly writes daily)')
