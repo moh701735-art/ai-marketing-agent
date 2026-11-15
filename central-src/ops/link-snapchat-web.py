@@ -2,7 +2,7 @@
 """ربط سناب شات (قراءة فقط): صفحة HTTPS مؤقتة بنفس نمط link-meta-web.py (الخادم والشهادة والتوكن السري من link-web.py).
 لا شي من الأسرار يمر بالمحادثة: Client ID/Secret ورابط الإرجاع يُلصقان بالنموذج. التشغيل: cd /opt/central && python3 ops/link-snapchat-web.py
 """
-import html, importlib.util, json, os, re, secrets, sys, time, urllib.error, urllib.parse, urllib.request
+import html, importlib.util, json, os, re, secrets, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("lw", Path(__file__).resolve().parent / "link-web.py")
@@ -39,10 +39,23 @@ def form_page(err=""):
     return page('<h1>ربط سناب شات (قراءة فقط)</h1>' + e +
         '<form method="post" action="list" autocomplete="off">'
         '<label>1) Client ID (من تطبيق OAuth بـ Snap Business)</label><input type="text" name="cid"/>'
-        '<label>2) Client Secret (حقل مخفي؛ لا ترسله بأي مكان ثاني)</label><input type="password" name="sec"/>'
+        '<label>2) Client Secret (حقل مخفي؛ لا ترسله بأي مكان ثاني)</label><input type="password" name="sec" autocomplete="new-password"/>'
         '<label>3) الرابط الكامل بعد الموافقة (يبدأ بـ agent.mohammedai.tech/snap-cb?code=... وممكن تطلع صفحة 404، عادي)</label><textarea name="link"></textarea>'
         '<label>4) اسم العميل (slug مثل mohm)</label><input type="text" name="slug" value="mohm"/>'
         '<button type="submit">عرض الحسابات</button></form>')
+
+
+def clean(s):
+    """ينظّف القيمة الملصوقة: يشيل المسافات والرموز المخفية (اتجاه RTL وغيره)، ولو انلصق معها نص مثل «المفتاح السري: xxx» ياخذ الي بعد آخر نقطتين."""
+    s = unicodedata.normalize("NFKC", s or "")
+    s = "".join(ch for ch in s if unicodedata.category(ch) not in ("Cf", "Cc", "Zs", "Zl", "Zp"))
+    if ":" in s: s = s.rsplit(":", 1)[1]
+    return s
+
+
+def why(s):
+    bad = sum(1 for ch in s if not re.match(r"[0-9A-Za-z_\-]", ch))
+    return "طوله %d حرف، رموز غير مسموحة: %d" % (len(s), bad)
 
 
 def parse_code(s):
@@ -57,12 +70,12 @@ def snap_get(path, tok):
 
 
 def do_list(form):
-    cid = form.get("cid", "").strip()
-    sec = form.get("sec", "").strip()
+    cid = clean(form.get("cid", ""))
+    sec = clean(form.get("sec", ""))
     slug = form.get("slug", "").strip()
     code = parse_code(form.get("link", ""))
-    if not re.fullmatch(r"[0-9A-Za-z\-]{8,80}", cid): return form_page("Client ID غير صالح.")
-    if not re.fullmatch(r"[0-9A-Za-z_\-]{8,200}", sec): return form_page("Client Secret غير صالح.")
+    if not re.fullmatch(r"[0-9A-Za-z\-]{8,80}", cid): return form_page("Client ID غير صالح (%s). انسخه من صفحة التطبيق بدون مسافات." % why(cid))
+    if not re.fullmatch(r"[0-9A-Za-z_\-]{8,200}", sec): return form_page("Client Secret غير صالح (%s). انسخه بزر مفتاح النسخ، المفتاح الصحيح حروف وأرقام فقط." % why(sec))
     if not code: return form_page("ما لقيت code بالرابط الملصوق. الصق الرابط الكامل من شريط العنوان بعد الموافقة.")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", slug): return form_page("اسم العميل (slug) غير صالح.")
     tid = at.psql(lw.DB, "SELECT tenant_id FROM core.tenants WHERE slug = :'slug'", {"slug": slug}, tx=False).strip()
