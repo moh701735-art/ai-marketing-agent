@@ -6,31 +6,26 @@ if '_snapchat' in s: print('APPLY191D_OK changed=0'); sys.exit(0)
 fails = []
 m_disp = list(re.finditer(r'"telegram":\s*_telegram\}\[platform\]', s))
 if len(m_disp) != 1: fails.append('dispatch anchor count=%d; lines: %s' % (len(m_disp), ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if '_telegram' in l and 'platform' in l)))
-m_ret = set(re.findall(r'return cls, cls in (\w+), str\(code\), _msg\(\w+\)', s))
-if len(m_ret) != 1: fails.append('retryable-set name not unique: %s; lines: %s' % (sorted(m_ret), ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if 'return cls' in l)[:600]))
 m_pb = list(re.finditer(r'(?m)^def parse_body\(', s))
 if len(m_pb) != 1: fails.append('parse_body anchor count=%d' % len(m_pb))
+if not re.search(r'(?m)^def _tiktok\(', s): fails.append('_tiktok not found')
 if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
-RET = m_ret.pop()
 FN = '''def _snapchat(status: int, body):
-    """سناب (p191d): النجاح = HTTP 2xx وrequest_status ما يكون ERROR. 401 = انتهت صلاحية التوكن، 429 = حد معدل، 403 = ممنوع."""
-    if 200 <= status < 300 and not (isinstance(body, dict) and str(body.get("request_status", "SUCCESS")).upper() == "ERROR"):
-        return None
+    """سناب (p191d): يعيد استعمال مصنّف تيك توك. النجاح = 2xx وrequest_status ≠ ERROR، وغيره يُصنَّف برمز HTTP (_by_http: 401 انتهاء صلاحية، 403 ممنوع، 429 حد معدل، 5xx مؤقت)."""
+    ok = 200 <= status < 300 and not (isinstance(body, dict) and str(body.get("request_status", "SUCCESS")).upper() == "ERROR")
     msg = None
     if isinstance(body, dict):
-        msg = body.get("display_message") or body.get("debug_message") or body.get("error_description") or body.get("message") or body.get("error")
-        msg = msg if isinstance(msg, str) else None
-    if status == 401: cls = "auth_expired"
-    elif status == 403: cls = "permission_denied"
-    elif status == 429: cls = "rate_limited"
-    else: cls = _by_http(status)
-    return cls, cls in %s, str(status), _msg(msg)
+        m = body.get("display_message") or body.get("debug_message") or body.get("error_description") or body.get("message") or body.get("error")
+        msg = m if isinstance(m, str) else None
+    if ok:
+        return _tiktok(status, {})
+    return _tiktok(status if status >= 400 else 400, {"message": msg} if msg else {})
 
 
-''' % RET
+'''
 s2 = s[:m_pb[0].start()] + FN + s[m_pb[0].start():]
 s2 = re.sub(r'"telegram":\s*_telegram\}\[platform\]', '"telegram": _telegram, "snapchat": _snapchat}[platform]', s2, count=1)
 try: compile(s2, p, 'exec')
 except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
 shutil.copy(BASE + p, BASE + p + '.pre191d'); open(BASE + p, 'w', encoding='utf-8').write(s2)
-print('APPLY191D_OK changed=1 (classify knows snapchat; retryable set = %s)' % RET)
+print('APPLY191D_OK changed=1 (classify knows snapchat via _tiktok)')
