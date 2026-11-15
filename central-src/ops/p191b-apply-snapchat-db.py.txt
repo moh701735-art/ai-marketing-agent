@@ -1,0 +1,27 @@
+import subprocess, sys
+SQLF = '/opt/central/db/74_snapchat.sql'
+sql = open(SQLF, encoding='utf-8').read()
+def psql(db, text=None, q=None):
+    cmd = ['docker', 'exec', '-i', 'central-stg-pg', 'psql', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1']
+    if q: cmd += ['-At', '-c', q]
+    r = subprocess.run(cmd, input=text, capture_output=True, text=True)
+    return r.returncode, (r.stdout + r.stderr).strip()
+dbs = psql('postgres', q="select string_agg(datname, ',') from pg_database where not datistemplate")[1]
+print('DBS:', dbs)
+rc, out = psql('central', text=sql)
+print('central migration rc=%d' % rc); print(ascii(out)[:1200])
+if rc: sys.exit('PATCH FAIL: central migration failed (nothing else done)')
+vdb = 'vault' if 'vault' in dbs.split(',') else None
+if vdb:
+    blk = sql[sql.index('DO $v$'):]
+    rc2, out2 = psql(vdb, text=blk)
+    print('vault migration rc=%d' % rc2); print(ascii(out2)[:800])
+else:
+    print('NOTE: no database named vault; vault kind constraint not changed')
+print('--- verify')
+print('PLATFORMS :', psql('central', q="select string_agg(e::text, ',') from unnest(enum_range(null::core.platform)) e")[1])
+print('CONN_CHECK:', psql('central', q="select pg_get_constraintdef(oid) from pg_constraint where conname='platform_connections_platform_check'")[1])
+print('AUTH_SNAP :', psql('central', q="select bool_and(prosrc like '%snapchat%') from pg_proc where proname='broker_authorize'")[1])
+if vdb:
+    print('VAULT_KIND:', psql(vdb, q="select pg_get_constraintdef(oid) from pg_constraint where conrelid='vault.secrets'::regclass and contype='c' and pg_get_constraintdef(oid) like '%kind%'")[1])
+print('APPLY191B_DONE')
