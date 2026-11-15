@@ -1,0 +1,30 @@
+import os, re, shutil, sys
+BASE = '/opt/central/'
+fails = []; writes = []
+# 1) llm.py: build_request output budget 300 -> 1500 (required)
+p1 = 'broker/app/llm.py'
+s1 = open(BASE + p1, encoding='utf-8').read()
+if 'p190' in s1: print('APPLY190_OK changed=0'); sys.exit(0)
+ms = list(re.finditer(r'"maxOutputTokens":\s*300\b', s1))
+if len(ms) != 1:
+    ex = [ascii(l.strip()[:200]) for l in s1.split('\n') if 'maxOutputTokens' in l][:6]
+    fails.append('maxOutputTokens=300 anchor count=%d; lines: %s' % (len(ms), ' | '.join(ex)))
+else:
+    s1n = s1[:ms[0].start()] + '"maxOutputTokens": 1500' + s1[ms[0].end():] + '\n# p190: build_request maxOutputTokens 300 -> 1500 (long campaign specs got truncated JSON = bad_response)\n'
+    writes.append((p1, s1, s1n))
+# 2) service.py: retry also on bad_response (optional)
+p2 = 'broker/app/service.py'
+s2 = open(BASE + p2, encoding='utf-8').read()
+m2 = list(re.finditer(r'if cls != "(\w+)" and cls != "rate_limited":', s2))
+if len(m2) == 1:
+    s2n = s2[:m2[0].start()] + 'if cls not in ("%s", "rate_limited", "bad_response"):   # p190' % m2[0].group(1) + s2[m2[0].end():]
+    writes.append((p2, s2, s2n))
+else:
+    print('NOTE: retry-on-bad_response anchor count=%d (skipped, optional)' % len(m2))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+for p, old, new in writes:
+    try: compile(new, p, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s %s' % (p, e))
+for p, old, new in writes:
+    shutil.copy(BASE + p, BASE + p + '.pre190'); open(BASE + p, 'w', encoding='utf-8').write(new)
+print('APPLY190_OK changed=%d (%s)' % (len(writes), ', '.join(w[0] for w in writes)))
