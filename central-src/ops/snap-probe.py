@@ -43,13 +43,38 @@ def rec(name, r, summ=None):
 r = rec("snapchat.me", call("snapchat.me"), lambda d: {"id": str(((d or {}).get("me") or {}).get("id", ""))[:12] + "..."})
 r = rec("snapchat.orgs", call("snapchat.orgs"), lambda d: [{"org": ((o or {}).get("organization") or {}).get("name"), "id": ((o or {}).get("organization") or {}).get("id")} for o in ((d or {}).get("organizations") or [])])
 org = None
+out_ad = {}
 try: org = r["data"]["organizations"][0]["organization"]["id"]
 except Exception: pass
 if org:
-    rec("snapchat.adaccounts", call("snapchat.adaccounts", {"oid": org}), lambda d: [{"id": ((x or {}).get("adaccount") or {}).get("id"), "name": ((x or {}).get("adaccount") or {}).get("name"), "cur": ((x or {}).get("adaccount") or {}).get("currency"), "status": ((x or {}).get("adaccount") or {}).get("status")} for x in ((d or {}).get("adaccounts") or [])])
+    r_ad = call("snapchat.adaccounts", {"oid": org}); out_ad = (r_ad.get("data") or {}) if r_ad.get("ok") else {}
+    rec("snapchat.adaccounts", r_ad, lambda d: [{"id": ((x or {}).get("adaccount") or {}).get("id"), "name": ((x or {}).get("adaccount") or {}).get("name"), "cur": ((x or {}).get("adaccount") or {}).get("currency"), "status": ((x or {}).get("adaccount") or {}).get("status")} for x in ((d or {}).get("adaccounts") or [])])
+import datetime
+try: import zoneinfo
+except Exception: zoneinfo = None
+tzname = None
+try:
+    for x in (out_ad.get("adaccounts") or []):
+        ad = (x or {}).get("adaccount") or {}
+        if ad.get("id") == job["accts"][0][0]: tzname = ad.get("timezone")
+except Exception: pass
+def isot(day_offset):
+    try: tz = zoneinfo.ZoneInfo(tzname)
+    except Exception: tz = datetime.timezone(datetime.timedelta(hours={"Asia/Baghdad": 3, "Asia/Riyadh": 3, "Asia/Dubai": 4}.get(tzname, 0)))
+    d = (datetime.datetime.now(tz) + datetime.timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return d.isoformat(timespec="milliseconds")
 for aid, name, cur in job["accts"]:
-    rec("snapchat.campaigns [%s]" % (name or aid[:8]), call("snapchat.campaigns", {"oid": aid, "limit": 20}), lambda d: [{"name": ((c or {}).get("campaign") or {}).get("name"), "status": ((c or {}).get("campaign") or {}).get("status"), "id": ((c or {}).get("campaign") or {}).get("id")} for c in ((d or {}).get("campaigns") or [])][:20])
-    rec("snapchat.account_stats [%s]" % (name or aid[:8]), call("snapchat.account_stats", {"oid": aid}), lambda d: ((d or {}).get("total_stats") or [{}])[0] if isinstance((d or {}).get("total_stats"), list) else d)
+    camps = []
+    r = rec("snapchat.campaigns [%s]" % (name or aid[:8]), call("snapchat.campaigns", {"oid": aid, "limit": 20}), lambda d: [{"name": ((c or {}).get("campaign") or {}).get("name"), "status": ((c or {}).get("campaign") or {}).get("status"), "id": ((c or {}).get("campaign") or {}).get("id")} for c in ((d or {}).get("campaigns") or [])][:20])
+    try: camps = [((c or {}).get("campaign") or {}).get("id") for c in r["data"]["campaigns"]]
+    except Exception: pass
+    st, en = isot(-7), isot(1)
+    variants = [("account TOTAL بدون وقت", "snapchat.account_stats", {"oid": aid}),
+                ("account TOTAL مع وقت (آخر 7 أيام، توقيت الحساب %s)" % tzname, "snapchat.account_stats", {"oid": aid, "start_time": st, "end_time": en}),
+                ("account DAY مع وقت", "snapchat.account_stats", {"oid": aid, "granularity": "DAY", "start_time": st, "end_time": en})]
+    if camps: variants += [("campaign TOTAL مع وقت", "snapchat.stats", {"oid": camps[0], "start_time": st, "end_time": en})]
+    for label, op, prm in variants:
+        rec(label, call(op, prm), lambda d: json.dumps(d, ensure_ascii=False)[:500])
 print(json.dumps(out, ensure_ascii=False))
 '''
 r = subprocess.run(["docker", "run", "--rm", "-i", "--network", NET, "-v", SECRETS + ":/s.json:ro", "--entrypoint", "python", IMG, "-c", PY], input=job, capture_output=True, text=True)
