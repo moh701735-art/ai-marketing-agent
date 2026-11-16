@@ -11,10 +11,11 @@ const GOVS = ['Baghdad', 'Basra', 'Nineveh', 'Erbil', 'Sulaymaniyah', 'Dohuk', '
 const regsRes = { ok: true, data: { targeting_dimensions: GOVS.map((n, i) => ({ sub_request_status: 'SUCCESS', region: { id: String(25600 + i), name: n, code2: 'iq' } })) } };
 const intsRes = { ok: true, data: { targeting_dimensions: Array.from({ length: 150 }, (_, i) => ({ sub_request_status: 'SUCCESS', scls: { id: 'SLC_' + (i + 1), name: 'Interest number ' + (i + 1) + ' of the long list', parentId: 'SLC_0' } })) } };
 const route = (cb) => ({ ctx: 'CTX', chatId: 77, cmd: 'snapwiz', cb });
-const rows = (state, linked = true) => [].concat(linked ? [{ kind: 'acct', a: '6a74', b: 'خدمة', c: 'USD' }] : [], state ? [{ kind: 'state', a: JSON.stringify(state), b: '5' }] : []);
+let ACCTS = [{ kind: 'acct', a: '6a74', b: 'خدمة', c: 'USD' }];
+const rows = (state, linked = true) => [].concat(linked ? ACCTS : [], state ? [{ kind: 'state', a: JSON.stringify(state), b: '5' }] : []);
 function step(cb, state, results, linked = true) {
   const plan = run(D.plan, { Route: route(cb) }, rows(state, linked));
-  const res = plan[0].need ? plan.map(p => ({ regs: regsRes, ints: intsRes }[p.k])) : [];
+  const res = plan[0].need ? plan.map(p => ({ regs: regsRes, ints: intsRes, go: results }[p.k])) : [];
   const out = run(D.render, { 'SN2: plan': plan }, res);
   return { plan, out: out[0], S: JSON.parse(out[0].state || 'null') };
 }
@@ -45,8 +46,38 @@ r = step('sn:i:slc_5', S); S = r.S; ok('interest toggle stores uppercase id', S.
 for (let i = 6; i <= 17; i++) { r = step('sn:i:slc_' + i, S); S = r.S; } ok('interests capped at 10', S.ints.length === 10, S.ints);
 r = step('sn:ip:12', S); S = r.S; checkKb('int p13', r.out); ok('int last page', /13\/13/.test(JSON.stringify(r.out.keyboard)), r.out.keyboard);
 r = step('sn:ic', S); S = r.S; ok('clear interests', S.ints.length === 0, S);
-r = step('sn:i:slc_9', S); S = r.S; r = step('sn:in', S); S = r.S; checkKb('sum', r.out);
-ok('summary text', S.st === 'sum' && r.plan.length === 2 && /ملخص الاستهداف/.test(r.out.text) && /الهدف: زيارات/.test(r.out.text) && /المحافظات: حلبجة/.test(r.out.text) && /الجنس: نساء/.test(r.out.text) && /Interest number 9/.test(r.out.text) && /مسودة استهداف فقط/.test(r.out.text), r.out.text);
+r = step('sn:i:slc_9', S); S = r.S; r = step('sn:in', S); S = r.S; checkKb('bud', r.out);
+ok('interests next → single account auto → budget screen (no broker)', S.st === 'bud' && S.acct === '6a74' && !r.plan[0].need && r.out.keyboard.flat().filter(b => /^sn:bu:\d+$/.test(b.c)).length === 5, S);
+r = step('sn:bu:20', S); S = r.S; ok('budget set → duration', S.bud === 20 && S.st === 'dur', S); checkKb('dur', r.out);
+r = step('sn:bu:7', S); ok('invalid budget ignored', r.S.bud === 20, r.S);
+r = step('sn:du:3', S); S = r.S; ok('duration set → url screen with /snaplink hint', S.days === 3 && S.st === 'url' && /\/snaplink/.test(r.out.text), r.out.text); checkKb('url', r.out);
+const linkStep = (args, state) => { const plan = run(D.plan, { Route: { ctx: 'CTX', chatId: 77, cmd: 'snaplink', args } }, rows(state)); const out = run(D.render, { 'SN2: plan': plan }, [])[0]; return { plan, out, S: JSON.parse(out.state) }; };
+let L1 = linkStep('https://t.me/+abc123 ', S); S = L1.S; ok('/snaplink valid → summary, new message', S.url === 'https://t.me/+abc123' && S.st === 'sum' && L1.plan[0].edit === false && /ملخص الاستهداف/.test(L1.out.text), L1.out.text);
+checkKb('sum', L1.out); ok('summary shows go button (traffic, complete)', L1.out.keyboard.flat().some(b => b.c === 'sn:go') && /الحساب: خدمة \(USD\)/.test(L1.out.text) && /20 USD \(إجمالية\)/.test(L1.out.text) && /3 أيام/.test(L1.out.text) && /مسودة استهداف فقط|متوقفة/.test(L1.out.text), L1.out.text);
+let Lbad = linkStep('http://insecure.com', S); ok('/snaplink http rejected', /الرابط غير صالح/.test(Lbad.out.text) && Lbad.S.url === 'https://t.me/+abc123', Lbad.out.text);
+// go: نجاح
+const GOOD = { ok: true, data: { campaign_id: 'camp-9', adsquad_id: 'sq-9', currency: 'USD', start_time: '2026-11-15T17:42:05.000-08:00', end_time: '2026-11-18T17:42:05.000-08:00', creative: 'missing' } };
+r = step('sn:go', S, GOOD); ok('go plan: launch_draft params', r.plan[0].k === 'go' && r.plan[0].op === 'snapchat.launch_draft' && r.plan[0].platform === 'snapchat' && r.plan[0].ad_account === '' && r.plan[0].params.account_id === '6a74' && r.plan[0].params.budget === 20 && r.plan[0].params.days === 3 && r.plan[0].params.objective === 'trf' && r.plan[0].params.landing_url === 'https://t.me/+abc123' && r.plan[0].params.gender === 'f' && JSON.stringify(r.plan[0].params.ages) === '["25-34"]' && r.plan[0].params.regions.length === 1, r.plan[0].params);
+ok('go idempotency key 16..100 chars, safe', r.plan[0].idem.length >= 16 && r.plan[0].idem.length <= 100 && /^[A-Za-z0-9\-]+$/.test(r.plan[0].idem), r.plan[0].idem);
+ok('go success text', /انرفعت مسودة حملة سناب شات \(متوقفة\)/.test(r.out.text) && /camp-9/.test(r.out.text) && /sq-9/.test(r.out.text) && /الإعلان.*ما انضاف بعد/.test(r.out.text) && /متوقفة، ما فيه صرف/.test(r.out.text), r.out.text); checkKb('go ok', r.out);
+ok('go success resets state', r.S.st === 'obj' && r.S.obj === '' && r.S.url === '', r.S);
+const idem1 = r.plan[0].idem; const r2 = step('sn:go', S, GOOD); ok('same state → same idempotency key (double tap safe)', r2.plan[0].idem === idem1);
+// go: فشل بمرحلة المجموعة مع معرّف الحملة (لا نجاح وهمي)
+r = step('sn:go', S, { ok: false, error: { class: 'bad_request', message: 'targeting invalid' }, data: { stage: 'adsquad', campaign_id: 'camp-9' } });
+ok('go failure honest', /ما انرفعت الحملة \(المرحلة: إنشاء المجموعة الإعلانية\)/.test(r.out.text) && /targeting invalid/.test(r.out.text) && /camp-9/.test(r.out.text) && /احذف الحملة/.test(r.out.text) && !/انرفعت مسودة/.test(r.out.text), r.out.text); checkKb('go fail', r.out);
+ok('go failure keeps state (can retry)', r.S.url === 'https://t.me/+abc123' && r.S.bud === 20, r.S);
+// هدف غير مدعوم: ما يوصل للـbroker
+const Ssal = { ...S, obj: 'sal' }; r = step('sn:go', Ssal); ok('non-traffic go blocked before broker', r.plan[0].goErr && !r.plan[0].need && /زيارات/.test(r.out.text), r.out.text);
+r = run(D.render, { 'SN2: plan': run(D.plan, { Route: route('sn:b:sum') }, rows(Ssal)) }, [])[0]; ok('non-traffic summary hides go button + notes', !r.keyboard.flat().some(b => b.c === 'sn:go') && /زيارات.*فقط/.test(r.text), r.text);
+// ناقصة معلومات
+r = step('sn:go', { ...S, bud: 0 }); ok('missing info blocked', /ناقصة معلومات/.test(r.out.text) && !r.plan[0].need, r.out.text);
+// حسابين: شاشة الحساب
+const UU = 'c1f2d3a4-1111-2222-3333-444455556666'; ACCTS = [{ kind: 'acct', a: UU, b: 'حساب أول بإسم طويل جداً جداً جداً جداً', c: 'USD' }, { kind: 'acct', a: '9a8b7c6d-1111-2222-3333-444455556666', b: 'دينار', c: 'IQD' }];
+r = step('sn:in', { st: 'int', obj: 'trf', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0 }); checkKb('acct', r.out);
+ok('2 accounts → account screen with lowercase uuid callbacks ≤48', r.S.st === 'acct' && r.out.keyboard.flat().filter(b => /^sn:ac:[0-9a-f\-]{36}$/.test(b.c)).length === 2, r.out.keyboard);
+r = step('sn:ac:9a8b7c6d-1111-2222-3333-444455556666', r.S); ok('pick IQD account → budget screen in IQD amounts', r.S.st === 'bud' && r.out.keyboard.flat().filter(b => /^sn:bu:(10000|25000|50000|100000)$/.test(b.c)).length === 4 && /IQD/.test(r.out.text), r.out.keyboard); checkKb('bud iqd', r.out);
+r = step('sn:ac:not-mine', { st: 'acct', obj: 'trf', regs: [], ages: [], ints: [] }); ok('unknown account id ignored', r.S.acct === '' && r.S.st === 'acct', r.S);
+ACCTS = [{ kind: 'acct', a: '6a74', b: 'خدمة', c: 'USD' }];
 // 6) غير مربوط + أخطاء broker + بيانات تالفة
 r = step('sn:s', null, null, false); ok('not linked message', /غير مربوط/.test(r.out.text) && r.out.edit === true, r.out.text);
 const planX = run(D.plan, { Route: route('sn:o:sal') }, rows(r.S && null)); const outX = run(D.render, { 'SN2: plan': planX }, [{ ok: false, error: { message: 'Auth failed' } }]);
