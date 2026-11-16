@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ينشئ **حملة سناب تجريبية متوقفة كاملة** (حملة + مجموعة + Creative + إعلان) بفيديو موجود مسبقاً بحسابك (media READY) عبر `snapchat.launch_draft`، للتأكد من حقول سناب قبل ربط تلغرام. ما فيها صرف (متوقفة).
-من /opt/central:  SA_SLUG=mohm SA_MEDIA=<media_id> [SA_OBJ=trf|vid] [SA_PROFILE=<profile_id>] python3 ops/snap-media-probe.py
+من /opt/central:  SA_SLUG=mohm SA_MEDIA=<media_id> [SA_OBJ=trf|vid] [SA_PROFILE=<profile_id>] [SA_MIN=21 SA_MAX=34] python3 ops/snap-media-probe.py
 بعد الفحص احذف الحملة «PROBE-AD-DELETE-ME» من Snap Ads Manager."""
 import json, os, re, secrets, subprocess, sys
 SLUG = os.environ.get("SA_SLUG", "").strip(); ACCT = os.environ.get("SA_ACCT", "").strip()
@@ -26,6 +26,8 @@ if not re.fullmatch(r"[0-9a-fA-F\-]{8,64}", ACCT): sys.exit("bad account id")
 params = {"account_id": ACCT, "name": "PROBE-AD-DELETE-ME", "objective": OBJ, "budget": 5, "days": 1, "regions": [], "ages": ["18-20", "21-24", "25-34"], "gender": "a", "lang": "ar", "interests": [], "media_id": MEDIA, "headline": "تجربة", "brand_name": "Test", "cta": "MORE"}
 if OBJ == "trf": params["landing_url"] = "https://t.me/example"
 if PROFILE: params["profile_id"] = PROFILE
+if os.environ.get("SA_MIN"): params["ages"] = []; params["min_age"] = int(os.environ["SA_MIN"])
+if os.environ.get("SA_MAX"): params["max_age"] = int(os.environ["SA_MAX"])
 job = json.dumps({"ctx": ctx[0], "host": BROKER_HOST, "params": params, "idem": "probe-" + secrets.token_hex(12)})
 PY = r'''
 import base64, hmac, hashlib, json, secrets, sys, time, urllib.request, urllib.error

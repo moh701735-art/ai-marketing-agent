@@ -87,11 +87,11 @@ class V(unittest.TestCase):
         s = Svc2(dict(FULL)); p = dict(GOOD, media_id="11111111-aaaa-bbbb-cccc-222222222222", headline="خصم كبير", brand_name="متجري", cta="SHOP_NOW"); st, env = run(s, p)
         self.assertEqual(st, 200); d = env["data"]; self.assertTrue(env["ok"])
         self.assertEqual((d["ad_id"], d["creative_id"], d["profile_id"], d["media_id"], d["stage"], d["creative"], d["status"]), ("ad-1", "cre-1", "prof-1", "11111111-aaaa-bbbb-cccc-222222222222", "ad", "created", "PAUSED"))
-        ops = [c[1] for c in s.calls]; self.assertEqual(ops, ["snapchat.adaccount", "snapchat.create_campaign", "snapchat.create_adsquad", "snapchat.profiles_org", "snapchat.create_creative", "snapchat.create_ad"]); self.assertEqual(s.tg_calls, [])
-        self.assertEqual(s.calls[3][3], {"oid": "org-1"})
-        cr = json.loads(s.calls[4][3]["payload_json"]); self.assertEqual((cr["type"], cr["top_snap_media_id"], cr["headline"], cr["brand_name"], cr["call_to_action"], cr["web_view_properties"]["url"]), ("WEB_VIEW", p["media_id"], "خصم كبير", "متجري", "SHOP_NOW", "https://t.me/+abc123"))
+        ops = [c[1] for c in s.calls]; self.assertEqual(ops, ["snapchat.adaccount", "snapchat.create_campaign", "snapchat.create_adsquad", "snapchat.creatives_list", "snapchat.profiles_org", "snapchat.create_creative", "snapchat.create_ad"]); self.assertEqual(s.tg_calls, [])
+        self.assertEqual(s.calls[4][3], {"oid": "org-1"})
+        cr = json.loads(s.calls[5][3]["payload_json"]); self.assertEqual((cr["type"], cr["top_snap_media_id"], cr["headline"], cr["brand_name"], cr["call_to_action"], cr["web_view_properties"]["url"]), ("WEB_VIEW", p["media_id"], "خصم كبير", "متجري", "SHOP_NOW", "https://t.me/+abc123"))
         self.assertEqual(cr["profile_properties"], {"profile_id": "prof-1"})
-        ad = json.loads(s.calls[5][3]["payload_json"]); self.assertEqual((ad["type"], ad["status"], ad["ad_squad_id"], ad["creative_id"]), ("REMOTE_WEBPAGE", "PAUSED", "sq-1", "cre-1")); self.assertEqual(s.calls[5][3]["oid"], "sq-1")
+        ad = json.loads(s.calls[6][3]["payload_json"]); self.assertEqual((ad["type"], ad["status"], ad["ad_squad_id"], ad["creative_id"]), ("REMOTE_WEBPAGE", "PAUSED", "sq-1", "cre-1")); self.assertEqual(s.calls[6][3]["oid"], "sq-1")
     def test_given_profile_skips_discovery(self):
         s = Svc2(dict(FULL)); st, env = run(s, dict(GOOD, media_id="11111111-aaaa-bbbb-cccc-222222222222", profile_id="aaaaaaaa-1111")); self.assertTrue(env["ok"]); self.assertNotIn("snapchat.profiles_org", [c[1] for c in s.calls])
     def test_profile_missing_reports_stage(self):
@@ -100,6 +100,16 @@ class V(unittest.TestCase):
     def test_profile_falls_back_to_account(self):
         sc = dict(FULL, **{"snapchat.profiles_org": (200, {"ok": False, "error": {"class": "forbidden", "message": "x"}}), "snapchat.profiles_acct": PROF}); s = Svc2(sc); st, env = run(s, dict(GOOD, media_id="11111111-aaaa-bbbb-cccc-222222222222"))
         self.assertTrue(env["ok"], env); self.assertEqual(env["data"]["profile_id"], "prof-1")
+    def test_profile_from_existing_creatives(self):
+        CL = ok({"creatives": [{"sub_request_status": "SUCCESS", "creative": {"id": "c0", "profile_properties": {"profile_id": "e9f1bdd3-5327-45d6-a668-d8b785f30076"}}}]})
+        s = Svc2(dict(FULL, **{"snapchat.creatives_list": CL})); st, env = run(s, dict(GOOD, media_id="11111111-aaaa-bbbb-cccc-222222222222"))
+        self.assertTrue(env["ok"], env); self.assertEqual(env["data"]["profile_id"], "e9f1bdd3-5327-45d6-a668-d8b785f30076"); self.assertNotIn("snapchat.profiles_org", [c[1] for c in s.calls])
+    def test_age_range_targeting(self):
+        p, e = sf.clean({k: v for k, v in dict(GOOD, ages=[], min_age=21, max_age=34).items()}); self.assertIsNone(e)
+        self.assertEqual(sf.targeting(p)["demographics"][0]["min_age"], "21"); self.assertEqual(sf.targeting(p)["demographics"][0]["max_age"], "34"); self.assertNotIn("age_groups", sf.targeting(p)["demographics"][0])
+        p, e = sf.clean(dict(GOOD, ages=[], min_age=25)); self.assertNotIn("max_age", sf.targeting(p)["demographics"][0])
+        for bad in (dict(GOOD, ages=[], min_age=12), dict(GOOD, ages=[], min_age=30, max_age=20), dict(GOOD, min_age=20), dict(GOOD, ages=[], min_age="20"), dict(GOOD, ages=[], max_age=51)):
+            self.assertIsNotNone(sf.clean(bad)[1], bad)
     def test_creative_and_ad_failures_keep_ids(self):
         bad = (200, {"ok": False, "error": {"class": "bad_request", "message": "creative rejected: headline"}})
         s = Svc2(dict(FULL, **{"snapchat.create_creative": bad})); st, env = run(s, dict(GOOD, media_id="11111111-aaaa-bbbb-cccc-222222222222"))

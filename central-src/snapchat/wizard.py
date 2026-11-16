@@ -1,27 +1,29 @@
 # -*- coding: utf-8 -*-
-"""سناب شات — معالج الاستهداف (المرحلة 2/أ: واجهة واستهداف فقط، لا تُنشأ حملة).
-callbacks بادئة `sn:` (يوجّهها wf_ingress إلى cmd = snapwiz): sn:s (بداية) · sn:o:<هدف> · sn:r:<id> / ra / rc / rp:<n> / rn · sn:a:<كود> / aa / an · sn:g:<a|m|f> · sn:l:<لغة> · sn:i:<id> / ic / ip:<n> / in · sn:b:<شاشة>.
-بيانات العراق (المحافظات 19 + اهتمامات SCL ≈150 مع country_code=iq) تُقرأ حيّة من سناب عبر الـBroker (قراءة فقط): snapchat.t_regions / snapchat.t_interests.
-الحالة تُخزَّن بـapi.ui_set بمفتاح sn:<chat> لمدة ساعة (اختيارات فقط، بدون قوائم). مقيّدات تلغرام: ≤8 صفوف، ≤3 أزرار بالصف، t ≤ 40."""
+"""سناب شات — معالج الحملة v3 (p197c): أهداف (مبيعات/عملاء محتملين/زيارات/مشاهدات)، كل اختيار يفتح الخطوة التالية، عمر من → إلى، فيديو إلزامي من تلغرام، ثم رفع **مسودة متوقفة كاملة** (حملة + مجموعة + تصميم + إعلان) عبر `snapchat.launch_draft`.
+callbacks بادئة `sn:` (wf_ingress يوجّهها إلى cmd = snapwiz): sn:s · o:<هدف> · ac:<id> · px:<id> · r:<id>/ra/rc/rp:<n>/rn · af:<n>/af0/at:<n>/aa · g:<a|m|f> · l:<لغة> · i:<id>/ic/ip:<n>/in · bu:<n> · du:<n> · vn · ct:<زر> · tn · go · b:<شاشة>.
+إدخال نص/ملف (cmd = snapin من wf_ingress عندما تكون الخطوة url/vid/txt): النص بـd.args والملف بـd.fileId. `/snaplink <رابط>` ما زال يشتغل.
+الحالة بـapi.ui_set بمفتاح sn:<chat> لمدة ساعة (اختيارات فقط). مقيّدات تلغرام: ≤8 صفوف، ≤3 أزرار بالصف، t ≤ 40."""
 
 SQL_DATA = ("SELECT 'state'::text AS kind, data::text AS a, age_s::text AS b, NULL::text AS c FROM api.ui_get($1, 'sn:' || $2) "
             "UNION ALL SELECT 'acct', external_id::text, name::text, currency::text FROM api.list_ad_accounts($1) WHERE platform::text = 'snapchat' AND enabled")
 
 LIB = r"""
-const OBJ = { sal: ['🛒', 'مبيعات'], msg: ['💬', 'رسائل سناب شات'], led: ['🎯', 'عملاء محتملين'], trf: ['🔗', 'زيارات'] };
-const AGES = { a1: '18-20', a2: '21-24', a3: '25-34', a4: '35+' };
+const OBJ = { sal: ['🛒', 'مبيعات'], led: ['🎯', 'عملاء محتملين'], trf: ['🔗', 'زيارات'], vid: ['👁️', 'مشاهدات'] };
+const OBJ_OK = { sal: true, trf: true, vid: true };
 const LNG = { '': 'كل اللغات', ar: 'العربية', en: 'English', ku: 'کوردی' };
 const GEN = { a: 'الكل', m: 'رجال', f: 'نساء' };
 const GOV = [['baghdad', 'بغداد'], ['basra', 'البصرة'], ['basrah', 'البصرة'], ['ninev', 'نينوى'], ['ninaw', 'نينوى'], ['nainaw', 'نينوى'], ['mosul', 'نينوى'], ['erbil', 'أربيل'], ['arbil', 'أربيل'], ['irbil', 'أربيل'], ['sulaym', 'السليمانية'], ['sulaim', 'السليمانية'], ['dohuk', 'دهوك'], ['duhok', 'دهوك'], ['dahuk', 'دهوك'], ['kirkuk', 'كركوك'], ['tamim', 'كركوك'], ['anbar', 'الأنبار'], ['babil', 'بابل'], ['babylon', 'بابل'], ['karbala', 'كربلاء'], ['najaf', 'النجف'], ['diyala', 'ديالى'], ['wasit', 'واسط'], ['maysan', 'ميسان'], ['misan', 'ميسان'], ['dhiqar', 'ذي قار'], ['thiqar', 'ذي قار'], ['muthanna', 'المثنى'], ['qadis', 'القادسية'], ['diwaniy', 'القادسية'], ['salah', 'صلاح الدين'], ['saladin', 'صلاح الدين'], ['halabja', 'حلبجة']];
 const arGov = n => { const k = String(n || '').toLowerCase().replace(/[^a-z]/g, ''); const h = GOV.find(g => k.indexOf(g[0]) >= 0); return h ? h[1] : String(n || ''); };
 const LINE = '━━━━━━━━━━━━━━';
 const sh = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-const STEPS = ['obj', 'reg', 'age', 'gen', 'lng', 'int', 'acct', 'bud', 'dur', 'url', 'sum'];
-const STN = { obj: 'الهدف', reg: 'المحافظات', age: 'العمر', gen: 'الجنس', lng: 'اللغة', int: 'الاهتمامات', acct: 'الحساب', bud: 'الميزانية', dur: 'المدة', url: 'الرابط', sum: 'الملخص' };
+const SEQ = o => ['obj', 'acct'].concat(o === 'sal' ? ['pix'] : []).concat((o === 'sal' || o === 'trf') ? ['url'] : []).concat(['reg', 'age', 'gen', 'lng', 'int', 'bud', 'dur', 'vid', 'txt', 'sum']);
 const BUDS = { IQD: [10000, 25000, 50000, 100000] }; const BUD_DEF = [5, 10, 20, 50, 100];
-const DURS = [1, 3, 7, 14, 30]; const OBJ_OK = { trf: true };
+const DURS = [1, 3, 7, 14, 30];
+const AGE_FROM = [18, 21, 25, 30, 35, 40, 45]; const AGE_TO = [24, 29, 34, 39, 44, 49];
+const CTAS = { MORE: 'المزيد', LEARN_MORE: 'اعرف أكثر', SHOP_NOW: 'تسوق الآن', ORDER_NOW: 'اطلب الآن', SIGN_UP: 'سجّل', BOOK_NOW: 'احجز الآن' };
 const fnum = n => Number(n || 0).toLocaleString('en-US');
 const hash36 = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
+const ageTxt = S => S.amin ? ('من ' + S.amin + ' إلى ' + (S.amax ? S.amax : 'فما فوق')) : 'كل الأعمار (18+)';
 """
 
 JS_PLAN = r"""
@@ -32,51 +34,72 @@ const ACCS = accts.map(r => ({ id: String(r.a), name: String(r.b || ''), cur: St
 let S0 = null; const sr = rows.find(r => r.kind === 'state'); if (sr) { try { S0 = JSON.parse(sr.a); } catch (e) {} }
 const isCb = !!d.cb;
 const base = { ctx: d.ctx, chatId: d.chatId, edit: isCb, linked: accts.length > 0, items: 0, accts: ACCS };
-const isLink = !isCb && String(d.cmd || '') === 'snaplink';
-const p = isCb ? String(d.cb).split(':') : (isLink ? ['sn', 'lk'] : ['sn', 's']); const op = p[1] || 's', arg = p.slice(2).join(':');
-const fresh = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '', obj0: '' };
+const cmd = String(d.cmd || '');
+const isLink = !isCb && cmd === 'snaplink', isIn = !isCb && cmd === 'snapin';
+const p = isCb ? String(d.cb).split(':') : (isLink ? ['sn', 'lk'] : (isIn ? ['sn', 'ti'] : ['sn', 's'])); const op = p[1] || 's', arg = p.slice(2).join(':');
+const fresh = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE' };
 let S = (S0 && typeof S0 === 'object' && !Array.isArray(S0)) ? { ...fresh, ...S0 } : { ...fresh };
-if (!Array.isArray(S.regs)) S.regs = []; if (!Array.isArray(S.ages)) S.ages = []; if (!Array.isArray(S.ints)) S.ints = [];
+if (!Array.isArray(S.regs)) S.regs = []; if (!Array.isArray(S.ints)) S.ints = [];
 const tog = (arr, v, max) => { const i = arr.indexOf(v); if (i >= 0) { arr.splice(i, 1); return arr; } if (arr.length < max) arr.push(v); return arr; };
 const num = s => /^\d{1,6}$/.test(String(s)) ? parseInt(s, 10) : 0;
+const adv = () => {
+  const q = SEQ(S.obj); const i = q.indexOf(S.st); S.st = q[Math.min(i < 0 ? 0 : i + 1, q.length - 1)];
+  if (S.st === 'acct' && ACCS.length === 1) { S.acct = ACCS[0].id; S.st = q[q.indexOf('acct') + 1]; }
+};
 if (op === 's') S = { ...fresh };
-else if (op === 'o') { if (OBJ[arg]) { S.obj = arg; S.st = 'reg'; S.rp = 0; } }
+else if (op === 'o') { if (OBJ[arg]) { if (arg === 'led') { S.obj = ''; S.st = 'obj'; base.ledNote = true; } else { S.obj = arg; S.st = 'obj'; adv(); } } }
+else if (op === 'ac') { if (ACCS.some(x => x.id === arg)) { S.acct = arg; S.st = 'acct'; adv(); } }
+else if (op === 'px') { if (/^[0-9a-f\-]{8,64}$/.test(arg)) { S.pix = arg; S.st = 'pix'; adv(); } }
 else if (op === 'r') { if (/^\d{1,12}$/.test(arg)) S.regs = tog(S.regs, arg, 19); S.st = 'reg'; }
 else if (op === 'ra' || op === 'rc') { S.regs = []; S.st = 'reg'; }
 else if (op === 'rp') { S.rp = num(arg); S.st = 'reg'; }
-else if (op === 'rn') S.st = 'age';
-else if (op === 'a') { if (AGES[arg]) S.ages = tog(S.ages, arg, 4); S.st = 'age'; }
-else if (op === 'aa') { S.ages = []; S.st = 'age'; }
-else if (op === 'an') S.st = 'gen';
-else if (op === 'g') { if (GEN[arg]) { S.gen = arg; S.st = 'lng'; } }
-else if (op === 'l') { if (arg in LNG) { S.lng = arg; S.st = 'int'; S.ip = 0; } }
+else if (op === 'rn') { S.st = 'reg'; adv(); }
+else if (op === 'af') { if (AGE_FROM.indexOf(num(arg)) >= 0) { S.amin = num(arg); S.amax = 0; S.aset = false; S.st = 'age'; } }
+else if (op === 'af0') { S.amin = 0; S.amax = 0; S.aset = false; S.st = 'age'; }
+else if (op === 'at') { if (arg === '0' || (AGE_TO.indexOf(num(arg)) >= 0 && num(arg) > S.amin)) { S.amax = num(arg); S.aset = true; S.st = 'age'; adv(); } }
+else if (op === 'aa') { S.amin = 0; S.amax = 0; S.aset = true; S.st = 'age'; adv(); }
+else if (op === 'g') { if (GEN[arg]) { S.gen = arg; S.st = 'gen'; adv(); } }
+else if (op === 'l') { if (arg in LNG) { S.lng = arg; S.st = 'lng'; adv(); S.ip = 0; } }
 else if (op === 'i') { if (/^slc_\d{1,6}$/i.test(arg)) S.ints = tog(S.ints, arg.toUpperCase(), 10); S.st = 'int'; }
 else if (op === 'ic') { S.ints = []; S.st = 'int'; }
 else if (op === 'ip') { S.ip = num(arg); S.st = 'int'; }
-else if (op === 'in') { S.st = 'acct'; if (ACCS.length === 1) { S.acct = ACCS[0].id; S.st = 'bud'; } }
-else if (op === 'ac') { if (ACCS.some(x => x.id === arg)) { S.acct = arg; S.st = 'bud'; } }
-else if (op === 'bu') { const a = ACCS.find(x => x.id === S.acct); const L = (a && BUDS[a.cur]) || BUD_DEF; if (L.indexOf(num(arg)) >= 0) { S.bud = num(arg); S.st = 'dur'; } }
-else if (op === 'du') { if (DURS.indexOf(num(arg)) >= 0) { S.days = num(arg); S.st = 'url'; } }
-else if (op === 'lk') { const m = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(String(d.args || '')); if (m) { S.url = m[0]; S.st = 'sum'; base.linkOk = true; } else base.linkBad = true; }
+else if (op === 'in') { S.st = 'int'; adv(); }
+else if (op === 'bu') { const a = ACCS.find(x => x.id === S.acct); const L = (a && BUDS[a.cur]) || BUD_DEF; if (L.indexOf(num(arg)) >= 0) { S.bud = num(arg); S.st = 'bud'; adv(); } }
+else if (op === 'du') { if (DURS.indexOf(num(arg)) >= 0) { S.days = num(arg); S.st = 'dur'; adv(); } }
+else if (op === 'lk') { const m = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(String(d.args || '')); if (m) { S.url = m[0]; if (S.st === 'url') adv(); base.linkOk = true; } else base.linkBad = true; }
+else if (op === 'ti') {
+  const txt = String(d.args || '').trim(), fid = String(d.fileId || '').trim();
+  if (S.st === 'url') { const m = /^(https:\/\/[^\s\x00-\x1f<>"']{4,500})$/.exec(txt); if (m) { S.url = m[1]; adv(); } else base.linkBad = true; }
+  else if (S.st === 'vid') {
+    if (fid && /^[A-Za-z0-9_\-]{10,200}$/.test(fid)) { if (Number(d.fileSize || 0) > 20000000) base.vidBig = true; else { S.vid = fid; S.vnm = String(d.fileName || '').slice(0, 40); base.vidOk = true; } } else base.vidBad = true;
+  }
+  else if (S.st === 'txt') { if (txt && txt.length <= 34 && !/[\x00-\x1f<>]/.test(txt)) { S.hdl = txt; base.hdlOk = true; } else base.hdlBad = true; }
+}
+else if (op === 'vn') { if (S.vid) { S.st = 'vid'; adv(); } }
+else if (op === 'ct') { if (CTAS[arg.toUpperCase()]) { S.cta = arg.toUpperCase(); S.st = 'txt'; } }
+else if (op === 'tn') { S.st = 'txt'; adv(); }
 else if (op === 'go') { S.st = 'sum'; base.go = true; }
-else if (op === 'gt') { if (OBJ[S.obj] && !OBJ_OK[S.obj]) { S.obj0 = S.obj; S.obj = 'trf'; } S.st = 'sum'; base.go = true; }
-else if (op === 'b') { if (STEPS.indexOf(arg) >= 0) S.st = arg; }
-if (!OBJ[S.obj] && S.st !== 'obj') S.st = 'obj';
-if (S.st === 'acct' && ACCS.length === 1) { S.acct = ACCS[0].id; S.st = 'bud'; }
+else if (op === 'b') { if (SEQ(S.obj).indexOf(arg) >= 0) { S.st = arg; if (arg === 'age') { S.amin = 0; S.amax = 0; S.aset = false; } } }
+if (S.st !== 'obj' && !OBJ[S.obj]) S.st = 'obj';
+if (SEQ(S.obj).indexOf(S.st) < 0) S.st = 'obj';
 base.S = S;
 const items = [];
 const need = (k, o, params) => items.push({ json: { ...base, need: true, k, platform: 'snapchat', ad_account: '', op: o, params } });
-if (base.linked) {
-  if (!base.go && (S.st === 'reg' || (S.st === 'sum' && S.regs.length))) need('regs', 'snapchat.t_regions', { oid: 'iq' });
-  if (!base.go && (S.st === 'int' || (S.st === 'sum' && S.ints.length))) need('ints', 'snapchat.t_interests', { oid: 'scls', country_code: 'iq' });
+if (base.linked && !base.go) {
+  if (S.st === 'reg' || (S.st === 'sum' && S.regs.length)) need('regs', 'snapchat.t_regions', { oid: 'iq' });
+  if (S.st === 'int' || (S.st === 'sum' && S.ints.length)) need('ints', 'snapchat.t_interests', { oid: 'scls', country_code: 'iq' });
+  if (S.st === 'pix' && S.acct) need('pix', 'snapchat.pixels', { oid: S.acct });
 }
 if (base.go) {
-  const a = ACCS.find(x => x.id === S.acct);
-  if (!OBJ_OK[S.obj]) base.goErr = 'الرفع متاح حالياً لهدف «زيارات» فقط. اختر هدف الزيارات من أول الشاشات.';
-  else if (!a || !S.bud || !S.days || !/^https:\/\//.test(S.url || '')) base.goErr = 'ناقصة معلومات: تأكد من الحساب والميزانية والمدة والرابط.';
+  const a = ACCS.find(x => x.id === S.acct); const needUrl = S.obj === 'sal' || S.obj === 'trf';
+  if (!OBJ_OK[S.obj]) base.goErr = 'هذا الهدف غير متاح للرفع حالياً. اختر هدف ثاني.';
+  else if (!a || !S.bud || !S.days || !S.vid || (needUrl && !/^https:\/\//.test(S.url || '')) || (S.obj === 'sal' && !S.pix)) base.goErr = 'ناقصة معلومات: تأكد من الحساب والميزانية والمدة والفيديو' + (needUrl ? ' والرابط' : '') + (S.obj === 'sal' ? ' والبكسل' : '') + '.';
   else {
     const nm = ('Snap · ' + OBJ[S.obj][1] + ' · ' + new Date().toISOString().slice(5, 10)).slice(0, 120);
-    const prm = { account_id: a.id, name: nm, objective: S.obj, budget: S.bud, days: S.days, regions: S.regs, ages: S.ages.map(k => AGES[k]), gender: S.gen, lang: S.lng, interests: S.ints, landing_url: S.url };
+    const prm = { account_id: a.id, name: nm, objective: S.obj, budget: S.bud, days: S.days, regions: S.regs, gender: S.gen, lang: S.lng, interests: S.ints, file_id: S.vid, cta: needUrl ? S.cta : 'MORE', brand_name: String(a.name || nm).slice(0, 25), headline: String(S.hdl || nm).slice(0, 34) };
+    if (S.amin) { prm.min_age = S.amin; if (S.amax) prm.max_age = S.amax; }
+    if (needUrl) prm.landing_url = S.url;
+    if (S.obj === 'sal') prm.pixel_id = S.pix;
     const idem = ('snw-' + String(d.chatId).replace(/[^0-9]/g, '') + '-' + hash36(JSON.stringify(prm)) + '-' + Math.floor(Date.now() / 120000)).slice(0, 90);
     items.push({ json: { ...base, need: true, k: 'go', platform: 'snapchat', ad_account: '', op: 'snapchat.launch_draft', params: prm, idem, goName: nm } });
   }
@@ -93,98 +116,123 @@ const home = [[{ t: '🏠 الرئيسية', c: 'h' }]];
 const done = (text, kb) => [{ json: { ctx: P.ctx, chatId: P.chatId, text: String(text).slice(0, 3800), keyboard: (kb || home).slice(0, 8), edit: P.edit, state: JSON.stringify(S) } }];
 if (!P.linked) return [{ json: { ctx: P.ctx, chatId: P.chatId, text: '👻 سناب شات صار متوفر بالنظام الإعلاني ✅\n\nحسابك الإعلاني بسناب غير مربوط بعد. لتفعيله نحتاج منك:\n1️⃣ حساب سناب بيه منظمة (Organization) وأنت مديرها.\n2️⃣ تفتح رابط الموافقة الي نرسله لك وتضغط Allow.\n\nتواصل مع الإدارة وننجز ربطه بدقايق.', keyboard: home, edit: P.edit, state: '' } }];
 const ACCS_N = () => (P.accts || []).length;
-const stepNo = () => (STEPS.indexOf(S.st) + 1) + '/' + STEPS.length;
-const head = t => '👻 حملة سناب شات (مسودة استهداف)\n' + LINE + '\n' + t + '  [' + stepNo() + ']\n';
-const back = (to) => ({ t: '⬅️ رجوع', c: 'sn:b:' + to });
+const SQ = SEQ(S.obj || 'trf');
+const stepNo = () => (Math.max(0, SQ.indexOf(S.st)) + 1) + '/' + SQ.length;
+const head = t => '👻 حملة سناب شات\n' + LINE + '\n' + t + '  [' + stepNo() + ']\n';
+const prevOf = () => { const q = SQ; let i = q.indexOf(S.st) - 1; if (q[i] === 'acct' && ACCS_N() === 1) i--; return q[Math.max(0, i)]; };
+const back = () => ({ t: '⬅️ رجوع', c: 'sn:b:' + prevOf() });
 const chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
 const listOf = (r, key) => (((r || {}).data || {})[key] || []);
 const regionList = () => { const r = R.regs || {}; if (!r.ok) return null; return listOf(r, 'targeting_dimensions').map(x => (x || {}).region || {}).filter(x => x.id).map(x => ({ id: String(x.id), name: arGov(x.name), en: String(x.name || '') })); };
 const interestList = () => { const r = R.ints || {}; if (!r.ok) return null; return listOf(r, 'targeting_dimensions').map(x => (x || {}).scls || {}).filter(x => x.id).map(x => ({ id: String(x.id), name: String(x.name || x.id), parent: String(x.parentId || '') })); };
+const pixelList = () => { const r = R.pix || {}; if (!r.ok) return null; return listOf(r, 'pixels').map(x => ((x || {}).pixel || x || {})).filter(x => x.id).map(x => ({ id: String(x.id), name: String(x.name || 'Pixel') })); };
 const errText = r => '⚠️ ما كدرت أقرأ البيانات من سناب: ' + String(((r || {}).error && (r.error.message || r.error.class)) || 'خطأ').slice(0, 140) + '\nجرّب مرة ثانية بعد شوي.';
+const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
+const FR = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE' };
+const STG = { account: 'قراءة الحساب', campaign: 'إنشاء الحملة', adsquad: 'إنشاء المجموعة الإعلانية', media: 'إنشاء ملف الفيديو بسناب', upload: 'رفع الفيديو', profile: 'البروفايل العام', creative: 'إنشاء التصميم', ad: 'إنشاء الإعلان' };
+if (P.go) {
+  if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع للملخص', c: 'sn:b:sum' }]]);
+  const r = R.go || {}, dd = r.data || {}, a = accOf();
+  if (r.ok) {
+    const L = ['✅ انرفعت حملة سناب شات كاملة (متوقفة)', LINE, '📣 الحملة: ' + (P.goName || ''), '🆔 رقم الحملة: ' + dd.campaign_id, '🆔 رقم المجموعة: ' + dd.adsquad_id, '🎬 الإعلان: ' + (dd.ad_id ? 'انبنى (رقمه ' + dd.ad_id + ')' : 'ما انبنى'),
+      '💰 الميزانية: ' + fnum(S.bud) + ' ' + (dd.currency || (a && a.cur) || '') + ' (إجمالية)', '📅 من ' + String(dd.start_time || '').slice(0, 16).replace('T', ' ') + ' إلى ' + String(dd.end_time || '').slice(0, 16).replace('T', ' '),
+      '⏸️ الحالة: متوقفة، ما فيه صرف لين تفعّلها من Snap Ads Manager.', '', 'راجع الإعلان بـAds Manager (تبويب الإعلانات) قبل التفعيل.'];
+    Object.keys(FR).forEach(k => { S[k] = FR[k]; });
+    return done(L.join('\n'), [[{ t: '🔁 حملة جديدة', c: 'sn:s' }, { t: '🏠 الرئيسية', c: 'h' }]]);
+  }
+  const L = ['❌ ما اكتملت الحملة (المرحلة: ' + (STG[dd.stage] || dd.stage || '؟') + ')', LINE, String((r.error && (r.error.message || r.error.class)) || 'خطأ غير معروف من سناب').slice(0, 600)];
+  if (dd.campaign_id) L.push('', '⚠️ الحملة (متوقفة) انعملت برقم ' + dd.campaign_id + (dd.adsquad_id ? ' والمجموعة ' + dd.adsquad_id : '') + (dd.ad_id ? '' : ' بدون إعلان') + '. إعادة المحاولة تنشئ حملة جديدة، فاحذف هذي من Snap Ads Manager إذا ما تريدها.');
+  return done(L.join('\n'), [[{ t: '⬅️ رجوع للملخص', c: 'sn:b:sum' }, { t: '🏠 الرئيسية', c: 'h' }]]);
+}
 if (S.st === 'obj') {
   const ks = Object.keys(OBJ); const kb = chunk(ks.map(k => ({ t: OBJ[k][0] + ' ' + OBJ[k][1], c: 'sn:o:' + k })), 2); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]);
-  return done(head('اختر هدف الحملة') + 'الرفع الفعلي (كمسودة متوقفة) متاح حالياً لهدف «زيارات» فقط، والباقي معاينة استهداف.', kb);
+  return done(head('اختر هدف الحملة') + (P.ledNote ? '\n🎯 «عملاء محتملين» يحتاج نموذج عملاء (Lead Form) وإعداد خاص، وما انبنى بعد. اختر هدف ثاني.\n' : '') + '\nالرفع يكون مسودة متوقفة (حملة + مجموعة + إعلان بالفيديو) وما يصرف لين تفعّلها.', kb);
+}
+if (S.st === 'acct') {
+  const A = P.accts || []; const kb = A.slice(0, 6).map(x => [{ t: sh(x.name || x.id.slice(0, 8), 26) + (x.cur ? ' (' + x.cur + ')' : ''), c: 'sn:ac:' + x.id }]); kb.push([back()]);
+  return done(head('اختر الحساب الإعلاني') + 'الحسابات المربوطة بسناب:', kb);
+}
+if (S.st === 'pix') {
+  const L = pixelList(); if (!L) return done(head('البكسل') + errText(R.pix), [[back()]]);
+  if (!L.length) return done(head('البكسل') + '⚠️ ما لقيت بكسل (Snap Pixel) بالحساب. هدف المبيعات يحتاج بكسل. أنشئه من Snap Ads Manager (Events Manager) أو اختر هدف ثاني.', [[back()]]);
+  const kb = L.slice(0, 6).map(x => [{ t: (S.pix === x.id ? '✅ ' : '') + sh(x.name, 30), c: 'sn:px:' + x.id.toLowerCase() }]); kb.push([back()]);
+  return done(head('اختر البكسل') + 'الحملة تُحسَّن على عمليات الشراء من هذا البكسل. تأكد أنه يسجّل أحداث شراء.', kb);
+}
+if (S.st === 'url') {
+  const kb = [[back()]]; if (S.url) kb.unshift([{ t: '✔️ استخدم الرابط الحالي', c: 'sn:b:reg' }]);
+  return done(head('رابط الوجهة') + (P.linkBad ? '⚠️ الرابط غير صالح، لازم يبدأ بـ https://\n\n' : '') + 'أرسل رابط الوجهة كرسالة عادية (https). يصير وجهة الإعلان: واتساب، تلغرام، موقعك…' + (S.url ? '\n\nالرابط الحالي: ' + sh(S.url, 80) : ''), kb);
 }
 if (S.st === 'reg') {
-  const L = regionList(); if (!L) return done(head('المحافظات') + errText(R.regs), [[back('obj')]]);
+  const L = regionList(); if (!L) return done(head('المحافظات') + errText(R.regs), [[back()]]);
   const PER = 15, pages = Math.max(1, Math.ceil(L.length / PER)); S.rp = Math.min(Math.max(0, S.rp), pages - 1);
   const part = L.slice(S.rp * PER, S.rp * PER + PER);
   const kb = [[{ t: (S.regs.length ? '' : '✅ ') + '🇮🇶 كل العراق', c: 'sn:ra' }, { t: '🗑️ مسح الاختيار', c: 'sn:rc' }]];
   chunk(part.map(x => ({ t: (S.regs.indexOf(x.id) >= 0 ? '✅ ' : '') + sh(x.name, 16), c: 'sn:r:' + x.id })), 3).forEach(r => kb.push(r));
   kb.push([{ t: '◀️', c: 'sn:rp:' + Math.max(0, S.rp - 1) }, { t: (S.rp + 1) + '/' + pages, c: 'sn:rp:' + S.rp }, { t: '▶️', c: 'sn:rp:' + Math.min(pages - 1, S.rp + 1) }]);
-  kb.push([{ t: '✔️ التالي (' + (S.regs.length ? S.regs.length + ' محافظة' : 'كل العراق') + ')', c: 'sn:rn' }, back('obj')]);
+  kb.push([{ t: '✔️ التالي (' + (S.regs.length ? S.regs.length + ' محافظة' : 'كل العراق') + ')', c: 'sn:rn' }, back()]);
   return done(head('اختر المحافظات') + 'الهدف: ' + OBJ[S.obj][1] + '\nدوس على المحافظة تحدد/تلغي. إذا ما اخترت شي = كل العراق.', kb);
 }
 if (S.st === 'age') {
-  const kb = [Object.keys(AGES).slice(0, 2).map(k => ({ t: (S.ages.indexOf(k) >= 0 ? '✅ ' : '') + AGES[k], c: 'sn:a:' + k })), Object.keys(AGES).slice(2).map(k => ({ t: (S.ages.indexOf(k) >= 0 ? '✅ ' : '') + AGES[k], c: 'sn:a:' + k })),
-    [{ t: (S.ages.length ? '' : '✅ ') + 'كل الأعمار (18+)', c: 'sn:aa' }], [{ t: '✔️ التالي', c: 'sn:an' }, back('reg')]];
-  return done(head('اختر الفئات العمرية') + 'تقدر تختار أكثر من فئة. حدود الأعمار حسب تعريف سناب (غير مؤكدة من توثيقه).', kb);
+  if (!S.amin) {
+    const kb = chunk(AGE_FROM.map(n => ({ t: n + '', c: 'sn:af:' + n })), 3); kb.push([{ t: 'كل الأعمار (18+)', c: 'sn:aa' }]); kb.push([back()]);
+    return done(head('العمر: من أي عمر؟') + 'اختر الحد الأدنى للعمر. بعدها تختار الحد الأعلى.', kb);
+  }
+  const kb = chunk(AGE_TO.filter(n => n > S.amin).map(n => ({ t: 'إلى ' + n, c: 'sn:at:' + n })), 3); kb.push([{ t: 'فما فوق (بدون حد أعلى)', c: 'sn:at:0' }]); kb.push([{ t: '⬅️ غيّر الحد الأدنى', c: 'sn:af0' }]);
+  return done(head('العمر: من ' + S.amin + ' إلى؟') + 'اختر الحد الأعلى للعمر.', kb);
 }
 if (S.st === 'gen') {
-  const kb = [Object.keys(GEN).map(k => ({ t: (S.gen === k ? '✅ ' : '') + GEN[k], c: 'sn:g:' + k })), [back('age')]];
+  const kb = [Object.keys(GEN).map(k => ({ t: (S.gen === k ? '✅ ' : '') + GEN[k], c: 'sn:g:' + k })), [back()]];
   return done(head('اختر الجنس'), kb);
 }
 if (S.st === 'lng') {
-  const ks = Object.keys(LNG); const kb = chunk(ks.map(k => ({ t: (S.lng === k ? '✅ ' : '') + LNG[k], c: 'sn:l:' + k })), 2); kb.push([back('gen')]);
+  const ks = Object.keys(LNG); const kb = chunk(ks.map(k => ({ t: (S.lng === k ? '✅ ' : '') + LNG[k], c: 'sn:l:' + k })), 2); kb.push([back()]);
   return done(head('اختر لغة الجمهور') + 'ملاحظة: قائمة اللغات من عندنا (سناب ما سمح بقراءتها من حسابنا)، والرموز غير مؤكدة.', kb);
 }
 if (S.st === 'int') {
-  const L = interestList(); if (!L) return done(head('الاهتمامات') + errText(R.ints), [[back('lng')]]);
+  const L = interestList(); if (!L) return done(head('الاهتمامات') + errText(R.ints), [[back()]]);
   const PER = 12, pages = Math.max(1, Math.ceil(L.length / PER)); S.ip = Math.min(Math.max(0, S.ip), pages - 1);
   const part = L.slice(S.ip * PER, S.ip * PER + PER);
   const kb = []; chunk(part.map(x => ({ t: (S.ints.indexOf(x.id) >= 0 ? '✅ ' : '') + sh(x.name, 18), c: 'sn:i:' + x.id.toLowerCase() })), 3).forEach(r => kb.push(r));
   kb.push([{ t: '◀️', c: 'sn:ip:' + Math.max(0, S.ip - 1) }, { t: (S.ip + 1) + '/' + pages, c: 'sn:ip:' + S.ip }, { t: '▶️', c: 'sn:ip:' + Math.min(pages - 1, S.ip + 1) }]);
-  kb.push([{ t: '🗑️ مسح', c: 'sn:ic' }, { t: '✔️ التالي (' + S.ints.length + ')', c: 'sn:in' }, back('lng')]);
+  kb.push([{ t: '🗑️ مسح', c: 'sn:ic' }, { t: '✔️ التالي (' + S.ints.length + ')', c: 'sn:in' }, back()]);
   return done(head('اختر الاهتمامات (حتى 10)') + 'الاهتمامات من قائمة سناب للعراق (' + L.length + ' اهتمام). بدون اختيار = كل الاهتمامات.', kb);
-}
-const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
-const FR = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '', obj0: '' };
-const STG = { account: 'قراءة الحساب', campaign: 'إنشاء الحملة', adsquad: 'إنشاء المجموعة الإعلانية' };
-if (P.go) {
-  if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع', c: 'sn:b:sum' }]]);
-  const r = R.go || {}, dd = r.data || {}, a = accOf();
-  if (r.ok) {
-    const L = ['✅ انرفعت مسودة حملة سناب شات (متوقفة)', LINE, '📣 الحملة: ' + (P.goName || ''), '🆔 رقم الحملة: ' + dd.campaign_id, '🆔 رقم المجموعة الإعلانية: ' + dd.adsquad_id,
-      '💰 الميزانية: ' + fnum(S.bud) + ' ' + (dd.currency || (a && a.cur) || '') + ' (إجمالية)', '📅 من ' + String(dd.start_time || '').slice(0, 16).replace('T', ' ') + ' إلى ' + String(dd.end_time || '').slice(0, 16).replace('T', ' '),
-      '⏸️ الحالة: متوقفة، ما فيه صرف لين تفعّلها.',
-      ...(S.obj0 && OBJ[S.obj0] ? ['🎯 هدف الرفع الفعلي: زيارات (سحبات) بدل «' + OBJ[S.obj0][1] + '» (هدفه الحقيقي يحتاج إعدادات إضافية)'] : []), '', '⚠️ الإعلان (الصورة/الفيديو) ما انضاف بعد. أضفه من Snap Ads Manager حتى تشتغل الحملة.'];
-    Object.keys(FR).forEach(k => { S[k] = FR[k]; });
-    return done(L.join('\n'), [[{ t: '🔁 حملة جديدة', c: 'sn:s' }, { t: '🏠 الرئيسية', c: 'h' }]]);
-  }
-  const L = ['❌ ما انرفعت الحملة (المرحلة: ' + (STG[dd.stage] || dd.stage || '؟') + ')', LINE, String((r.error && (r.error.message || r.error.class)) || 'خطأ غير معروف من سناب').slice(0, 600)];
-  if (dd.campaign_id) L.push('', '⚠️ الحملة (متوقفة) انعملت برقم ' + dd.campaign_id + ' والمجموعة ما انعملت. احذف الحملة من Snap Ads Manager إذا ما تريدها.');
-  return done(L.join('\n'), [[{ t: '⬅️ رجوع للملخص', c: 'sn:b:sum' }, { t: '🏠 الرئيسية', c: 'h' }]]);
-}
-if (P.linkBad) return done(head('الرابط') + '⚠️ الرابط غير صالح. لازم يبدأ بـ https:// ، مثال:\n/snaplink https://example.com', [[{ t: '⬅️ رجوع', c: 'sn:b:dur' }]]);
-if (S.st === 'acct') {
-  const A = P.accts || []; const kb = A.slice(0, 6).map(x => [{ t: sh(x.name || x.id.slice(0, 8), 26) + (x.cur ? ' (' + x.cur + ')' : ''), c: 'sn:ac:' + x.id }]); kb.push([back('int')]);
-  return done(head('اختر الحساب الإعلاني') + 'الحسابات المربوطة بسناب:', kb);
 }
 if (S.st === 'bud') {
   const a = accOf(); const cur = a ? a.cur : ''; const L = BUDS[cur] || BUD_DEF;
-  const kb = chunk(L.map(v => ({ t: (S.bud === v ? '✅ ' : '') + fnum(v) + ' ' + cur, c: 'sn:bu:' + v })), 3); kb.push([back(ACCS_N() > 1 ? 'acct' : 'int')]);
+  const kb = chunk(L.map(v => ({ t: (S.bud === v ? '✅ ' : '') + fnum(v) + ' ' + cur, c: 'sn:bu:' + v })), 3); kb.push([back()]);
   return done(head('اختر الميزانية') + 'الحساب: ' + (a ? a.name : '') + '\nالميزانية إجمالية للحملة كلها (مو يومية)، بعملة الحساب: ' + cur + '.', kb);
 }
 if (S.st === 'dur') {
-  const kb = chunk(DURS.map(v => ({ t: (S.days === v ? '✅ ' : '') + v + (v === 1 ? ' يوم' : ' أيام'), c: 'sn:du:' + v })), 3); kb.push([back('bud')]);
+  const kb = chunk(DURS.map(v => ({ t: (S.days === v ? '✅ ' : '') + v + (v === 1 ? ' يوم' : ' أيام'), c: 'sn:du:' + v })), 3); kb.push([back()]);
   return done(head('اختر مدة الحملة') + 'تبدأ بعد 15 دقيقة تقريباً من الرفع (بتوقيت الحساب)، لكن تبقى متوقفة لين تفعّلها.', kb);
 }
-if (S.st === 'url') {
-  const kb = [[back('dur')]]; if (S.url) kb.unshift([{ t: '✔️ استخدم الرابط الحالي', c: 'sn:b:sum' }]);
-  return done(head('رابط الوجهة') + 'أرسل رابط الوجهة (https) بهالأمر:\n/snaplink https://...\n' + (S.url ? '\nالرابط الحالي: ' + sh(S.url, 80) : '') + '\nبعدها أرجع لك الملخص.', kb);
+if (S.st === 'vid') {
+  const kb = []; if (S.vid) kb.push([{ t: '✔️ التالي', c: 'sn:vn' }]); kb.push([back()]);
+  const msg = P.vidBig ? '⚠️ الملف أكبر من 20MB (حد تلغرام للبوتات). صغّره أو اقصّ الفيديو وارسله من جديد.\n\n' : (P.vidBad ? '⚠️ ما استلمت فيديو. أرسل الفيديو كملف (📎 ← فيديو) مو كنص.\n\n' : '');
+  return done(head('أرسل الفيديو') + msg + '🎬 أرسل فيديو الإعلان هنا كملف (فيديو mp4، حد 20MB، الأفضل عمودي 9:16).\n' + (S.vid ? '\n✅ استلمت الفيديو' + (S.vnm ? ' (' + S.vnm + ')' : '') + '. دوس «التالي» أو أرسل فيديو ثاني يستبدله.' : '\nالفيديو إلزامي قبل الرفع.'), kb);
+}
+if (S.st === 'txt') {
+  const needUrl = S.obj === 'sal' || S.obj === 'trf';
+  const kb = []; if (needUrl) chunk(Object.keys(CTAS).map(k => ({ t: (S.cta === k ? '✅ ' : '') + CTAS[k], c: 'sn:ct:' + k.toLowerCase() })), 3).forEach(r => kb.push(r));
+  kb.push([{ t: '✔️ التالي', c: 'sn:tn' }, back()]);
+  const note = P.hdlOk ? '✅ انحفظ العنوان.\n\n' : (P.hdlBad ? '⚠️ العنوان لازم يكون حتى 34 حرف وبدون رموز غريبة.\n\n' : '');
+  return done(head('عنوان الإعلان' + (needUrl ? ' وزر الإجراء' : '')) + note + 'أرسل عنوان الإعلان كرسالة عادية (حتى 34 حرف)، أو دوس «التالي» وأستعمل اسم الحملة.\n' + (S.hdl ? '\nالعنوان الحالي: ' + S.hdl : '') + (needUrl ? '\nزر الإجراء: ' + CTAS[S.cta] : ''), kb);
 }
 // summary
 const RL = regionList() || [], IL = interestList() || [];
 const rn = S.regs.length ? S.regs.map(id => { const x = RL.find(r => r.id === id); return x ? x.name : id; }).join('، ') : 'كل العراق';
 const inn = S.ints.length ? S.ints.map(id => { const x = IL.find(r => r.id === id); return x ? x.name : id; }).join('، ') : 'كل الاهتمامات';
-const L = [head('ملخص الاستهداف').trimEnd(), '',
-  '🎯 الهدف: ' + OBJ[S.obj][1] + (S.obj0 && OBJ[S.obj0] ? ' (بدل «' + OBJ[S.obj0][1] + '»)' : ''), '📍 المحافظات: ' + rn, '🎂 العمر: ' + (S.ages.length ? S.ages.map(k => AGES[k]).join('، ') : 'كل الأعمار (18+)'), '🚻 الجنس: ' + GEN[S.gen], '🗣️ اللغة: ' + (LNG[S.lng] || S.lng), '❤️ الاهتمامات: ' + inn, '',
-  '🏢 الحساب: ' + (accOf() ? accOf().name + ' (' + accOf().cur + ')' : 'غير محدد'), '💰 الميزانية: ' + (S.bud ? S.bud + ' ' + ((accOf() && accOf().cur) || '') + ' (إجمالية)' : 'غير محددة'), '📅 المدة: ' + (S.days ? S.days + (S.days === 1 ? ' يوم' : ' أيام') : 'غير محددة'), '🔗 الرابط: ' + (S.url ? sh(S.url, 60) : 'غير محدد'), '',
-  OBJ_OK[S.obj] ? '⏸️ تنرفع كمسودة متوقفة (بدون إعلان).' : ('⚠️ هدف «' + OBJ[S.obj][1] + '» الحقيقي بسناب يحتاج إعدادات إضافية (بكسل الموقع أو أصول ثانية) وما انبنى بعد.\nتقدر ترفعها كمسودة متوقفة بهدف «زيارات» (سحبات) بدالها، والنظام يكتب هذا بصراحة بالنتيجة.')];
-const ready = OBJ_OK[S.obj] && accOf() && S.bud && S.days && S.url;
-const kbS = []; if (ready) kbS.push([{ t: '🚀 رفع كمسودة متوقفة', c: 'sn:go' }]);
-else if (!OBJ_OK[S.obj] && accOf() && S.bud && S.days && S.url) kbS.push([{ t: '🔗 ارفع بهدف زيارات (سحبات)', c: 'sn:gt' }]);
-kbS.push([{ t: '🔁 من جديد', c: 'sn:s' }, { t: '✏️ الاهتمامات', c: 'sn:b:int' }], [{ t: '🏠 الرئيسية', c: 'h' }]);
+const needUrl2 = S.obj === 'sal' || S.obj === 'trf';
+const L = [head('ملخص الحملة').trimEnd(), '',
+  '🎯 الهدف: ' + OBJ[S.obj][1], '🏢 الحساب: ' + (accOf() ? accOf().name + ' (' + accOf().cur + ')' : 'غير محدد'),
+  ...(S.obj === 'sal' ? ['🧩 البكسل: ' + (S.pix ? S.pix.slice(0, 8) + '…' : 'غير محدد')] : []), ...(needUrl2 ? ['🔗 الرابط: ' + (S.url ? sh(S.url, 60) : 'غير محدد')] : []),
+  '📍 المحافظات: ' + rn, '🎂 العمر: ' + ageTxt(S), '🚻 الجنس: ' + GEN[S.gen], '🗣️ اللغة: ' + (LNG[S.lng] || S.lng), '❤️ الاهتمامات: ' + inn, '',
+  '💰 الميزانية: ' + (S.bud ? S.bud + ' ' + ((accOf() && accOf().cur) || '') + ' (إجمالية)' : 'غير محددة'), '📅 المدة: ' + (S.days ? S.days + (S.days === 1 ? ' يوم' : ' أيام') : 'غير محددة'),
+  '🎬 الفيديو: ' + (S.vid ? '✅ جاهز' + (S.vnm ? ' (' + S.vnm + ')' : '') : '❌ ناقص'), '📝 العنوان: ' + (S.hdl || 'اسم الحملة') + (needUrl2 ? ' | الزر: ' + CTAS[S.cta] : ''), '',
+  '⏸️ تنرفع كحملة كاملة (حملة + مجموعة + إعلان) بحالة متوقفة، وما يصرف شي لين تفعّلها.'];
+const ready = accOf() && S.bud && S.days && S.vid && (!needUrl2 || S.url) && (S.obj !== 'sal' || S.pix);
+const kbS = []; if (ready) kbS.push([{ t: '🚀 رفع كحملة متوقفة', c: 'sn:go' }]);
+kbS.push([{ t: '🔁 من جديد', c: 'sn:s' }, { t: '🎬 الفيديو', c: 'sn:b:vid' }, { t: '✏️ الاهتمامات', c: 'sn:b:int' }], [{ t: '🏠 الرئيسية', c: 'h' }]);
 return done(L.join('\n'), kbS);
 """
 

@@ -59,6 +59,12 @@ def clean(params: dict):
     a = params.get("ages", [])
     if not isinstance(a, list) or not all(x in AGE_GROUPS for x in a): return None, "ages غير صالحة"
     p["ages"] = list(dict.fromkeys(a))
+    mn, mx = params.get("min_age"), params.get("max_age")
+    for v in (mn, mx):
+        if v is not None and (isinstance(v, bool) or not isinstance(v, int) or not (13 <= v <= 50)): return None, "min_age/max_age أرقام 13..50"
+    if mn is not None and mx is not None and mx < mn: return None, "max_age أصغر من min_age"
+    if (mn is not None or mx is not None) and p["ages"]: return None, "ages أو min_age/max_age (مو الاثنين)"
+    p["min_age"], p["max_age"] = mn, mx
     g = params.get("gender", "a")
     if g not in ("a", "m", "f"): return None, "gender: a|m|f"
     p["gender"] = g
@@ -103,6 +109,8 @@ def targeting(p: dict) -> dict:
     t = {"geos": [geo]}
     demo = {}
     if p["ages"]: demo["age_groups"] = list(p["ages"])
+    if p.get("min_age") is not None: demo["min_age"] = str(p["min_age"])      # عمر من → إلى (سناب: نصوص). بدون max_age = بدون حد أعلى
+    if p.get("max_age") is not None: demo["max_age"] = str(p["max_age"])
     if p["gender"] in GENDERS: demo["gender"] = GENDERS[p["gender"]]
     if p["lang"]: demo["languages"] = [p["lang"]]
     if demo: t["demographics"] = [demo]
@@ -228,7 +236,12 @@ async def attach_ad(svc, ctx, acct, p, squad_id, idem, made, org_id=None):
     pid = p["profile_id"]
     if not pid:
         last = ""
-        for op_name, oid in (("snapchat.profiles_org", org_id), ("snapchat.profiles_acct", acct)):   # من المنظمة أولاً ثم من الحساب الإعلاني
+        d, f = await _call(svc, ctx, "snapchat.creatives_list", {"oid": acct, "limit": 100}, idem + "-q", "profile")     # أضمن مسار: بروفايل مستعمل بتصميم سابق بنفس الحساب
+        if not f:
+            for x in ((d or {}).get("creatives") or []):
+                v = str((((x or {}).get("creative") or {}).get("profile_properties") or {}).get("profile_id") or "")
+                if UUID_RE.fullmatch(v): pid = v; break
+        for op_name, oid in (() if pid else (("snapchat.profiles_org", org_id), ("snapchat.profiles_acct", acct))):   # من المنظمة أولاً ثم من الحساب الإعلاني
             if not oid: continue
             d, f = await _call(svc, ctx, op_name, {"oid": oid}, idem + "-p", "profile")
             if f: last = f[1]["error"]["message"]; continue
