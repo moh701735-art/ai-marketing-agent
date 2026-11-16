@@ -34,7 +34,7 @@ const isCb = !!d.cb;
 const base = { ctx: d.ctx, chatId: d.chatId, edit: isCb, linked: accts.length > 0, items: 0, accts: ACCS };
 const isLink = !isCb && String(d.cmd || '') === 'snaplink';
 const p = isCb ? String(d.cb).split(':') : (isLink ? ['sn', 'lk'] : ['sn', 's']); const op = p[1] || 's', arg = p.slice(2).join(':');
-const fresh = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '' };
+const fresh = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '', obj0: '' };
 let S = (S0 && typeof S0 === 'object' && !Array.isArray(S0)) ? { ...fresh, ...S0 } : { ...fresh };
 if (!Array.isArray(S.regs)) S.regs = []; if (!Array.isArray(S.ages)) S.ages = []; if (!Array.isArray(S.ints)) S.ints = [];
 const tog = (arr, v, max) => { const i = arr.indexOf(v); if (i >= 0) { arr.splice(i, 1); return arr; } if (arr.length < max) arr.push(v); return arr; };
@@ -59,6 +59,7 @@ else if (op === 'bu') { const a = ACCS.find(x => x.id === S.acct); const L = (a 
 else if (op === 'du') { if (DURS.indexOf(num(arg)) >= 0) { S.days = num(arg); S.st = 'url'; } }
 else if (op === 'lk') { const m = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(String(d.args || '')); if (m) { S.url = m[0]; S.st = 'sum'; base.linkOk = true; } else base.linkBad = true; }
 else if (op === 'go') { S.st = 'sum'; base.go = true; }
+else if (op === 'gt') { if (OBJ[S.obj] && !OBJ_OK[S.obj]) { S.obj0 = S.obj; S.obj = 'trf'; } S.st = 'sum'; base.go = true; }
 else if (op === 'b') { if (STEPS.indexOf(arg) >= 0) S.st = arg; }
 if (!OBJ[S.obj] && S.st !== 'obj') S.st = 'obj';
 if (S.st === 'acct' && ACCS.length === 1) { S.acct = ACCS[0].id; S.st = 'bud'; }
@@ -137,7 +138,7 @@ if (S.st === 'int') {
   return done(head('اختر الاهتمامات (حتى 10)') + 'الاهتمامات من قائمة سناب للعراق (' + L.length + ' اهتمام). بدون اختيار = كل الاهتمامات.', kb);
 }
 const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
-const FR = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '' };
+const FR = { st: 'obj', obj: '', regs: [], ages: [], gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', bud: 0, days: 0, url: '', obj0: '' };
 const STG = { account: 'قراءة الحساب', campaign: 'إنشاء الحملة', adsquad: 'إنشاء المجموعة الإعلانية' };
 if (P.go) {
   if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع', c: 'sn:b:sum' }]]);
@@ -145,7 +146,8 @@ if (P.go) {
   if (r.ok) {
     const L = ['✅ انرفعت مسودة حملة سناب شات (متوقفة)', LINE, '📣 الحملة: ' + (P.goName || ''), '🆔 رقم الحملة: ' + dd.campaign_id, '🆔 رقم المجموعة الإعلانية: ' + dd.adsquad_id,
       '💰 الميزانية: ' + fnum(S.bud) + ' ' + (dd.currency || (a && a.cur) || '') + ' (إجمالية)', '📅 من ' + String(dd.start_time || '').slice(0, 16).replace('T', ' ') + ' إلى ' + String(dd.end_time || '').slice(0, 16).replace('T', ' '),
-      '⏸️ الحالة: متوقفة، ما فيه صرف لين تفعّلها.', '', '⚠️ الإعلان (الصورة/الفيديو) ما انضاف بعد. أضفه من Snap Ads Manager حتى تشتغل الحملة.'];
+      '⏸️ الحالة: متوقفة، ما فيه صرف لين تفعّلها.',
+      ...(S.obj0 && OBJ[S.obj0] ? ['🎯 هدف الرفع الفعلي: زيارات (سحبات) بدل «' + OBJ[S.obj0][1] + '» (هدفه الحقيقي يحتاج إعدادات إضافية)'] : []), '', '⚠️ الإعلان (الصورة/الفيديو) ما انضاف بعد. أضفه من Snap Ads Manager حتى تشتغل الحملة.'];
     Object.keys(FR).forEach(k => { S[k] = FR[k]; });
     return done(L.join('\n'), [[{ t: '🔁 حملة جديدة', c: 'sn:s' }, { t: '🏠 الرئيسية', c: 'h' }]]);
   }
@@ -176,11 +178,12 @@ const RL = regionList() || [], IL = interestList() || [];
 const rn = S.regs.length ? S.regs.map(id => { const x = RL.find(r => r.id === id); return x ? x.name : id; }).join('، ') : 'كل العراق';
 const inn = S.ints.length ? S.ints.map(id => { const x = IL.find(r => r.id === id); return x ? x.name : id; }).join('، ') : 'كل الاهتمامات';
 const L = [head('ملخص الاستهداف').trimEnd(), '',
-  '🎯 الهدف: ' + OBJ[S.obj][1], '📍 المحافظات: ' + rn, '🎂 العمر: ' + (S.ages.length ? S.ages.map(k => AGES[k]).join('، ') : 'كل الأعمار (18+)'), '🚻 الجنس: ' + GEN[S.gen], '🗣️ اللغة: ' + (LNG[S.lng] || S.lng), '❤️ الاهتمامات: ' + inn, '',
+  '🎯 الهدف: ' + OBJ[S.obj][1] + (S.obj0 && OBJ[S.obj0] ? ' (بدل «' + OBJ[S.obj0][1] + '»)' : ''), '📍 المحافظات: ' + rn, '🎂 العمر: ' + (S.ages.length ? S.ages.map(k => AGES[k]).join('، ') : 'كل الأعمار (18+)'), '🚻 الجنس: ' + GEN[S.gen], '🗣️ اللغة: ' + (LNG[S.lng] || S.lng), '❤️ الاهتمامات: ' + inn, '',
   '🏢 الحساب: ' + (accOf() ? accOf().name + ' (' + accOf().cur + ')' : 'غير محدد'), '💰 الميزانية: ' + (S.bud ? S.bud + ' ' + ((accOf() && accOf().cur) || '') + ' (إجمالية)' : 'غير محددة'), '📅 المدة: ' + (S.days ? S.days + (S.days === 1 ? ' يوم' : ' أيام') : 'غير محددة'), '🔗 الرابط: ' + (S.url ? sh(S.url, 60) : 'غير محدد'), '',
-  OBJ_OK[S.obj] ? '⏸️ تنرفع كمسودة متوقفة (بدون إعلان).' : '⚠️ الرفع متاح حالياً لهدف «زيارات» فقط. غيّر الهدف أو استعمل هذا كمعاينة استهداف.'];
+  OBJ_OK[S.obj] ? '⏸️ تنرفع كمسودة متوقفة (بدون إعلان).' : ('⚠️ هدف «' + OBJ[S.obj][1] + '» الحقيقي بسناب يحتاج إعدادات إضافية (بكسل الموقع أو أصول ثانية) وما انبنى بعد.\nتقدر ترفعها كمسودة متوقفة بهدف «زيارات» (سحبات) بدالها، والنظام يكتب هذا بصراحة بالنتيجة.')];
 const ready = OBJ_OK[S.obj] && accOf() && S.bud && S.days && S.url;
 const kbS = []; if (ready) kbS.push([{ t: '🚀 رفع كمسودة متوقفة', c: 'sn:go' }]);
+else if (!OBJ_OK[S.obj] && accOf() && S.bud && S.days && S.url) kbS.push([{ t: '🔗 ارفع بهدف زيارات (سحبات)', c: 'sn:gt' }]);
 kbS.push([{ t: '🔁 من جديد', c: 'sn:s' }, { t: '✏️ الاهتمامات', c: 'sn:b:int' }], [{ t: '🏠 الرئيسية', c: 'h' }]);
 return done(L.join('\n'), kbS);
 """

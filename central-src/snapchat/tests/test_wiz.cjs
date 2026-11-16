@@ -68,7 +68,14 @@ ok('go failure honest', /ما انرفعت الحملة \(المرحلة: إنش
 ok('go failure keeps state (can retry)', r.S.url === 'https://t.me/+abc123' && r.S.bud === 20, r.S);
 // هدف غير مدعوم: ما يوصل للـbroker
 const Ssal = { ...S, obj: 'sal' }; r = step('sn:go', Ssal); ok('non-traffic go blocked before broker', r.plan[0].goErr && !r.plan[0].need && /زيارات/.test(r.out.text), r.out.text);
-r = run(D.render, { 'SN2: plan': run(D.plan, { Route: route('sn:b:sum') }, rows(Ssal)) }, [])[0]; ok('non-traffic summary hides go button + notes', !r.keyboard.flat().some(b => b.c === 'sn:go') && /زيارات.*فقط/.test(r.text), r.text);
+r = run(D.render, { 'SN2: plan': run(D.plan, { Route: route('sn:b:sum') }, rows(Ssal)) }, [])[0]; ok('non-traffic summary: no direct go, offers gt (traffic) button + honest note', !r.keyboard.flat().some(b => b.c === 'sn:go') && r.keyboard.flat().some(b => b.c === 'sn:gt') && /بكسل/.test(r.text) && /«زيارات» \(سحبات\)/.test(r.text), r.text);
+checkKb('sales summary', r);
+// sn:gt → launch as traffic, remembering original
+{ const g = step('sn:gt', Ssal, GOOD); ok('gt: go plan launches with objective trf', g.plan[0].k === 'go' && g.plan[0].params.objective === 'trf', g.plan[0].params);
+  ok('gt success text states real objective', /هدف الرفع الفعلي: زيارات \(سحبات\) بدل «مبيعات»/.test(g.out.text) && /انرفعت مسودة/.test(g.out.text), g.out.text); ok('gt success resets obj0', g.S.obj0 === '' && g.S.st === 'obj', g.S);
+  const gf = step('sn:gt', Ssal, { ok: false, error: { class: 'bad_request', message: 'x' }, data: { stage: 'campaign' } }); ok('gt failure keeps objective trf/obj0 for retry', gf.S.obj === 'trf' && gf.S.obj0 === 'sal' && /ما انرفعت/.test(gf.out.text), gf.S);
+  const gs = run(D.render, { 'SN2: plan': run(D.plan, { Route: route('sn:b:sum') }, rows({ ...gf.S, obj: 'trf', obj0: 'sal' })) }, [])[0]; ok('summary after gt shows both', /الهدف: زيارات \(بدل «مبيعات»\)/.test(gs.text) && gs.keyboard.flat().some(b => b.c === 'sn:go'), gs.text);
+  const gi = step('sn:gt', { ...Ssal, bud: 0 }); ok('gt with missing info does not launch', !gi.plan[0].need && /ناقصة معلومات/.test(gi.out.text) || gi.plan[0].goErr, gi.out.text); }
 // ناقصة معلومات
 r = step('sn:go', { ...S, bud: 0 }); ok('missing info blocked', /ناقصة معلومات/.test(r.out.text) && !r.plan[0].need, r.out.text);
 // حسابين: شاشة الحساب
