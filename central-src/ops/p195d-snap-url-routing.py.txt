@@ -1,0 +1,35 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'SNU' in s and "sn_url" in s: print('APPLY195D_OK changed=0'); sys.exit(0)
+fails = []
+# 1) استعلام حالة المعالجات: صف 'sn_url' لما يكون معالج سناب بخطوة الرابط (آخر 30 دقيقة)
+m1 = list(re.finditer(r"(-\s*300)(\s+ORDER BY 2)(\"\s*,)", s))
+if len(m1) != 1: fails.append("wzs SQL anchor ('- 300 ORDER BY 2') count=%d; lines: %s" % (len(m1), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'sa_name' in l)[:600]))
+# 2) تعريف SNU بعد تعريف SAN
+m2 = list(re.finditer(r"(?m)^([ \t]*)(const SAN = [^\n]*;)[ \t]*$", s))
+if len(m2) != 1: fails.append("SAN definition anchor count=%d; lines: %s" % (len(m2), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'const SAN' in l)[:600]))
+# 3) قاعدة التوجيه بعد قاعدة SAN
+m3 = list(re.finditer(r"if \(SAN && !SAN\.startsWith\('/'\) && cmd !== 'wiz'\) \{ cmd = 'audience'; args = SAN; \}", s))
+if len(m3) != 1: fails.append("SAN routing rule anchor count=%d; lines: %s" % (len(m3), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'args = SAN' in l)[:600]))
+# 4) الخريطة لازم تحتوي snaplink (من p195b)
+if not re.search(r'\bsnaplink\s*:\s*35\b', s): fails.append('cmd map has no snaplink: 35 (apply p195b first)')
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+SQL_ADD = " UNION ALL SELECT 'sn_url', 3 FROM api.ui_get($1, 'sn:' || $2) WHERE (data::jsonb->>'st') = 'url' AND age_s < 1800"
+new = s
+# نطبّق من الأبعد للأقرب حتى ما تتحرك المواضع
+edits = sorted([(m3[0].end(), "\n" + m2[0].group(1) + "if (SNU && SNU.indexOf('http') === 0 && !SAN && cmd !== 'wiz') { cmd = 'snaplink'; args = SNU; }   // p195d: رابط عادي بخطوة رابط معالج سناب"),
+                (m2[0].end(), "\n" + m2[0].group(1) + "const SNU = (!d.cb && $input.all().some(i => i.json && String(i.json.step) === 'sn_url')) ? String(d.text || '').trim() : '';   // p195d"),
+                (m1[0].start(2), SQL_ADD)], reverse=True)
+for pos, txt in edits: new = new[:pos] + txt + new[pos:]
+# ORDER BY 2 يبقى بآخر الاستعلام: نتأكد إن SQL_ADD انحطت قبله
+if new.index(SQL_ADD) > new.index('ORDER BY 2', new.index("'sa_name'")): sys.exit('PATCH FAIL (nothing written): SQL insertion order')
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre195d'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre195d', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY195D_OK plain http(s) text at the Snapchat link step is routed to the wizard')
