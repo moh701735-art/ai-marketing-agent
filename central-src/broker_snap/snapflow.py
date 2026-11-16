@@ -7,7 +7,9 @@
 import datetime, json, re
 
 CAMPAIGN_FIELDS = {"objective_key": None}            # سناب v1: الحملة بدون هدف؛ الهدف يُحدَّد بمجموعة الإعلان (optimization_goal)
-GOALS = {"trf": "SWIPES"}                            # المرحلة الحالية: زيارات فقط (بقية الأهداف تحتاج بكسل/نموذج عملاء/رسائل)
+GOALS = {"trf": "SWIPES", "vid": "VIDEO_VIEWS", "sal": "PIXEL_PURCHASE"}   # زيارات، مشاهدات، مبيعات (بكسل). العملاء المحتملون لاحقاً (يحتاج نموذج)
+CTAS = ("MORE", "LEARN_MORE", "SHOP_NOW", "ORDER_NOW", "SIGN_UP", "BOOK_NOW", "WATCH", "VIEW", "VISIT")
+UUID_RE = re.compile(r"[0-9a-fA-F\-]{8,64}")
 AGE_GROUPS = ("18-20", "21-24", "25-34", "35+")
 GENDERS = {"m": "MALE", "f": "FEMALE"}
 LANGS = ("ar", "en", "ku")
@@ -36,14 +38,14 @@ async def _call(svc, ctx, op, prm, key, stage):
 def clean(params: dict):
     """يتحقق من مدخلات launch_draft ويرجع (p, خطأ)."""
     if not isinstance(params, dict): return None, "params لازم يكون كائن"
-    extra = set(params) - {"name", "objective", "budget", "days", "regions", "ages", "gender", "lang", "interests", "landing_url", "start_at"}
+    extra = set(params) - {"name", "objective", "budget", "days", "regions", "ages", "gender", "lang", "interests", "landing_url", "start_at", "pixel_id", "media_id", "file_id", "headline", "brand_name", "cta", "profile_id", "min_age", "max_age"}
     if extra: return None, "حقول غير مسموحة: " + ",".join(sorted(extra))[:100]
     p = {}
     nm = params.get("name"); 
     if not isinstance(nm, str) or not (1 <= len(nm.strip()) <= 200) or re.search(r"[\x00-\x1f]", nm): return None, "name مطلوب (1..200)"
     p["name"] = nm.strip()
     obj = params.get("objective", "trf")
-    if obj not in GOALS: return None, "الهدف غير مدعوم حالياً (المتاح: زيارات)"
+    if obj not in GOALS: return None, "الهدف غير مدعوم حالياً (المتاح: زيارات، مشاهدات، مبيعات)"
     p["objective"] = obj
     b = params.get("budget")
     if isinstance(b, bool) or not isinstance(b, (int, float)) or not (0 < b <= MAX_BUDGET_UNITS): return None, "budget مطلوب (أكبر من صفر)"
@@ -67,8 +69,28 @@ def clean(params: dict):
     if not isinstance(it, list) or len(it) > 10 or not all(isinstance(x, str) and SLC_RE.fullmatch(x) for x in it): return None, "interests: SLC_<رقم> حتى 10"
     p["interests"] = list(dict.fromkeys(it))
     u = params.get("landing_url")
-    if not isinstance(u, str) or not re.fullmatch(r"https://[^\s\x00-\x1f<>\"']{4,500}", u): return None, "landing_url رابط https مطلوب"
-    p["landing_url"] = u
+    if u is None and p["objective"] == "vid": p["landing_url"] = ""
+    elif not isinstance(u, str) or not re.fullmatch(r"https://[^\s\x00-\x1f<>\"']{4,500}", u): return None, "landing_url رابط https مطلوب"
+    else: p["landing_url"] = u
+    px = params.get("pixel_id")
+    if p["objective"] == "sal" and not (isinstance(px, str) and UUID_RE.fullmatch(px)): return None, "pixel_id مطلوب لهدف المبيعات"
+    if px not in (None, "") and not (isinstance(px, str) and UUID_RE.fullmatch(px)): return None, "pixel_id غير صالح"
+    p["pixel_id"] = px or ""
+    for k, mx in (("headline", 34), ("brand_name", 25)):
+        v = params.get(k, "")
+        if not isinstance(v, str) or len(v.strip()) > mx or re.search(r"[\x00-\x1f<>]", v): return None, "%s حتى %d حرف" % (k, mx)
+        p[k] = v.strip()
+    c = params.get("cta", "MORE")
+    if c not in CTAS: return None, "cta غير مدعوم"
+    p["cta"] = c
+    mid, fid = params.get("media_id"), params.get("file_id")
+    if mid is not None and not (isinstance(mid, str) and UUID_RE.fullmatch(mid)): return None, "media_id غير صالح"
+    if fid is not None and not (isinstance(fid, str) and re.fullmatch(r"[A-Za-z0-9_\-]{10,200}", fid)): return None, "file_id غير صالح"
+    if mid and fid: return None, "media_id أو file_id (مو الاثنين)"
+    p["media_id"], p["file_id"] = mid or "", fid or ""
+    pf = params.get("profile_id", "")
+    if pf and not (isinstance(pf, str) and UUID_RE.fullmatch(pf)): return None, "profile_id غير صالح"
+    p["profile_id"] = pf
     sa = params.get("start_at")
     if sa is not None and (not isinstance(sa, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*", sa)): return None, "start_at ISO"
     p["start_at"] = sa
@@ -124,7 +146,14 @@ def body(op_name: str, p: dict, account_id: str = "") -> dict:
              "start_time": p["start_time"], "targeting": json.loads(p["targeting_json"])}
         if p.get("end_time"): s["end_time"] = p["end_time"]
         s["daily_budget_micro" if p.get("budget_kind") == "daily" else "lifetime_budget_micro"] = int(p["budget_micro"])
+        if p.get("pixel_id"): s["pixel_id"] = p["pixel_id"]
         return {"adsquads": [s]}
+    if op_name == "snapchat.create_media":
+        return {"media": [{"name": p["name"], "type": "VIDEO", "ad_account_id": p.get("account_id") or account_id}]}
+    if op_name == "snapchat.create_creative":
+        c = json.loads(p["payload_json"]); c["ad_account_id"] = p.get("account_id") or account_id; return {"creatives": [c]}
+    if op_name == "snapchat.create_ad":
+        a = json.loads(p["payload_json"]); a["status"] = "PAUSED"; return {"ads": [a]}
     raise ValueError(op_name)
 
 
@@ -138,6 +167,89 @@ def first_result(data: dict, listkey: str, itemkey: str):
         return None, str(x.get("display_message") or x.get("debug_message") or x.get("sub_request_status"))[:300]
     i = (x.get(itemkey) or {}).get("id")
     return (str(i), None) if i else (None, "ما رجع id")
+
+
+def creative_body(p: dict, acct: str, media_id: str, profile_id: str) -> dict:
+    web = bool(p.get("landing_url"))
+    c = {"name": p["name"][:100], "type": "WEB_VIEW" if web else "SNAP_AD", "top_snap_media_id": media_id, "top_snap_crop_position": "MIDDLE",
+         "brand_name": (p.get("brand_name") or p["name"])[:25], "headline": (p.get("headline") or p["name"])[:34], "shareable": True,
+         "profile_properties": {"profile_id": profile_id}}
+    if web:
+        c["web_view_properties"] = {"url": p["landing_url"], "allow_snap_javascript_sdk": False, "use_immersive_mode": False, "deep_link_urls": []}
+        c["call_to_action"] = p.get("cta") or "MORE"
+    return c
+
+
+def ad_body(p: dict, squad_id: str, creative_id: str) -> dict:
+    return {"ad_squad_id": squad_id, "creative_id": creative_id, "name": p["name"][:100], "type": "REMOTE_WEBPAGE" if p.get("landing_url") else "SNAP_AD", "status": "PAUSED"}
+
+
+async def _snap_token_for(svc, ctx):
+    az = await svc.central.authorize(ctx, "snapchat", None, "write")
+    _, _, raw = await svc.store.open_latest(az["tenant_id"], az["secret_ref"])
+    return await svc._snap_token(az["tenant_id"], az["secret_ref"], raw)
+
+
+async def upload_video(svc, ctx, media_id: str, file_id: str):
+    """ينزّل الفيديو من تلغرام (svc._tg_download، حد 20MB) ويرفعه لسناب multipart ثم ينتظر READY. يرجع (None, خطأ-مرحلة) عند الفشل."""
+    blob, name = await svc._tg_download(ctx, file_id)
+    if blob is None: return "upload", (name or {}).get("message") or "telegram_download_failed"
+    try:
+        tok = await _snap_token_for(svc, ctx)
+        base = svc.s.base_urls["snapchat"].rstrip("/")
+        r = await svc.client.post(base + "/media/" + media_id + "/upload", headers={"Authorization": "Bearer " + tok},
+                                  files={"file": ((name or "video.mp4"), blob, "video/mp4")}, timeout=180.0)
+    except Exception as e:
+        return "upload", "snapchat_upload_failed:" + type(e).__name__
+    if r.status_code != 200: return "upload", ("snapchat_upload_http_%d: %s" % (r.status_code, (r.text or "")[:300]))
+    import asyncio
+    for _ in range(24):                      # حتى دقيقتين
+        st, env = await svc.call(ctx, "snapchat", "snapchat.media_get", "", {"oid": media_id}, None, internal=True)
+        m = (((env.get("data") or {}).get("media") or [{}])[0] or {}).get("media") or {}
+        if str(m.get("media_status", "")).upper() == "READY": return None, None
+        if str(m.get("media_status", "")).upper() in ("ERROR", "FAILED"): return "upload", "snapchat_media_status_" + str(m.get("media_status"))
+        await asyncio.sleep(5)
+    return "upload", "snapchat_media_not_ready_in_time"
+
+
+async def attach_ad(svc, ctx, acct, p, squad_id, idem, made, org_id=None):
+    """وسائط (موجودة أو ترفع من تلغرام) ← creative ← ad (متوقف). يرجع (None, None) عند النجاح أو (200,{ok:False}) فشل مرحلة."""
+    media_id = p["media_id"]
+    if not media_id:
+        d, f = await _call(svc, ctx, "snapchat.create_media", {"oid": acct, "account_id": acct, "name": (p["name"] + " video")[:100]}, idem + "-m", "media")
+        if f: return f
+        media_id, e = first_result(d, "media", "media")
+        if not media_id: return _fail("media", e or "no_media_id_returned", "bad_response", made)
+        made["media_id"] = media_id
+        stg, msg = await upload_video(svc, ctx, media_id, p["file_id"])
+        if stg: return _fail(stg, msg, "bad_response", made)
+    else:
+        made["media_id"] = media_id
+    pid = p["profile_id"]
+    if not pid:
+        last = ""
+        for op_name, oid in (("snapchat.profiles_org", org_id), ("snapchat.profiles_acct", acct)):   # من المنظمة أولاً ثم من الحساب الإعلاني
+            if not oid: continue
+            d, f = await _call(svc, ctx, op_name, {"oid": oid}, idem + "-p", "profile")
+            if f: last = f[1]["error"]["message"]; continue
+            arr = (d or {}).get("profiles") or []
+            pid = str((((arr[0] or {}).get("profile")) or {}).get("id") or "") if arr else ""
+            if pid: break
+        if not pid: return _fail("profile", "ما لقيت Public Profile بحساب سناب (مطلوب للإعلانات)" + (" — " + last if last else "") + ". أنشئه من Snap Ads Manager أو مرّر profile_id", "invalid_params", made)
+    made["profile_id"] = pid
+    cb = creative_body(p, acct, media_id, pid)
+    d, f = await _call(svc, ctx, "snapchat.create_creative", {"oid": acct, "account_id": acct, "payload_json": json.dumps(cb, ensure_ascii=False, separators=(",", ":"))}, idem + "-r", "creative")
+    if f: return f
+    crid, e = first_result(d, "creatives", "creative")
+    if not crid: return _fail("creative", e or "no_creative_id_returned", "bad_response", made)
+    made["creative_id"] = crid
+    ab = ad_body(p, squad_id, crid)
+    d, f = await _call(svc, ctx, "snapchat.create_ad", {"oid": squad_id, "payload_json": json.dumps(ab, ensure_ascii=False, separators=(",", ":"))}, idem + "-d", "ad")
+    if f: return f
+    adid, e = first_result(d, "ads", "ad")
+    if not adid: return _fail("ad", e or "no_ad_id_returned", "bad_response", made)
+    made["ad_id"] = adid; made["creative"] = "created"
+    return None
 
 
 async def launch_draft(svc, ctx: str, ad_account, params: dict, idem: str):
@@ -161,13 +273,19 @@ async def launch_draft(svc, ctx: str, ad_account, params: dict, idem: str):
     made["campaign_id"] = cid
     tj = json.dumps(targeting(p), ensure_ascii=False, separators=(",", ":"))
     sq, f = await _call(svc, ctx, "snapchat.create_adsquad", {"oid": cid, "campaign_id": cid, "name": p["name"], "status": "PAUSED", "start_time": st, "end_time": en, "goal": GOALS[p["objective"]],
-                                                              "budget_micro": int(round(p["budget"] * 1_000_000)), "targeting_json": tj}, idem + "-s", "adsquad")
+                                                              "budget_micro": int(round(p["budget"] * 1_000_000)), "targeting_json": tj, **({"pixel_id": p["pixel_id"]} if p["pixel_id"] else {})}, idem + "-s", "adsquad")
     if f:
         f[1].setdefault("data", {}).update(made)          # الحملة انعملت لكن المجموعة فشلت: نقول ذلك ونعطي معرّف الحملة
         return f
     sid, e = first_result(sq, "adsquads", "adsquad")
     if not sid: return _fail("adsquad", e or "no_adsquad_id_returned", "bad_response", made)
     made["adsquad_id"] = sid; made["creative"] = "missing"; made["stage"] = "adsquad"
+    if p["media_id"] or p["file_id"]:
+        f = await attach_ad(svc, ctx, acct, p, sid, idem, made, str(ad.get("organization_id") or ""))
+        if f:                                    # الحملة والمجموعة انعملت (متوقفة) لكن الإعلان فشل: نبلّغ بمرحلته ونعطي المعرّفات
+            d = f[1].setdefault("data", {}); stg = d.get("stage"); d.update({k: v for k, v in made.items() if k not in d}); d["stage"] = stg
+            return f
+        made["stage"] = "ad"
     return 200, {"ok": True, "data": made}
 
 
