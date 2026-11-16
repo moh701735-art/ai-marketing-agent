@@ -1,0 +1,23 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_readiness.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p196' in s: print('APPLY196_OK changed=0'); sys.exit(0)
+OPPAT = r"a\.platform === 'meta' \? 'meta\.read_account' : 'tiktok\.read_advertiser'"
+ops = list(re.finditer(OPPAT, s))
+if not ops:
+    sys.exit('PATCH FAIL (nothing written): readiness op ternary not found; lines: ' + ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if 'read_advertiser' in l)[:700])
+n = re.sub(OPPAT, "a.platform === 'meta' ? 'meta.read_account' : (a.platform === 'snapchat' ? 'snapchat.adaccount' : 'tiktok.read_advertiser')", s)
+# معاملات: بعد كل «a.platform === 'meta' ? {…} : {}» نضيف فرع سناب {oid: معرّف الحساب}
+PRM = r"(a\.platform === 'meta' \? \{[^{}]*\} : )\{\}"
+nprm = len(re.findall(PRM, n))
+n = re.sub(PRM, lambda m: m.group(1) + "(a.platform === 'snapchat' ? { oid: a.external_id } : {})   /* p196 */", n)
+if nprm < len(ops): print('NOTE: params ternary matched %d of %d op sites (check the others manually)' % (nprm, len(ops)))
+try: compile(n, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre196'); open(BASE + p, 'w', encoding='utf-8').write(n)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre196', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY196_OK op sites=%d params sites=%d (snapchat accounts are checked with snapchat.adaccount)' % (len(ops), nprm))
