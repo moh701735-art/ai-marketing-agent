@@ -1,0 +1,22 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p199' in s: print('APPLY199_OK changed=0'); sys.exit(0)
+PAT = re.compile(r"const budgetUsd = it\.budget, budgetApi = cur === 'IQD' \? \(iqdAmount \|\| Math\.ceil\(it\.budget \* FX\)\) : it\.budget;")
+ms = list(PAT.finditer(s))
+if len(ms) != 1:
+    sys.exit('PATCH FAIL (nothing written): budget statement anchor count=%d; lines: %s' % (len(ms), ' | '.join(ascii(l.strip()[:240]) for l in s.split('\n') if 'budgetApi' in l)[:700]))
+NEW = ("const usdMarked = /(\\$|دولار|usd|dollar)/i.test(typeof d !== 'undefined' ? String(d.text || '') : '');   /* p199: رقم بدون عملة بحساب دينار */\n"
+       "    const bareDinar = cur === 'IQD' && !iqdAmount && !usdMarked && it.budget >= 1000;\n"
+       "    if (cur === 'IQD' && !iqdAmount && !usdMarked && it.budget >= 100 && it.budget < 1000) return say('⚠️ كتبت الميزانية (' + it.budget + ') بدون عملة وهذا الحساب بالدينار. اكتب العملة صراحة: «' + it.budget + ' دولار» أو «' + it.budget + ' دينار» وأعد الطلب.');\n"
+       "    const budgetUsd = bareDinar ? Math.max(0.01, Math.round(it.budget / FX * 100) / 100) : it.budget, budgetApi = cur === 'IQD' ? (iqdAmount || (bareDinar ? Math.round(it.budget) : Math.ceil(it.budget * FX))) : it.budget;")
+new = s[:ms[0].start()] + NEW + s[ms[0].end():]
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre199'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre199', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY199_OK bare amounts on IQD accounts: >=1000 = dinar, 100-999 = ask for currency, <100 = dollars; explicit $/IQD unchanged')
