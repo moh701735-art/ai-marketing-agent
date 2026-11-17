@@ -1,0 +1,21 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_readiness.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p198' in s: print('APPLY198_OK changed=0'); sys.exit(0)
+PAT = re.compile(r"(\baccts\s*=\s*)f\.accounts\s*\|\|\s*\[\]")
+ms = list(PAT.finditer(s))
+if not (1 <= len(ms) <= 3):
+    sys.exit('PATCH FAIL (nothing written): accts anchor count=%d; lines: %s' % (len(ms), ' | '.join(ascii(l.strip()[:220]) for l in s.split('\n') if 'f.accounts' in l)[:700]))
+# يجب أن يكون feat معرّفاً قبلها بنفس التصريح
+bad = [m.start() for m in ms if 'feat' not in s[max(0, m.start() - 200):m.start()]]
+if bad: sys.exit('PATCH FAIL (nothing written): feat not defined before accts at %s' % bad)
+new = PAT.sub(lambda m: m.group(1) + "(f.accounts || []).filter(a => feat[a.platform] !== false) /* p198: منصة مطفّأة بـfeatures (false) ما تُفحص */", s)
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre198'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre198', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY198_OK sites=%d readiness checks skip ad accounts of platforms disabled (false) in tenant features' % len(ms))
