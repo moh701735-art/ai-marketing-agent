@@ -12,24 +12,31 @@ if ACCT and not re.fullmatch(r"[0-9]{6,25}", ACCT): sys.exit("bad SA_ACCT")
 if NAME and not re.fullmatch(r"[^'\"\;\x00-\x1f]{1,40}", NAME): sys.exit("bad SA_NAME")
 
 
-def psql(sql):
+def psql(sql, soft=False):
     r = subprocess.run(["docker", "exec", "-i", PG, "psql", "-U", "postgres", "-d", "central", "-At", "-F", "|", "-c", sql], capture_output=True, text=True)
-    if r.returncode: sys.exit("psql failed: " + r.stderr.strip()[-200:])
-    return [l for l in r.stdout.splitlines() if l]
+    if r.returncode:
+        if soft: return None, r.stderr.strip()[-300:]
+        sys.exit("psql failed: " + r.stderr.strip()[-200:])
+    rows = [l for l in r.stdout.splitlines() if l]
+    return (rows, None) if soft else rows
 
 
 tenants = psql("select slug, tenant_id from core.tenants order by slug") if SLUG == "all" else psql("select slug, tenant_id from core.tenants where slug='%s'" % SLUG)
 if not tenants: sys.exit("tenant not found")
-jobs = []
+jobs = []; skipped = []
 for row in tenants:
     slug, tid = row.split("|")
-    ctx = psql("select ctx from api.job_contexts_for_status(ARRAY['TESTING','NEEDS_REVIEW','READY'],100) where tenant_id='%s'" % tid)
-    if not ctx: continue
+    ctx, err = psql("select ctx from api.job_contexts_for_status(ARRAY['TESTING','NEEDS_REVIEW','READY'],100) where tenant_id='%s'" % tid, soft=True)
+    if err: skipped.append((slug, "ctx: " + err)); continue
+    if not ctx: skipped.append((slug, "no context")); continue
     q = "select external_id, coalesce(name,''), coalesce(currency,'') from api.list_ad_accounts('%s') where platform::text='tiktok' and enabled" % ctx[0]
     if NAME: q += " and name ilike '%%%s%%'" % NAME
     if ACCT: q += " and external_id='%s'" % ACCT
-    accts = [a.split("|") for a in psql(q)]
+    rows, err = psql(q, soft=True)
+    if err: skipped.append((slug, "list_ad_accounts: " + err.replace("\n", " ")[-220:])); continue
+    accts = [a.split("|") for a in rows]
     if accts: jobs.append({"slug": slug, "ctx": ctx[0], "accts": accts})
+for slug, why in skipped: print("⏭️ تخطّيت %s: %s" % (slug, why))
 if not jobs: sys.exit("no matching tiktok ad accounts")
 job = json.dumps({"host": BROKER_HOST, "jobs": jobs})
 PY = r'''
