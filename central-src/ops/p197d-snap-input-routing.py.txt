@@ -1,0 +1,35 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p197d' in s: print('APPLY197D_OK changed=0'); sys.exit(0)
+fails = []
+# 1) صف الحالة: sn_url ← sn_<الخطوة> لخطوات url/vid/txt (آخر 30 دقيقة)
+OLD_SQL = "SELECT 'sn_url', 3 FROM api.ui_get($1, 'sn:' || $2) WHERE (data::jsonb->>'st') = 'url' AND age_s < 1800"
+NEW_SQL = "SELECT 'sn_' || (data::jsonb->>'st'), 3 FROM api.ui_get($1, 'sn:' || $2) WHERE (data::jsonb->>'st') IN ('url', 'vid', 'txt') AND age_s < 1800"
+if s.count(OLD_SQL) != 1: fails.append("wzs sn_url SQL anchor count=%d (needs p195d); lines: %s" % (s.count(OLD_SQL), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'sn_url' in l)[:600]))
+# 2) تعريفا SNV و SNT بعد SNU + قاعدتا التوجيه بعد قاعدة SNU
+m_def = list(re.finditer(r"(?m)^([ \t]*)(const SNU = [^\n]*;)[^\n]*$", s))
+if len(m_def) != 1: fails.append("SNU definition anchor count=%d; lines: %s" % (len(m_def), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'const SNU' in l)[:600]))
+m_rule = list(re.finditer(r"(?m)^([ \t]*)if \(SNU && SNU\.indexOf\('http'\) === 0[^\n]*$", s))
+if len(m_rule) != 1: fails.append("SNU routing rule anchor count=%d; lines: %s" % (len(m_rule), ' | '.join(ascii(l.strip()[:260]) for l in s.split('\n') if 'SNU &&' in l)[:600]))
+# 3) خريطة الأوامر: snapin: 35 بجانب snaplink: 35
+m_map = list(re.finditer(r"\bsnaplink\s*:\s*35\b", s))
+if len(m_map) != 1: fails.append("cmd map snaplink:35 anchor count=%d" % len(m_map))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I = m_def[0].group(1)
+DEF = ("\n" + I + "const SNV = (!d.cb && $input.all().some(i => i.json && String(i.json.step) === 'sn_vid')); const SNT = (!d.cb && $input.all().some(i => i.json && String(i.json.step) === 'sn_txt'));   // p197d: معالج سناب ينتظر فيديو / عنوان")
+RULES = ("\n" + I + "if (SNV && !SAN && cmd !== 'wiz' && d.fileId) { cmd = 'snapin'; }   // p197d: ملف بخطوة الفيديو"
+         "\n" + I + "else if ((SNV || SNT) && !SAN && cmd !== 'wiz' && !d.fileId && String(d.text || '').trim() && !String(d.text || '').trim().startsWith('/')) { cmd = 'snapin'; args = String(d.text || '').trim(); }   // p197d: نص بخطوة الفيديو/العنوان")
+new = s
+edits = sorted([(m_rule[0].end(), RULES), (m_def[0].end(), DEF), (m_map[0].end(), ", snapin: 35")], reverse=True)
+for pos, txt in edits: new = new[:pos] + txt + new[pos:]
+new = new.replace(OLD_SQL, NEW_SQL)   # بعد الإدخالات حتى ما تتحرك المواضع
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre197d'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre197d', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY197D_OK ingress routes video file / text at Snapchat wizard steps vid/txt (cmd snapin → output 35)')
