@@ -1,0 +1,37 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+fails = []; writes = []
+# ---- 1) Broker: سقف صارم لميزانية الإطلاق (يحمي كل المسارات حتى لو أخطأ النص). افتراضي 300$ ≈ 480000 بأي عملة، ويُرفع بمتغير BROKER_MAX_LAUNCH_USD
+ps = 'broker/app/spark.py'
+ss = open(BASE + ps, encoding='utf-8').read()
+BPAT = re.compile(r"(if isinstance\(b, bool\) or not isinstance\(b, \(int, float\)\) or not \(1 <= b <= )100_000_000(\):)")
+if 'BROKER_MAX_LAUNCH_USD' in ss: pass
+else:
+    mb = list(BPAT.finditer(ss))
+    if len(mb) != 1: fails.append('spark budget check anchor count=%d; lines: %s' % (len(mb), ' | '.join(ascii(l.strip()[:200]) for l in ss.split('\n') if '100_000_000' in l)[:500]))
+    else: writes.append((ps, ss, BPAT.sub(lambda m: m.group(1) + 'int(__import__("os").environ.get("BROKER_MAX_LAUNCH_USD", "1000")) * 1600' + m.group(2) + '   # p200: سقف الإطلاق (1000$ افتراضي × 1600)', ss)))
+# ---- 2) ingress: ميزانية > 300$ تحتاج كلمة «تأكيد» صريحة بالطلب
+pi = 'n8n/wf_ingress.py'
+si = open(BASE + pi, encoding='utf-8').read()
+if 'p200' in si: pass
+else:
+    IPAT = re.compile(r"(const budgetUsd = bareDinar \? [^\n]*: it\.budget;)")
+    mi = list(IPAT.finditer(si))
+    if len(mi) != 1: fails.append('ingress budget statement (needs p199) count=%d; lines: %s' % (len(mi), ' | '.join(ascii(l.strip()[:200]) for l in si.split('\n') if 'budgetApi' in l)[:500]))
+    else:
+        ind = '    '
+        INS = ("\n" + ind + "if (budgetUsd > 300 && !/(تأكيد|confirm)/i.test(typeof d !== 'undefined' ? String(d.text || '') : '')) return say('⚠️ الميزانية كبيرة: ' + (cur === 'IQD' ? Number(budgetApi).toLocaleString('en-US') + ' د.ع' : '$' + budgetApi) + ' (≈ $' + Math.round(budgetUsd) + '). للحماية ما أرفعها بدون تأكيد صريح. إذا هذا المبلغ صحيح أعد الطلب وأضف كلمة «تأكيد».');   /* p200: حماية مبلغ كبير */")
+        writes.append((pi, si, si[:mi[0].end()] + INS + si[mi[0].end():]))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+if not writes: print('APPLY200_OK changed=0'); sys.exit(0)
+for p, old, new in writes:
+    try: compile(new, p, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s %s' % (p, e))
+for p, old, new in writes:
+    shutil.copy(BASE + p, BASE + p + '.pre200'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        for p, old, new in writes: shutil.copy(BASE + p + '.pre200', BASE + p)
+        sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY200_OK changed=%d (Broker launch budget cap 1000 USD-equivalent (env BROKER_MAX_LAUNCH_USD); ingress needs the word "تأكيد" above $300)' % len(writes))
