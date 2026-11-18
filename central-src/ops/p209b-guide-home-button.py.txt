@@ -1,0 +1,20 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P209B_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+p = 'n8n/ui_pages.py'
+s = open(BASE + p, encoding='utf-8').read()
+if "c: 'gd:m'" in s: print('APPLY209B_OK changed=0 (already applied)'); sys.exit(0)
+pat = re.compile(r"(c:\s*'cl'\s*\},\s*\{\s*t:\s*'[^'\n]*',\s*c:\s*'hr'\s*\})(\s*\])")
+n = len(pat.findall(s))
+if n != 1:
+    ex = ' | '.join([ascii(l.strip()[:260]) for l in s.split('\n') if "c: 'cl'" in l][:3]) or 'none'
+    fail("home row anchor (cl + hr) count=%d; lines: %s" % (n, ex))
+new = pat.sub(lambda m: m.group(1) + ", { t: '\U0001F4D8 \u0627\u0644\u062f\u0644\u064a\u0644', c: 'gd:m' }" + m.group(2), s, count=1)
+try: compile(new, p, 'exec')
+except SyntaxError as e: fail('syntax: %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre209b'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre209b', BASE + p); sys.exit('PATCH FAIL: build failed, restored ui_pages: ' + r.stderr[-300:])
+print("APPLY209B_OK home keyboard row 1 now has the guide button (c: 'gd:m')")
