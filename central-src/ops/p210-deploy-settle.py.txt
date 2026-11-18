@@ -1,0 +1,51 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P210_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pf = 'deploy/update.sh'
+s = open(BASE + pf, encoding='utf-8').read(); s0 = s
+if 'p210' in s: print('APPLY210_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(kw, n=4): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# 1) after the n8n healthz loop: replace the fixed «sleep 8» by a real wait for the ingress webhook
+m1 = list(re.finditer(r'(?m)^(for i in \$\(seq 1 60\); do docker exec "\$\{COMPOSE_PROJECT_NAME\}-n8n" wget [^\n]*healthz[^\n]*done[ \t]*\n)sleep 8[ \t]*\n', s))
+if len(m1) != 1: FAILS.append('healthz loop + sleep 8 count=%d; healthz lines: %s; sleep lines: %s' % (len(m1), lw('healthz'), lw('sleep')))
+# 2) the readiness line
+m2 = list(re.finditer(r'(?m)^bash deploy/run-readiness\.sh </dev/null 2>&1 \| tail -6 \|\| true[ \t]*\n', s))
+if len(m2) != 1: FAILS.append('run-readiness line count=%d; lines: %s' % (len(m2), lw('run-readiness')))
+# 3) SLUGS must be defined before the readiness line and used by the existing webhook loop
+ms = list(re.finditer(r'(?m)^SLUGS=', s)); ml = list(re.finditer(r'(?m)^for slug in \$SLUGS; do', s))
+if len(ms) != 1 or len(ml) != 1: FAILS.append('SLUGS=%d / for slug in $SLUGS=%d; lines: %s' % (len(ms), len(ml), lw('SLUGS')))
+if FAILS: fail(' || '.join(FAILS))
+if not (ms[0].start() < m2[0].start()): fail('SLUGS defined after readiness line')
+B1 = '''# p210: wait until n8n REALLY serves the ingress webhook (workflows activated); healthz alone returns too early
+P210_OK=0
+for i in $(seq 1 60); do
+  if docker exec "${COMPOSE_PROJECT_NAME}-n8n" node -e "fetch('http://localhost:5678/webhook/tg-ingress').then(async r=>{const t=await r.text();process.exit(/Did you mean to make a POST/.test(t)?0:1)}).catch(()=>process.exit(1))" >/dev/null 2>&1; then P210_OK=1; echo "-- p210: ingress webhook registered after $((i*2))s"; break; fi
+  sleep 2
+done
+[ "$P210_OK" = 1 ] || echo "-- p210 WARN: ingress webhook not confirmed after 120s (continuing)"
+sleep 3
+'''
+B2 = '''RR=$(bash deploy/run-readiness.sh </dev/null 2>&1 || true)
+echo "$RR" | tail -6
+# p210: a deploy can leave a transient Telegram webhook error (R03 then fails for 15 min and the bot goes quiet).
+# Reset the webhook state once and re-check. Real failures stay NEEDS_REVIEW (every other check is re-run live).
+if echo "$RR" | grep -q "NEEDS_REVIEW"; then
+  echo "-- p210: NEEDS_REVIEW after deploy: settle 20s, reset webhooks, re-check once"
+  sleep 20
+  for slug in $SLUGS; do
+    bash deploy/set-webhook.sh "$slug" delete </dev/null >/dev/null 2>&1 || true
+    bash deploy/set-webhook.sh "$slug" set </dev/null 2>&1 | tail -1 | cut -c1-120 || echo "warning: webhook for $slug"
+  done
+  sleep 5
+  bash deploy/run-readiness.sh </dev/null 2>&1 | tail -6 || true
+fi
+'''
+edits = sorted([(m1[0].start(1) + len(m1[0].group(1)), m1[0].end(), B1), (m2[0].start(), m2[0].end(), B2)], key=lambda e: -e[0])
+for a, b, t in edits: s = s[:a] + t + s[b:]
+import subprocess
+open('/tmp/_p210_check.sh', 'w', encoding='utf-8').write(s)
+r = subprocess.run(['bash', '-n', '/tmp/_p210_check.sh'], capture_output=True, text=True)
+if r.returncode: fail('bash -n: ' + r.stderr[-200:])
+shutil.copy(BASE + pf, BASE + pf + '.pre210'); open(BASE + pf, 'w', encoding='utf-8').write(s)
+print('APPLY210_OK update.sh: waits for the real ingress webhook before setting webhooks; one automatic webhook-reset + re-check if NEEDS_REVIEW')
