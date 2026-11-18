@@ -1,0 +1,90 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P201C_BASE', '/opt/central/')
+NODB = bool(os.environ.get('P201C_NODB'))
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pf = 'n8n/wf_job_report.py'
+s = open(BASE + pf, encoding='utf-8').read(); s0 = s
+if 'p201c' in s: print('APPLY201C_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(kw, n=3): return ' | '.join([ascii(l.strip()[:230]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# 1) Accounts node: one extra UNION ALL row carrying the guard rules (api.watch_list) in the `name` column; plan ignores rows without external_id
+la = [l for l in s.split('\n') if re.match(r'\s*acc = pg\(w, ', l)]
+newline = None; accname = None
+if len(la) != 1: FAILS.append('acc line count=%d: %s' % (len(la), lw('acc = pg')))
+else:
+    mm = re.match(r'^(\s*acc = pg\(w, ")([^"]*)(", ")(SELECT .*? FROM api\.list_ad_accounts\(\$1\))(".*)$', la[0])
+    if not mm: FAILS.append('acc line shape unexpected: ' + ascii(la[0][:300]) + ' ... ' + ascii(la[0][-160:]))
+    else:
+        accname = mm.group(2); sql = mm.group(4)
+        k = sql.find(' FROM ')
+        sel = sql[len('SELECT '):k]
+        cols = []; depth = 0; q = False; cur = ''
+        for ch in sel:
+            if ch == "'": q = not q
+            if not q:
+                if ch == '(': depth += 1
+                elif ch == ')': depth -= 1
+                elif ch == ',' and depth == 0: cols.append(cur.strip()); cur = ''; continue
+            cur += ch
+        cols.append(cur.strip())
+        def alias(c):
+            m2 = re.search(r'\bAS\s+(\w+)\s*$', c, re.I)
+            if m2: return m2.group(1)
+            m3 = re.search(r'(\w+)\s*$', c); return m3.group(1) if m3 else c
+        al = [alias(c) for c in cols]
+        if 'external_id' not in al or 'name' not in al: FAILS.append('acc columns lack external_id/name: ' + ascii(al))
+        elif "~rules~" in sql: FAILS.append('acc already has rules row')
+        else:
+            RJ = "'~rules~' || coalesce((SELECT jsonb_agg(jsonb_build_object('id', w.external_id, 'stop', w.stop, 'al', w.alerts::text)) FROM api.watch_list($1) w), '[]'::jsonb)::text"
+            row = ', '.join(RJ if a == 'name' else 'NULL' for a in al)
+            newline = mm.group(1) + mm.group(2) + mm.group(3) + sql + ' UNION ALL SELECT ' + row + mm.group(5) + '   # p201c'
+# 2) fmt code: helper after `const res = ...` and the line after the verdict B.push
+mr = list(re.finditer(r'(?m)^([ \t]*)const res = \$input\.all\(\)\.map\(i => i\.json\);[ \t]*\n', s))
+if len(mr) != 1: FAILS.append('const res anchor count=%d: %s' % (len(mr), lw('const res')))
+mv = list(re.finditer(r"(?m)^([ \t]*)B\.push\('[^'\n]*' \+ v\[0\] \+ ' ' \+ v\[1\]\);[ \t]*\n", s))
+if len(mv) != 1: FAILS.append('verdict B.push anchor count=%d: %s' % (len(mv), lw('v[1]')))
+if FAILS: fail(' || '.join(FAILS))
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k2, v2 = l.rstrip('\n').split('=', 1); env[k2.strip()] = v2.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-F', '|', '-c',
+        "select p.proname, pg_get_function_identity_arguments(p.oid), pg_get_function_result(p.oid) from pg_proc p where p.pronamespace::regnamespace::text = 'api' and p.proname in ('list_ad_accounts','watch_list')"],
+        capture_output=True, text=True)
+    if r.returncode: fail('preflight psql failed: ' + r.stderr.strip()[-200:])
+    ty = {}; res_ = {}
+    for ln in r.stdout.strip().split('\n'):
+        p = ln.split('|', 2)
+        if len(p) == 3: ty.setdefault(p[0], []).append(p[1].split(',')[0].strip().split(' ')[-1]); res_[p[0]] = p[2]
+    if set(ty) != {'list_ad_accounts', 'watch_list'} or any(len(v) != 1 for v in ty.values()) or ty['list_ad_accounts'] != ty['watch_list']:
+        fail('$1 type mismatch or functions missing: ' + ascii(ty))
+    for c in ('external_id', 'stop', 'alerts'):
+        if not re.search(r'\b' + c + r'\b', res_['watch_list']): fail('api.watch_list result lacks column ' + c + ': ' + ascii(res_['watch_list'][:300]))
+HELPER = '''// p201c begin: سطر قاعدة الحارس بتقرير الساعة (من api.watch_list عبر صف إضافي بعقدة الحسابات)
+const GRM = (() => { try { const m = {}; let seen = false; $('%s').all().map(i => i.json).filter(r => r && typeof r.name === 'string' && r.name.indexOf('~rules~') === 0).forEach(r => { seen = true; JSON.parse(r.name.slice(7) || '[]').forEach(x => { if (x && x.id) m[String(x.id)] = x; }); }); return { m, ok: seen }; } catch (e) { return { m: {}, ok: false }; } })();
+const guardLine = k => {
+  const x = GRM.m[String(k.campaign_id)];
+  if (x) {
+    const stop = Number(x.stop); const al = String(x.al || '').replace(/[{}]/g, '').split(',').map(Number).filter(a => a > 0).sort((a, b) => a - b);
+    if (!(stop > 0)) return null;
+    return '🛡 الحارس: ' + (al.length ? 'تنبيه عند ' + al.map(a => a.toFixed(2) + '$').join(' / ') + '، ' : '') + 'إيقاف تلقائي عند ' + stop.toFixed(2) + '$ (بدون نتائج أو تكلفة نتيجة)';
+  }
+  if (GRM.ok && !/DISABLE|PAUSE/i.test(String(k.status || ''))) return '⚠️ بدون حارس: ما عليها قاعدة إيقاف تلقائي';
+  return null;
+};
+// p201c end
+''' % accname.replace('\\', '\\\\').replace("'", "\\'")
+lines = s.split('\n'); idx = [i for i, l in enumerate(lines) if re.match(r'\s*acc = pg\(w, ', l)][0]; lines[idx] = newline; s = '\n'.join(lines)
+mr = list(re.finditer(r'(?m)^([ \t]*)const res = \$input\.all\(\)\.map\(i => i\.json\);[ \t]*\n', s))
+mv = list(re.finditer(r"(?m)^([ \t]*)B\.push\('[^'\n]*' \+ v\[0\] \+ ' ' \+ v\[1\]\);[ \t]*\n", s))
+ins = [(mv[0].end(), mv[0].end(), mv[0].group(1) + '{ const gl = guardLine(k); if (gl) B.push(gl); }\n'), (mr[0].end(), mr[0].end(), HELPER)]
+for a, b, t in sorted(ins, key=lambda e: -e[0]): s = s[:a] + t + s[b:]
+try: compile(s, pf, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (pf, e))
+shutil.copy(BASE + pf, BASE + pf + '.pre201c'); open(BASE + pf, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + pf + '.pre201c', BASE + pf); sys.exit('PATCH FAIL: build failed, restored wf_job_report: ' + r.stderr[-300:])
+print('APPLY201C_OK hourly report shows the guard rule per campaign (or «بدون حارس»); acc node: %d columns, node name %s' % (len(al), ascii(accname)))
