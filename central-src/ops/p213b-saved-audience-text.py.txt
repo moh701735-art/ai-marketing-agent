@@ -1,0 +1,71 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P213B_BASE', '/opt/central/')
+NODB = bool(os.environ.get('P213B_NODB'))
+BLOCK = '// p213b: جمهور محفوظ بالاسم في الطلب النصي (تيك توك). يُحقن داخل عقدة "AI: plan" بعد تعريف wantInt.\nlet SVA = null;\n{\n  const SVL = (() => { try { const r = $input.all().map(i => i.json).find(x => x && x.kind === \'sv\'); return JSON.parse((r && r.wid) || \'[]\'); } catch (e) { return []; } })()\n    .filter(x => x && x.nm && Array.isArray(x.iv) && x.iv.length);\n  const rawT = (typeof d !== \'undefined\' && d && d.text) ? String(d.text) : String(ntx || \'\');\n  const nz = s => String(s || \'\').replace(/[ً-ْـ]/g, \'\').replace(/[أإآ]/g, \'ا\').replace(/ة/g, \'ه\').replace(/ى/g, \'ي\').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632)).toLowerCase().replace(/[،,.؟?!:："\'«»()]/g, \' \').replace(/\\s+/g, \' \').trim();\n  const NUMW = [[\'واحد\', \'1\'], [\'واحده\', \'1\'], [\'وحده\', \'1\'], [\'اثنين\', \'2\'], [\'اثنان\', \'2\'], [\'ثنين\', \'2\'], [\'ثلاثه\', \'3\'], [\'ثلاث\', \'3\'], [\'اربعه\', \'4\'], [\'اربع\', \'4\'], [\'خمسه\', \'5\'], [\'خمس\', \'5\'], [\'سته\', \'6\'], [\'ست\', \'6\'], [\'سبعه\', \'7\'], [\'سبع\', \'7\'], [\'ثمانيه\', \'8\'], [\'ثمان\', \'8\'], [\'تسعه\', \'9\'], [\'تسع\', \'9\'], [\'عشره\', \'10\'], [\'عشر\', \'10\']];\n  const nn = s => { let t = \' \' + nz(s) + \' \'; NUMW.forEach(p => { t = t.split(\' \' + p[0] + \' \').join(\' \' + p[1] + \' \'); }); return t.replace(/\\s+/g, \' \').trim(); };\n  const TRIG = /(?:^|[\\s\\n])(?:(?:اختار|اختر|استخدم|استعمل|خذ|حط|ضيف)\\s+(?:ب)?(?:ال)?جمهور(?:\\s+(?:ال)?محفوظ)?|(?:ب)?(?:ال)?جمهور\\s+(?:ال)?محفوظ|(?:ب|ال)?جمهور\\s*[:：])\\s*[:：]?\\s*([^\\n]{1,80})/;\n  const m0 = TRIG.exec(rawT.replace(/[ \\t]+/g, \' \'));\n  if (m0 && SVL.length) {\n    const words = nz(m0[1]).split(\' \').filter(Boolean).slice(0, 6);\n    const hit = [];\n    for (let k = Math.min(words.length, 6); k >= 1 && !hit.length; k--) {\n      const part = words.slice(0, k).join(\' \'), qa = nn(part), qb = nn(\'جمهور \' + part);\n      const exact = SVL.filter(x => nn(x.nm) === qa || nn(x.nm) === qb);\n      if (exact.length === 1) { hit.push(exact[0]); break; }\n      if (exact.length > 1) { hit.push(null); break; }\n    }\n    if (!hit.length) {\n      const q = nn(words.slice(0, 3).join(\' \')); const part = (q && q.length >= 3) ? SVL.filter(x => nn(x.nm).includes(q)) : [];\n      if (part.length === 1) hit.push(part[0]); else if (part.length > 1) hit.push(null);\n    }\n    const x = hit.length ? hit[0] : undefined;\n    if (!x) {\n      const lst = SVL.slice(0, 8).map((v, i) => (i + 1) + \'. \' + String(v.nm).slice(0, 30) + \' (\' + v.iv.length + \' اهتمام)\').join(\'\\n\');\n      return say(\'⚠️ طلبت جمهور محفوظ بس ما قدرت أحدد أي واحد\' + (hit.length ? \' (أكثر من جمهور يطابق الاسم)\' : \' (ما لقيت جمهور بهالاسم)\') + \' «\' + words.join(\' \').slice(0, 40) + \'».\\nجماهيرك المحفوظة:\\n\' + lst + \'\\n\\nما أنشأت أي حملة. أعد الطلب واكتب اسم الجمهور مثل ما هو: «اختار جمهور <الاسم>».\');\n    }\n    const ids = x.iv.map(a => String(a[0])).filter(id => /^\\d{3,25}$/.test(id)).slice(0, 50);\n    if (!ids.length) return say(\'⚠️ الجمهور المحفوظ «\' + String(x.nm).slice(0, 30) + \'» ما فيه اهتمامات صالحة. ما أنشأت أي حملة. افتح 🎯 منشئ الجمهور وأعد حفظه.\');\n    SVA = { ids, names: x.iv.map(a => String(a[1] || a[0]).slice(0, 40)).slice(0, 8), nm: String(x.nm).slice(0, 30) };\n  }\n}\n'
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pi = 'n8n/wf_ingress.py'
+s = open(BASE + pi, encoding='utf-8').read(); s0 = s
+if 'p213b' in s: print('APPLY213B_OK changed=0 (already applied)'); sys.exit(0)
+if re.search(r'AI: saved audiences', s): fail('old p213 node still present; restore n8n/wf_ingress.py.pre213 first')
+FAILS = []
+def lines_with(kw, n=3): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# 1) aiacc: one more UNION ALL row (kind 'sv'), graph untouched
+la = [l for l in s.split('\n') if re.match(r'\s*aiacc = pg\(w,', l)]
+newline = None
+if len(la) != 1: FAILS.append('aiacc line count=%d: %s' % (len(la), lines_with('aiacc')))
+else:
+    mm = re.match(r'^(\s*aiacc = pg\(w, "[^"]*", ")(SELECT .*?)(FROM api\.geo_default_get\(\$1\))("\s*,\s*"=\{\{ \[\$\(\'Route\'\)\.first\(\)\.json\.ctx\] \}\}")(.*)$', la[0])
+    if not mm: FAILS.append('aiacc line shape unexpected: ' + ascii(la[0][:260]) + ' ... ' + ascii(la[0][-200:]))
+    else:
+        sql = mm.group(2)
+        if "'sv'" in sql: FAILS.append("aiacc already has 'sv'")
+        k = sql.find(' FROM ')
+        sel = sql[:k] if k > 0 else ''
+        depth = 0; q = False; cols = 1
+        for ch in sel[len('SELECT '):]:
+            if ch == "'": q = not q
+            elif not q:
+                if ch == '(': depth += 1
+                elif ch == ')': depth -= 1
+                elif ch == ',' and depth == 0: cols += 1
+        if cols < 3 or cols > 12: FAILS.append('first select column count=%d: %s' % (cols, ascii(sel[:300])))
+        elif not re.search(r'\bAS\s+wid\s*$', sel.strip()): FAILS.append('last alias of first select is not wid: ' + ascii(sel[-120:]))
+        else:
+            # row columns = 'sv' + (cols-2) NULLs + wid  => total cols
+            row = " UNION ALL SELECT 'sv'::text, " + ', '.join(['NULL'] * (cols - 2)) + ", coalesce((SELECT jsonb_agg(jsonb_build_object('id', v.id, 'nm', v.name, 'iv', v.interests)) FROM smart_audience.saved_list($1) v), '[]'::jsonb)::text"
+            newline = mm.group(1) + mm.group(2) + mm.group(3) + row + mm.group(4) + mm.group(5) + '   # p213b'
+# 2) JS block after wantInt, launch object
+mw = list(re.finditer(r'(?m)^const wantInt = [^\n]*\n', s))
+if len(mw) != 1: FAILS.append('wantInt anchor count=%d; lines: %s' % (len(mw), lines_with('wantInt =')))
+mu = list(re.finditer(r'use_interests:\s*wantInt\b', s))
+if len(mu) != 1: FAILS.append('use_interests anchor count=%d; lines: %s' % (len(mu), lines_with('use_interests')))
+if FAILS: fail(' || '.join(FAILS))
+# 3) preflight: $1 type of list_ad_accounts vs saved_list must be the same
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k2, v = l.rstrip('\n').split('=', 1); env[k2.strip()] = v.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-F', '|', '-c',
+        "select p.pronamespace::regnamespace::text || '.' || p.proname, pg_get_function_identity_arguments(p.oid) from pg_proc p where (p.pronamespace::regnamespace::text, p.proname) in (('api','list_ad_accounts'),('smart_audience','saved_list'))"],
+        capture_output=True, text=True)
+    if r.returncode: fail('preflight psql failed: ' + r.stderr.strip()[-200:])
+    ty = {}
+    for ln in r.stdout.strip().split('\n'):
+        if '|' in ln:
+            nm, ar = ln.split('|', 1); ty.setdefault(nm, []).append(ar.split(',')[0].strip().split(' ')[-1])
+    if 'api.list_ad_accounts' not in ty or 'smart_audience.saved_list' not in ty: fail('functions not found in DB: ' + ascii(ty))
+    if len(ty['api.list_ad_accounts']) != 1 or len(ty['smart_audience.saved_list']) != 1 or ty['api.list_ad_accounts'] != ty['smart_audience.saved_list']:
+        fail('$1 type mismatch (would break the UNION query): ' + ascii(ty))
+lines = s.split('\n'); idx = [i for i, l in enumerate(lines) if re.match(r'\s*aiacc = pg\(w,', l)][0]; lines[idx] = newline; s = '\n'.join(lines)
+mw = list(re.finditer(r'(?m)^const wantInt = [^\n]*\n', s)); mu = list(re.finditer(r'use_interests:\s*wantInt\b', s))
+edits = sorted([(mw[0].end(), mw[0].end(), BLOCK + '\n'), (mu[0].start(), mu[0].end(), 'use_interests: wantInt || !!SVA, ...(SVA ? { interest_ids: SVA.ids, interest_names: SVA.names } : {})')], key=lambda e: -e[0])
+for a, b, t in edits: s = s[:a] + t + s[b:]
+try: compile(s, pi, 'exec')
+except SyntaxError as e: fail('syntax wf_ingress.py: %s' % e)
+shutil.copy(BASE + pi, BASE + pi + '.pre213b'); open(BASE + pi, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + pi + '.pre213b', BASE + pi); sys.exit('PATCH FAIL: build failed, restored wf_ingress: ' + r.stderr[-300:])
+print('APPLY213B_OK saved audience by name in text launches: extra row in AI: accounts (graph untouched) + interest_ids; columns=%d' % cols)

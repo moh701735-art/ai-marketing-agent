@@ -1,7 +1,7 @@
-// p213: جمهور محفوظ بالاسم في الطلب النصي (تيك توك). يُحقن داخل عقدة "AI: plan" بعد تعريف wantInt.
+// p213b: جمهور محفوظ بالاسم في الطلب النصي (تيك توك). يُحقن داخل عقدة "AI: plan" بعد تعريف wantInt.
 let SVA = null;
 {
-  const SVL = (() => { try { const r = $('AI: saved audiences').first().json; return JSON.parse((r && r.sv) || '[]'); } catch (e) { return []; } })()
+  const SVL = (() => { try { const r = $input.all().map(i => i.json).find(x => x && x.kind === 'sv'); return JSON.parse((r && r.wid) || '[]'); } catch (e) { return []; } })()
     .filter(x => x && x.nm && Array.isArray(x.iv) && x.iv.length);
   const rawT = (typeof d !== 'undefined' && d && d.text) ? String(d.text) : String(ntx || '');
   const nz = s => String(s || '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632)).toLowerCase().replace(/[،,.؟?!:："'«»()]/g, ' ').replace(/\s+/g, ' ').trim();
