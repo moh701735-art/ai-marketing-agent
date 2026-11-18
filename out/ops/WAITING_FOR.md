@@ -15,3 +15,4 @@
 | ناتج p206 الكامل كنص (الأقسام 3 و8 و9 والخلاصة) وأخطاء إنشاء الحملات | المالك | 2026-11-18 | ينسخ الناتج نصاً مو صورة |
 | سجل Broker لحملة «موبايل» (`guard-stop-1882108700798066`) + وقت الصرف والمبلغ من تيك توك | المالك | 2026-11-18 | يثبت إذا أمر الإيقاف انطبق |
 - 18-11: p213b (`out/p213bs.txt`) sent/ready — owner runs it, then tests (a)(b)(c) above; rollback `n8n/wf_ingress.py.pre213b` + `bash deploy/update.sh`.
+- 18-11: p213b applied + verified by owner (done). Next chosen: p210 (deploy must not flip tenants to NEEDS_REVIEW): waiting for owner's step-0 text paste (update.sh + wf_readiness R03 greps).
