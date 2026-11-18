@@ -1,0 +1,64 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P201_BASE', '/opt/central/')
+NODB = bool(os.environ.get('P201_NODB'))
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+FAILS = []
+def sub1(s, pat, rep, what, kw=None):
+    r, n = re.subn(pat, rep, s)
+    if n != 1:
+        ex = [repr(l.strip()[:200]) for l in s.split('\n') if kw and kw in l][:3]
+        FAILS.append('%s count=%d lines[%s]: %s' % (what, n, kw, ' | '.join(ex) or 'none'))
+        return s
+    return r
+
+ing = rd('n8n/wf_ingress.py'); ing0 = ing
+if "'{0.3,0.4}'::numeric[]" in ing:
+    print('APPLY201_OK changed=0 (already applied)'); sys.exit(0)
+
+# 1) launch path: default watch rule alerts 0.30/0.40, stop 0.50 (was 0.15/0.2/0.3, stop 0.3)
+ing = sub1(ing, r"('\{)0\.15,0\.2,0\.3(\}'::numeric\[\],\s*)0\.30?\b", r"\g<1>0.3,0.4\g<2>0.5", 'launch watch default', 'api.start_watch')
+# 2) /activate defaults (p171 values) -> 0.50 / alerts 0.30,0.40
+ing = sub1(ing, r'(let cap = sm \? Number\(sm\[1\]\) : )0\.40', r'\g<1>0.50', 'activate default stop', 'Number(sm[1])')
+ing = sub1(ing, r'(: )\[0\.20, 0\.30, 0\.40\];', r'\g<1>[0.30, 0.40];', 'activate default alerts', 'alerts')
+ing, nex = re.subn(r'stop=0\.40 alerts=0\.20,0\.30,0\.4', 'stop=0.50 alerts=0.30,0.40', ing)
+if nex != 1: print('NOTE: activate example text unchanged (cosmetic), matches=%d' % nex)
+# 3) messages that still say 0.15 / 0.20 / 0.30$ (expected 3 matches: 1 + 2 lines)
+TRI = re.compile(r'0\.15\s*/\s*0\.20\s*/\s*0\.30')
+lines = ing.split('\n'); ntri = 0; nstop = 0; shown = []
+for i, l in enumerate(lines):
+    k = len(TRI.findall(l))
+    if not k: continue
+    ntri += k
+    l2 = TRI.sub('0.30 / 0.40', l)
+    l2, c2 = re.subn(r'0\.30\$', '0.50$', l2)
+    nstop += c2
+    for m in re.finditer(r'0\.30 / 0\.40', l2):
+        shown.append('...' + l2[max(0, m.start() - 45):m.end() + 45].replace('\n', ' ') + '...')
+    lines[i] = l2
+if ntri != 3: FAILS.append('message triple count=%d (expected 3)' % ntri)
+ing = '\n'.join(lines)
+if FAILS: fail('; '.join(FAILS))
+try: compile(ing, 'wf_ingress.py', 'exec')
+except SyntaxError as e: fail('syntax wf_ingress.py: %s' % e)
+
+shutil.copy(BASE + 'n8n/wf_ingress.py', BASE + 'n8n/wf_ingress.py.pre201')
+open(BASE + 'n8n/wf_ingress.py', 'w', encoding='utf-8').write(ing)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + 'n8n/wf_ingress.py.pre201', BASE + 'n8n/wf_ingress.py')
+        sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+sqlmsg = 'db skipped'
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k, v = l.rstrip('\n').split('=', 1); env[k.strip()] = v.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-c',
+        "update core.campaigns set rule_stop = 0.5, rule_alerts = '{0.3,0.4}' where rule_state = 'watching' and rule_stop in (0.3, 0.4) returning 1"],
+        capture_output=True, text=True)
+    if r.returncode: sys.exit('APPLY201 files OK but DB update failed: ' + r.stderr.strip()[-250:])
+    sqlmsg = 'watching campaigns moved to stop 0.5 alerts 0.3/0.4: %d' % len([x for x in r.stdout.split('\n') if x.strip() == '1'])
+for s in shown: print('MSG:', s)
+print('APPLY201_OK launch+activate defaults 0.30/0.40/stop 0.50; msg triples=%d stop-mentions=%d; %s' % (ntri, nstop, sqlmsg))
