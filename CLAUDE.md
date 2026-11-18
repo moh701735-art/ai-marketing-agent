@@ -26,7 +26,7 @@ CORRECT RESULT + MINIMUM TOKEN/USAGE CONSUMPTION.
 
 - Full knowledge base: `out/central-knowledge.md` (architecture, commands, TikTok DM/Spark/video rules, fund transfer, open issues). New client checklist: `out/client-onboarding.md`.
 - Central system code lives in `/home/user/ai-marketing-central` (VPS: `/opt/central`). Every change must be central so it applies to all current and future bots; client-specific values stay in the DB per tenant. Never touch the old n8n system.
-- Deliver changes as `out/pNN.txt` patches (latest: p204 (budget reading rule; bundle with p200)) built from the server-state snapshot; send with SendUserFile; user pastes one command at a time.
+- Deliver changes as `out/pNN.txt` patches (latest: p205 (same budget rule for Meta/WhatsApp path)) built from the server-state snapshot; send with SendUserFile; user pastes one command at a time.
 - **Owner directive 2026-11-17:** work ONLY on the central system (never the old n8n); for money-safety work prefer correctness and thoroughness over token/usage savings. Operating files (chief-of-staff skill): `out/ops/PROJECTS.md`, `WAITING_FOR.md`, `DECISIONS.md`, `INBOX.md` — update them every session.
 - Standing rules: no fake success (separate created/enabled/delivering/results), no automatic audience/budget/bid optimizer, never ask users to paste secrets, keep answers short, Iraqi Arabic.
 - Open items: fix `/addbalance` (Params invalid), auto top-up, set `bc_id` for mustafa-baghdad, delete partial campaigns 1881215143340242 and 1881222575499330, rotate TikTok App Secret, apply for Business Messaging API access, renew mohm (2026-12-01) and VPS (2026-11-30).

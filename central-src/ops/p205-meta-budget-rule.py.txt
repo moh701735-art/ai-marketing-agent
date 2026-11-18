@@ -1,0 +1,25 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p205' in s: print('APPLY205_OK changed=0'); sys.exit(0)
+fails = []
+R1 = re.compile(r"if \(mU\) usd = Number\(mU\[1\]\);\s*else if \(mI\)")
+LIT2 = r"\D{0,14}(\d+(?:\.\d+)?)/i)"
+LIT3 = "usd = Math.round(usd * 100) / 100;"
+if len(list(R1.finditer(s))) != 1: fails.append('Meta mU/usd line count=%d' % len(list(R1.finditer(s))))
+if s.count(LIT2) != 1: fails.append('Meta budget-word regex count=%d' % s.count(LIT2))
+if s.count(LIT3) != 1: fails.append('Meta usd rounding count=%d' % s.count(LIT3))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails) + ' ; lines: ' + ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if 'mU' in l)[:600])
+N1 = "if (mU) { const n205 = Number(String(mU[1] || mU[2] || '0').replace(/,/g, '')); usd = (/(\\$|دولار|usd)/i.test(mU[0]) || n205 < 1000) ? n205 : n205 / 1555; /* p205: رقم بدون عملة >=1000 = دينار، أقل = دولار */ } else if (mI)"
+N2 = r"\D{0,14}(\d[\d,]*(?:\.\d+)?)/i)"
+N3 = (LIT3 + "\nif (usd > 300 && !/(تأكيد|confirm)/i.test(typeof d !== 'undefined' ? String(d.text || '') : '')) return halt('⚠️ الميزانية كبيرة (≈ $' + Math.round(usd) + '). للحماية ما أرفعها بدون تأكيد صريح. إذا هذا المبلغ صحيح أعد الطلب وأضف كلمة «تأكيد».');   /* p205 */")
+new = R1.sub(lambda m: N1, s, count=1).replace(LIT2, N2).replace(LIT3, N3)
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre205'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre205', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY205_OK facebook/whatsapp path: bare budget >=1000 = dinar, <1000 = dollars, commas read, >$300 needs "تأكيد"')
