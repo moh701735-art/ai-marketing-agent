@@ -1,0 +1,43 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P207_BASE', '/opt/central/')
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+FAILS = []
+def lines_with(s, kw, n=3): return ' | '.join([repr(l.strip()[:170]) for l in s.split('\n') if kw in l][:n]) or 'none'
+
+sp = rd('broker/app/spark.py'); sp0 = sp
+ct = rd('broker/app/catalog.py'); ct0 = ct
+if 'p207' in sp and 'BROKER_TT_LANGS' in ct:
+    print('APPLY207_OK changed=0 (already applied)'); sys.exit(0)
+
+# --- spark.py -------------------------------------------------------------
+# 1) Smart+ disabled: every launch is manual (strict targeting).
+pat = re.compile(r'^([ \t]*)(cs = params\.get\("countries")', re.M)
+if len(pat.findall(sp)) != 1: FAILS.append('spark: countries line count=%d: %s' % (len(pat.findall(sp)), lines_with(sp, 'params.get("countries"')))
+else:
+    sp = pat.sub(lambda m: m.group(1) + 'params = {**params, "smart": False}  # p207: manual only (no Smart+ auto-expansion)\n' + m.group(1) + m.group(2), sp, count=1)
+# 2) Iraq lock (BROKER_TT_IRAQ_ONLY=0 disables). Reuse the file's own error-return style from the smart/Iraq check.
+m = re.search(r'if params\.get\("smart"\) and cs != \["IQ"\]:\n[ \t]+(return [^\n]+)\n', sp)
+anchor = re.compile(r'^([ \t]*)cs = list\(dict\.fromkeys\(cs\)\)[ \t]*\n', re.M)
+if not m: FAILS.append('spark: smart/Iraq check not found: %s' % lines_with(sp, 'smart'))
+elif not re.fullmatch(r'return\s+(["\']).*\1', m.group(1).strip()): FAILS.append('spark: unexpected error-return style: %r' % m.group(1)[:120])
+elif len(anchor.findall(sp)) != 1: FAILS.append('spark: dict.fromkeys line count=%d: %s' % (len(anchor.findall(sp)), lines_with(sp, 'dict.fromkeys')))
+else:
+    msg = 'return "الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)"'
+    sp = anchor.sub(lambda a: a.group(0) + a.group(1) + 'if __import__("os").environ.get("BROKER_TT_IRAQ_ONLY", "1") != "0" and cs != ["IQ"]:  # p207\n' + a.group(1) + '    ' + msg + '\n', sp, count=1)
+
+# --- catalog.py -----------------------------------------------------------
+# 3) languages on every manual TikTok ad group (default Arabic; BROKER_TT_LANGS="" disables, "ar,ku" etc.)
+LANG = '"pacing": "PACING_MODE_SMOOTH", **({"languages": __import__("os").environ.get("BROKER_TT_LANGS", "ar").split(",")} if __import__("os").environ.get("BROKER_TT_LANGS", "ar").strip() else {})'
+cp = re.compile(r'"pacing":\s*"PACING_MODE_SMOOTH"')
+if len(cp.findall(ct)) != 1: FAILS.append('catalog: pacing forced count=%d: %s' % (len(cp.findall(ct)), lines_with(ct, 'PLACEMENT_TIKTOK')))
+else: ct = cp.sub(lambda _: LANG, ct, count=1)
+
+if FAILS: fail('; '.join(FAILS))
+for f, b in (('spark.py', sp), ('catalog.py', ct)):
+    try: compile(b, f, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (f, e))
+for f, a, b in (('broker/app/spark.py', sp0, sp), ('broker/app/catalog.py', ct0, ct)):
+    if a != b:
+        shutil.copy(BASE + f, BASE + f + '.pre207'); open(BASE + f, 'w', encoding='utf-8').write(b)
+print('APPLY207_OK: smart disabled (manual only), Iraq lock (BROKER_TT_IRAQ_ONLY), languages ["ar"] on manual ad groups (BROKER_TT_LANGS)')
