@@ -1,0 +1,129 @@
+import os, shutil, subprocess, sys
+BASE = os.environ.get('P211_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+PATH = 'smart_audience/pages.py'
+s = open(BASE + PATH, encoding='utf-8').read(); s0 = s
+if 'p211' in s: print('APPLY211_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def rep(name, old, new):
+    global s
+    n = s.count(old)
+    if n != 1:
+        key = old.strip().split('\n')[0][:60]
+        ex = ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if key[:25] in l][:2]) or 'none'
+        FAILS.append('%s count=%d: %s' % (name, n, ex)); return
+    s = s.replace(old, new)
+
+# ---- LIB: ثوابت
+rep('LIB const', "const NOTE_INT = ", "const SELMAX = 50, MMAX = 15;   // p211: حد الجمهور المحفوظ (50 بالقاعدة) وحد الأسواق\nconst NOTE_INT = ")
+
+# ---- JS_PLAN: اكتشاف عدة أسواق + التحقق على دفعات 50
+rep('plan ok-branch',
+    "  else if (op === 'ok' && S0 && Array.isArray(S0.sel) && S0.sel.length) need('chk', { op: 'tiktok.check_interests', params: { keyword_ids: S0.sel.filter(x => /^\\d{3,25}$/.test(String(x))).slice(0, 50) } });",
+    "  else if (op === 'mg' && S0 && S0.pick && Array.isArray(S0.mm) && S0.mm.length) {   // p211: اكتشاف أسواق متعددة (seeds المباشرة فقط، 2 لكل سوق)\n"
+    "    base.mgo = true; base.mmk = S0.mm.filter(k => MK[k]).slice(0, MMAX); base.mdisc = {};\n"
+    "    base.mmk.forEach(k => { const dc = cache['discd:' + k] || cache['disc:' + k]; if (dc && dc.age < 86400) base.mdisc[k] = dc.v; });\n"
+    "    const estNeeded = prepEst();\n"
+    "    base.mmk.forEach(k => { if (!base.mdisc[k]) (MK[k].d || []).slice(0, 2).forEach(sd => need('seed', { tier: 'd', mkey: k, seed: sd, op: 'tiktok.recommend_interests', params: { keywords: [sd], language: 'en', limit: 12 } })); });\n"
+    "    if (estNeeded) need('est', { params: estParams(cfg, base.g2, base.ag2), op: 'tiktok.estimate_audience' });\n"
+    "  }\n"
+    "  else if (op === 'ok' && S0 && Array.isArray(S0.sel) && S0.sel.length) { const cids = S0.sel.filter(x => /^\\d{3,25}$/.test(String(x))); for (let i = 0; i < cids.length && i < 100; i += 50) need('chk', { op: 'tiktok.check_interests', params: { keyword_ids: cids.slice(i, i + 50) } }); }   // p211: دفعات 50")
+
+rep('plan est skip in picker', "} else if (op === 'g' || op === 'ag' || op === 'r') { if (prepEst())", "} else if ((op === 'g' || op === 'ag' || op === 'r') && !(S0 && S0.pick)) { if (prepEst())")   # p211: حالة المنتقي لا تحتاج تقدير
+
+# ---- JS_RENDER: قائمة الأسواق (زر) + منتقي الأسواق المتعددة
+rep('menu button',
+    "kb.push([{ t: '🏠 الرئيسية', c: 'h' }]); return kb; };",
+    "kb.push([{ t: '🧺 أكثر من سوق', c: 'sa:mm' }, { t: '🏠 الرئيسية', c: 'h' }]); return kb; };")
+rep('picker block',
+    "if (op === 'mp') return done(menuText(), menuKb(), S, sets);",
+    "if (op === 'mp') return done(menuText(), menuKb(), S, sets);\n"
+    "// ───── p211: اختيار أكثر من سوق (جمهور واحد مدمج) ─────\n"
+    "const mmGet = () => (S && S.pick && Array.isArray(S.mm)) ? S : { pick: true, mm: (S && Array.isArray(S.mm)) ? S.mm.filter(k => MK[k]) : [], mpg: 0, snaps: (S && S.snaps) || [] };\n"
+    "const mmText = s => head('🧺 اختيار أكثر من سوق') + 'اختر لحد ' + MMAX + ' سوق (اضغط ☐ ← ☑) وبعدين «✅ ابدأ». أجيب أقوى اهتمامات كل سوق من تيك توك وأدمجها بجمهور واحد، وإنت تعدّل قبل الحفظ.\\nالحد الأعلى للجمهور المحفوظ ' + SELMAX + ' اهتمام.\\n\\n' + (s.mm.length ? '☑ المختار (' + s.mm.length + '/' + MMAX + '):\\n' + s.mm.map(k => MK[k].l).join('، ') : 'ما اخترت أي سوق بعد.') + (s.full ? '\\n⚠️ وصلت الحد الأعلى (' + MMAX + ' سوق).' : '');\n"
+    "const mmKb = s => { const ks = Object.keys(MK), per = 10, pages = Math.ceil(ks.length / per), pg = Math.min(pages - 1, Math.max(0, s.mpg || 0)), part = ks.slice(pg * per, pg * per + per), kb = [];\n"
+    "  for (let i = 0; i < part.length; i += 2) kb.push(part.slice(i, i + 2).map(k => ({ t: (s.mm.includes(k) ? '☑ ' : '☐ ') + sh(MK[k].l, 18), c: 'sa:mt:' + k })));\n"
+    "  if (pages > 1) kb.push([...(pg > 0 ? [{ t: '⬅️ السابق', c: 'sa:mq:' + (pg - 1) }] : []), { t: (pg + 1) + '/' + pages, c: 'sa:mq:' + pg }, ...(pg < pages - 1 ? [{ t: '➡️ التالي', c: 'sa:mq:' + (pg + 1) }] : [])]);\n"
+    "  kb.push([{ t: '✅ ابدأ (' + s.mm.length + ')', c: 'sa:mg' }, { t: '🗑 مسح', c: 'sa:mx' }]);\n"
+    "  kb.push([{ t: '⬅️ سوق واحد', c: 'sa' }, { t: '🏠 الرئيسية', c: 'h' }]); return kb; };\n"
+    "if (op === 'mm' || op === 'mt' || op === 'mq' || op === 'mx') {\n"
+    "  const s = mmGet(); s.full = 0;\n"
+    "  if (op === 'mm') s.mpg = 0;\n"
+    "  else if (op === 'mq') s.mpg = Math.max(0, parseInt(arg, 10) || 0);\n"
+    "  else if (op === 'mx') s.mm = [];\n"
+    "  else if (MK[arg]) { const k = s.mm.indexOf(arg); if (k >= 0) s.mm.splice(k, 1); else if (s.mm.length < MMAX) s.mm.push(arg); else s.full = 1; }\n"
+    "  return done(mmText(s), mmKb(s), s, sets);\n"
+    "}\n"
+    "if (S && S.pick && !P.mk && !P.mgo) return done(mmText(S), mmKb(S), S, sets);   // حالة المنتقي: أي ضغطة قديمة ترجع للمنتقي (لا تكسر)")
+
+# ---- JS_RENDER: بناء الجمهور المدمج بعد الاكتشاف
+rep('mgo build',
+    "else if (op === '' || (!S && op !== 'text')) {",
+    "else if (P.mgo) {   // p211: دمج أسواق متعددة بجمهور واحد (أقوى اهتمامات 🔥 لكل سوق، تلقائياً، والمستخدم يعدّل)\n"
+    "  const mmk = P.mmk || [], got = {}; let rateL = false;\n"
+    "  results.forEach((r, i) => { const p = plans[i]; if (!p || p.k !== 'seed') return; if (!r || r.ok !== true) { if (r && r.error && r.error.class === 'rate_limited') rateL = true; return; }\n"
+    "    const list = ((r.data && r.data.data) || {}).recommended_keywords || []; const arr = got[p.mkey] || (got[p.mkey] = []);\n"
+    "    list.forEach(x => { const id = String((x && x.keyword_id) || ''); if (!/^\\d{3,25}$/.test(id) || (x.status && String(x.status) !== 'EFFECTIVE') || arr.some(c => c.id === id)) return; arr.push({ id, n: String(x.keyword || '').slice(0, 60), t: 'd' }); }); });\n"
+    "  const pool = [], seenAll = {}, miss = [], byM = {};\n"
+    "  mmk.forEach(k => { let c = null; const dc = P.mdisc && P.mdisc[k];\n"
+    "    if (dc && Array.isArray(dc.c)) c = dc.c.filter(x => x && x.t === 'd');\n"
+    "    else if (got[k] && got[k].length) { c = got[k]; sets.push({ k: 'discd:' + k, v: { c }, t: 86400 }); }\n"
+    "    if (!c || !c.length) { miss.push(k); return; }\n"
+    "    c = c.filter(x => !seenAll[x.id]).slice(0, 6); c.forEach(x => { seenAll[x.id] = 1; pool.push({ id: x.id, n: x.n, t: 'd', m: k }); byM[k] = (byM[k] || 0) + 1; }); if (!c.length) miss.push(k); });\n"
+    "  if (!pool.length) return done(mmText(S) + '\\n\\n⚠️ ما كدرت أجيب اهتمامات من تيك توك هسه' + (rateL ? ' (حد الطلبات — جرّب بعد دقيقة)' : '') + '. جرّب أسواق ثانية أو أعد المحاولة.', mmKb(S), S, sets);\n"
+    "  const nOk = Object.keys(byM).length, pm = Math.max(1, Math.min(4, Math.floor(SELMAX / Math.max(1, nOk)))), taken = {}, sel = [];\n"
+    "  pool.forEach(x => { taken[x.m] = taken[x.m] || 0; if (taken[x.m] < pm && sel.length < SELMAX) { sel.push(x.id); taken[x.m]++; } });\n"
+    "  const sig = P.sig, ef = estFrom(sig);\n"
+    "  S = { mk: 'multi', mm: mmk.filter(k => !miss.includes(k)), miss, cands: pool, sel, lv: 'b', tb: 'all', q: '', pg: 0, g: P.g2 || 'a', ag: P.ag2 || 'all', est: ef.est, estErr: ef.err, snaps: (S0 && S0.snaps) || [] };\n"
+    "  if (ef.fresh && ef.est) sets.push({ k: sig, v: { lo: ef.est.lo, up: ef.est.up, st: ef.est.st, at: 1 }, t: 21600 });\n"
+    "}\n"
+    "else if (op === '' || (!S && op !== 'text')) {")
+
+# ---- JS_RENDER: حد 50 عند الاختيار
+rep('toggle cap',
+    "if (k >= 0) S.sel.splice(k, 1); else S.sel.push(c.id); } }",
+    "if (k >= 0) S.sel.splice(k, 1); else if (S.sel.length < SELMAX) S.sel.push(c.id); } }")
+
+# ---- JS_RENDER: التحقق على دفعات (ok)
+rep('ok chunks',
+    "  const chk = results.map((r, i) => ({ r, p: plans[i] })).find(x => x.p && x.p.k === 'chk');\n"
+    "  const known = {}; S.cands.forEach(c => { known[c.id] = c; });\n"
+    "  let ids = S.sel.filter(id => known[id]);                                       // المحقق الأول: فقط IDs رجّعها تيك توك بهالجلسة\n"
+    "  let note = '';\n"
+    "  if (chk && chk.r && chk.r.ok === true) { const body = chk.r.data && chk.r.data.data; const arr = (body && (body.keywords || body.list || body.interest_keywords)) || null;\n"
+    "    if (Array.isArray(arr)) { const okIds = {}; arr.forEach(x => { const id = String((x && (x.keyword_id || x.id)) || ''); if (id && !(x.status && String(x.status) !== 'EFFECTIVE')) okIds[id] = 1; }); const before = ids.length; ids = ids.filter(id => okIds[id]); if (ids.length < before) note = '\\n⚠️ ' + (before - ids.length) + ' اهتمام ما عاد صالح عند تيك توك وانشال من القائمة.'; } }\n"
+    "  else if (chk) note = '\\nℹ️ التحقق الإضافي من تيك توك غير متاح هسه (القائمة مأخوذة منه قبل لحظات).';",
+    "  const chks = results.map((r, i) => ({ r, p: plans[i] })).filter(x => x.p && x.p.k === 'chk');   // p211: دفعات 50\n"
+    "  const known = {}; S.cands.forEach(c => { known[c.id] = c; });\n"
+    "  let ids = S.sel.filter(id => known[id]);                                       // المحقق الأول: فقط IDs رجّعها تيك توك بهالجلسة\n"
+    "  let note = '';\n"
+    "  if (chks.length) { const okIds = {}, unk = {}; let any = false, bad = false;\n"
+    "    chks.forEach(x => { const kw = (x.p.params && x.p.params.keyword_ids) || [];\n"
+    "      if (x.r && x.r.ok === true) { const body = x.r.data && x.r.data.data; const arr = (body && (body.keywords || body.list || body.interest_keywords)) || null;\n"
+    "        if (Array.isArray(arr)) { any = true; arr.forEach(y => { const id = String((y && (y.keyword_id || y.id)) || ''); if (id && !(y.status && String(y.status) !== 'EFFECTIVE')) okIds[id] = 1; }); } else kw.forEach(id => { unk[id] = 1; }); }\n"
+    "      else { bad = true; kw.forEach(id => { unk[id] = 1; }); } });\n"
+    "    if (any) { const before = ids.length; ids = ids.filter(id => okIds[id] || unk[id]); if (ids.length < before) note = '\\n⚠️ ' + (before - ids.length) + ' اهتمام ما عاد صالح عند تيك توك وانشال من القائمة.'; }\n"
+    "    if (bad) note += '\\nℹ️ التحقق الإضافي من تيك توك غير متاح هسه (القائمة مأخوذة منه قبل لحظات).'; }")
+
+# ---- JS_RENDER: صفحة الاختيار
+rep('review header', "let t = head('🎯 اختيار الجمهور — ' + sh(MK[S.mk].l, 28));",
+    "let t = head('🎯 اختيار الجمهور — ' + (S.mk === 'multi' ? '🧺 ' + S.mm.length + ' أسواق' : sh(MK[S.mk].l, 28)));")
+rep('review list line',
+    "(S.tb === 'all' ? '🔎 بحث: «' + sh(S.q, 30) + '» (' + list.length + ')' : TIERS[S.tb][0] + ' ' + TIERS[S.tb][1] + ' (' + list.length + ')') + ' — المستوى: ' + LV[S.lv][0] + (pages > 1",
+    "(S.mk === 'multi' ? '🧺 ' + list.length + ' اهتمام من ' + S.mm.length + ' سوق (اخترنا تلقائياً الأقوى من كل سوق، عدّل كما تريد)' : (S.tb === 'all' ? '🔎 بحث: «' + sh(S.q, 30) + '» (' + list.length + ')' : TIERS[S.tb][0] + ' ' + TIERS[S.tb][1] + ' (' + list.length + ')') + ' — المستوى: ' + LV[S.lv][0]) + (S.sel.length >= SELMAX ? '\\n⚠️ وصلت الحد الأعلى (' + SELMAX + ' اهتمام) للجمهور المحفوظ.' : '') + (S.miss && S.miss.length ? '\\n⚠️ ما لقيت اهتمامات من تيك توك لـ: ' + S.miss.map(k => MK[k] ? sh(MK[k].l, 16) : k).join('، ') : '') + (pages > 1")
+rep('tabs row', "kb.push(tabs.map(x => ({ t: (S.tb === x ? '• ' : '') + TIERS[x][0] + ' ' + TIERS[x][1], c: 'sa:tb:' + x })).slice(0, 3));",
+    "if (S.mk !== 'multi') kb.push(tabs.map(x => ({ t: (S.tb === x ? '• ' : '') + TIERS[x][0] + ' ' + TIERS[x][1], c: 'sa:tb:' + x })).slice(0, 3));")
+rep('toggle label', "(S.sel.includes(x.c.id) ? '☑ ' : '☐ ') + sh(x.c.n, 16), c: 'sa:t:' + x.i })));",
+    "(S.sel.includes(x.c.id) ? '☑ ' : '☐ ') + (S.mk === 'multi' && x.c.m && MK[x.c.m] ? String(MK[x.c.m].l).split(' ')[0] + ' ' : '') + sh(x.c.n, S.mk === 'multi' ? 13 : 16), c: 'sa:t:' + x.i })));")
+rep('lv button', "{ t: '🎯 ' + LV[S.lv][0], c: 'sa:lv:' + (S.lv === 'p' ? 'b' : S.lv === 'b' ? 'w' : S.lv === 'w' ? 'x' : 'p') }",
+    "(S.mk === 'multi' ? { t: '🧺 الأسواق', c: 'sa:mm' } : { t: '🎯 ' + LV[S.lv][0], c: 'sa:lv:' + (S.lv === 'p' ? 'b' : S.lv === 'b' ? 'w' : S.lv === 'w' ? 'x' : 'p') })")
+rep('doc', "| sa:dy:<id>\"\"\"", "| sa:dy:<id> | sa:mm | sa:mt:<سوق> | sa:mq:<صفحة> | sa:mx | sa:mg   (p211: أكثر من سوق)\"\"\"")
+if FAILS: fail(' || '.join(FAILS))
+try: compile(s, PATH, 'exec')
+except SyntaxError as e: fail('syntax: %s' % e)
+shutil.copy(BASE + PATH, BASE + PATH + '.pre211'); open(BASE + PATH, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + PATH + '.pre211', BASE + PATH); sys.exit('PATCH FAIL: build failed, restored pages.py: ' + r.stderr[-300:])
+print('APPLY211_OK Smart Audience: multi-market picker (sa:mm/mt/mq/mx/mg), merged audience (max 50 interests), chunked check')
