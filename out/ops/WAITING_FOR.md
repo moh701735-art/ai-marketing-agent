@@ -19,3 +19,4 @@
 - 18-11: p210 (`out/p210s.txt`) built — owner runs it (it deploys); expect «-- p210: ingress webhook registered after Ns» and all tenants READY without waiting. Rollback: `cp deploy/update.sh.pre210 deploy/update.sh`.
 - 18-11: p210 applied + verified (done). Remaining open: p201b (guard stop text + report rule line; need wf_monitor.py/wf_job_report.py text), «موبايل» kept spending after guard `stopped` (Broker log guard-stop-1882108700798066), rotate BROKER_HMAC_KEY/ADMIN_KEY, hide Smart button, Meta/Snap Iraq-only, +964 lead filter.
 - 18-11: p201b (`out/p201bs.txt`) sent — owner runs it (deploys). Next: hourly report rule line (needs `grep -n "rule\|noRes\|zero" n8n/wf_job_report.py` as TEXT).
+- 18-11: p201b applied. Next: hourly-report rule line (wf_job_report.py grep as TEXT), then rotate exposed keys / hide Smart button / Iraq-only for Meta+Snap.
