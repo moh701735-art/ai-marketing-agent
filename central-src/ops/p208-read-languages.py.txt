@@ -1,0 +1,16 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P208_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+f = 'broker/app/catalog.py'
+ct = open(BASE + f, encoding='utf-8').read()
+if 'tiktok.read_languages' in ct: print('APPLY208_OK changed=0 (already applied)'); sys.exit(0)
+pat = re.compile(r'^([ \t]*)(Op\("tiktok\.read_campaigns")', re.M)
+n = len(pat.findall(ct))
+if n != 1:
+    ex = ' | '.join([repr(l.strip()[:150]) for l in ct.split('\n') if 'tiktok.read_campaigns' in l][:3]) or 'none'
+    fail('read_campaigns anchor count=%d: %s' % (n, ex))
+new = pat.sub(lambda m: m.group(1) + 'Op("tiktok.read_languages", "tiktok", "GET", "/tool/language/", bearer=False, advertiser_param="advertiser_id", params={}),  # p208 read-only\n' + m.group(1) + m.group(2), ct, count=1)
+try: compile(new, f, 'exec')
+except SyntaxError as e: fail('syntax: %s' % e)
+shutil.copy(BASE + f, BASE + f + '.pre208'); open(BASE + f, 'w', encoding='utf-8').write(new)
+print('APPLY208_OK: read-only op tiktok.read_languages (GET /tool/language/)')
