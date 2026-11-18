@@ -20,10 +20,11 @@ else:
 m = re.search(r'if params\.get\("smart"\) and cs != \["IQ"\]:\n[ \t]+(return [^\n]+)\n', sp)
 anchor = re.compile(r'^([ \t]*)cs = list\(dict\.fromkeys\(cs\)\)[ \t]*\n', re.M)
 if not m: FAILS.append('spark: smart/Iraq check not found: %s' % lines_with(sp, 'smart'))
-elif not re.fullmatch(r'return\s+(["\']).*\1', m.group(1).strip()): FAILS.append('spark: unexpected error-return style: %r' % m.group(1)[:120])
+elif not re.match(r'return\s+(None\s*,\s*)?[fF]?["\']', m.group(1).strip()): FAILS.append('spark: unexpected error-return style: %r' % m.group(1)[:160])
 elif len(anchor.findall(sp)) != 1: FAILS.append('spark: dict.fromkeys line count=%d: %s' % (len(anchor.findall(sp)), lines_with(sp, 'dict.fromkeys')))
 else:
-    msg = 'return "الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)"'
+    pre = 'return None, ' if re.match(r'return\s+None\s*,', m.group(1).strip()) else 'return '  # same style as the neighbouring check: (value, error) tuple or plain string
+    msg = pre + '"الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)"'
     sp = anchor.sub(lambda a: a.group(0) + a.group(1) + 'if __import__("os").environ.get("BROKER_TT_IRAQ_ONLY", "1") != "0" and cs != ["IQ"]:  # p207\n' + a.group(1) + '    ' + msg + '\n', sp, count=1)
 
 # --- catalog.py -----------------------------------------------------------
