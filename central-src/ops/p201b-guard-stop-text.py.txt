@@ -1,0 +1,35 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P201B_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pf = 'n8n/wf_monitor.py'
+s = open(BASE + pf, encoding='utf-8').read(); s0 = s
+if 'p201b' in s: print('APPLY201B_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(kw, n=3): return ' | '.join([ascii(l.strip()[:220]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# 1) Evaluate: the stop item must carry noRes (cost = spend when there are zero results)
+mi = list(re.finditer(r"idem:\s*'guard-stop-'\s*\+\s*rule\.external_id", s))
+if len(mi) != 1: FAILS.append("idem guard-stop anchor count=%d; lines: %s" % (len(mi), lw('guard-stop')))
+if not re.search(r'\bconst noRes\b|\blet noRes\b|\bnoRes\s*=', s): FAILS.append('noRes variable not found in file')
+# 2) stop-result node: the success text
+pat = re.compile(r"(state:\s*'stopped',\s*level:\s*s\.level,\s*text:\s*)(.*?)(\s*\}\s*\};)", re.S)
+mt = list(pat.finditer(s))
+if len(mt) != 1: FAILS.append("stopped text anchor count=%d; lines: %s" % (len(mt), lw("'stopped'")))
+elif '/activate_' not in mt[0].group(2) or 's.stopCap' not in mt[0].group(2):
+    FAILS.append('old stop text shape unexpected (no /activate_ or s.stopCap): ' + ascii(mt[0].group(2)[:300]))
+if FAILS: fail(' || '.join(FAILS))
+old = mt[0].group(2)
+NEW = ("'🛑 تم إيقاف الحملة «' + s.name + '» تلقائياً: ' + (s.noRes ? 'صرفت ' + Number(s.cpr).toFixed(2) + '$ بدون أي نتيجة' : 'تكلفة النتيجة وصلت ' + Number(s.cpr).toFixed(3) + '$')"
+       " + ' (حد الإيقاف ' + s.stopCap + '$).\\n' + s.stats + '\\nإذا تريد تكملها: /activate_' + s.cid")
+s = s[:mt[0].start(2)] + NEW + s[mt[0].end(2):]
+mi = list(re.finditer(r"idem:\s*'guard-stop-'\s*\+\s*rule\.external_id", s))
+s = s[:mi[0].start()] + 'noRes: !!noRes, ' + s[mi[0].start():]   # p201b
+s = s.replace('noRes: !!noRes, idem:', 'noRes: !!noRes, /* p201b */ idem:', 1)
+try: compile(s, pf, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (pf, e))
+shutil.copy(BASE + pf, BASE + pf + '.pre201b'); open(BASE + pf, 'w', encoding='utf-8').write(s)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + pf + '.pre201b', BASE + pf); sys.exit('PATCH FAIL: build failed, restored wf_monitor: ' + r.stderr[-300:])
+print('OLD stop text (for the record): ' + ascii(old[:260]))
+print('APPLY201B_OK guard stop message now says why it stopped (spent X$ with no results / cost per result) + stop cap')
