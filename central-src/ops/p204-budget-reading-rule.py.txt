@@ -1,0 +1,26 @@
+import os, re, shutil, subprocess, sys
+BASE = '/opt/central/'
+p = 'n8n/wf_ingress.py'
+s = open(BASE + p, encoding='utf-8').read()
+if 'p204' in s: print('APPLY204_OK changed=0'); sys.exit(0)
+fails = []
+A = "const bareDinar = cur === 'IQD' && !iqdAmount && !usdMarked && it.budget >= 1000;"
+A2 = "const bareDinar = !iqdAmount && !usdMarked && it.budget >= 1000;   /* p204: رقم بدون عملة >=1000 = دينار، أقل = دولار (لكل الحسابات) */"
+if s.count(A) != 1: fails.append('bareDinar anchor (needs p199) count=%d' % s.count(A))
+B = re.compile(r"\n[ \t]*if \(cur === 'IQD' && !iqdAmount && !usdMarked && it\.budget >= 100 && it\.budget < 1000\) return say\([^\n]*\);")
+mb = list(B.finditer(s))
+if len(mb) != 1: fails.append('100-999 ask line anchor count=%d' % len(mb))
+C = "budgetApi = cur === 'IQD' ? (iqdAmount || (bareDinar ? Math.round(it.budget) : Math.ceil(it.budget * FX))) : it.budget;"
+C2 = "budgetApi = cur === 'IQD' ? (iqdAmount || (bareDinar ? Math.round(it.budget) : Math.ceil(it.budget * FX))) : (bareDinar ? budgetUsd : it.budget);"
+if s.count(C) != 1: fails.append('budgetApi statement anchor count=%d' % s.count(C))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails) + ' ; lines: ' + ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if 'bareDinar' in l)[:500])
+new = s.replace(A, A2).replace(C, C2)
+new = B.sub('', new, count=1)
+try: compile(new, p, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + p, BASE + p + '.pre204'); open(BASE + p, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + p + '.pre204', BASE + p); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY204_OK budget rule: bare >=1000 = dinar, <1000 = dollars, for every ad account (explicit $ / ألف / دينار unchanged)')
