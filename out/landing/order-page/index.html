@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>اطلب الآن</title>
+<!-- Snap Pixel Code (بكسل العميل؛ بدون user_email لأن القيمة الافتراضية __INSERT_USER_EMAIL__ مجرد مكان فاضي) -->
+<script type='text/javascript'>
+(function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function()
+{a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};
+a.queue=[];var s='script';r=t.createElement(s);r.async=!0;
+r.src=n;var u=t.getElementsByTagName(s)[0];
+u.parentNode.insertBefore(r,u);})(window,document,
+'https://sc-static.net/scevent.min.js');
+snaptr('init', 'bee15341-7ae6-477f-ae0f-b0f0db91347c');
+snaptr('track', 'PAGE_VIEW');
+</script>
+<!-- End Snap Pixel Code -->
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#111827;--mut:#6b7280;--line:#e5e7eb;--brand:#0f766e;--brand-d:#0b5a54;--warn:#b45309;--err:#b91c1c;--r:16px}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0f14;--card:#151b23;--ink:#f3f4f6;--mut:#9ca3af;--line:#263041;--brand:#14b8a6;--brand-d:#0d9488;--warn:#f59e0b;--err:#f87171}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Segoe UI",Tahoma,"Noto Naskh Arabic","Noto Sans Arabic",system-ui,sans-serif;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+.gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:0;margin:0 -16px;background:#000}
+.gallery>*{flex:0 0 100%;scroll-snap-align:center;aspect-ratio:1/1;object-fit:cover;width:100%;background:#1f2937}
+.ph{display:grid;place-items:center;color:#9ca3af;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-top:14px}
+h1{font-size:22px;line-height:1.35;margin:16px 0 6px}
+.price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.price b{font-size:26px;color:var(--brand)}
+.price s{color:var(--mut);font-size:16px}
+.tag[hidden]{display:none}
+.tag{display:inline-block;font-size:13px;color:var(--warn);border:1px solid currentColor;border-radius:999px;padding:1px 10px}
+ul.b{margin:8px 0 0;padding:0 18px}ul.b li{margin:4px 0}
+.info{color:var(--mut);font-size:14px;margin:10px 0 0}
+label{display:block;font-weight:600;margin:12px 0 6px;font-size:15px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-height:48px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:transparent}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qty{display:flex;align-items:center;gap:10px}
+.qty button{width:48px;height:48px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:22px;cursor:pointer}
+.qty input{text-align:center;max-width:90px}
+.sum{display:flex;justify-content:space-between;margin:6px 0;color:var(--mut)}
+.sum.t{color:var(--ink);font-weight:700;font-size:18px;border-top:1px dashed var(--line);padding-top:10px;margin-top:10px}
+.err{color:var(--err);font-size:14px;margin-top:4px;min-height:0}
+.cta{position:fixed;inset-inline:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--bg) 30%);z-index:5}
+.cta button,.btn{display:block;width:100%;max-width:560px;margin:0 auto;border:0;border-radius:14px;background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:18px;min-height:54px;cursor:pointer;text-align:center;text-decoration:none;padding:12px}
+.cta button:hover,.btn:hover{background:var(--brand-d)}
+.cta button[disabled]{opacity:.6;cursor:wait}
+.hp{position:absolute;inset-inline-start:-9999px;height:0;overflow:hidden}
+.ok{display:none;text-align:center}
+.ok.on{display:block}
+.ok h2{margin:6px 0}
+footer{color:var(--mut);font-size:13px;text-align:center;margin:18px 0 8px}
+</style>
+</head>
+<body>
+<script>
+/* ====== إعدادات الصفحة (غيّر هذا القسم فقط) ====== */
+const SHOP = {
+  sku: 'PRODUCT-1',
+  product: 'اسم المنتج',
+  price: 25000,            // سعر الوحدة (رقم)
+  oldPrice: 0,             // السعر قبل الخصم؛ 0 = لا يظهر
+  currency: 'IQD',
+  currencyLabel: 'دينار',
+  deliveryFee: 0,          // رسوم توصيل ثابتة (0 = مجاني/تُحدد بالتأكيد)
+  deliveryText: 'التوصيل لكل المحافظات، الدفع عند الاستلام.',
+  whatsapp: '9647700000000', // رقم استلام الطلبات بصيغة دولية بدون +
+  bullets: ['ميزة أولى للمنتج', 'ميزة ثانية للمنتج', 'ميزة ثالثة للمنتج'],
+  images: [],              // مثال: ['img/1.jpg','img/2.jpg']
+  video: '',               // اختياري: 'img/video.mp4'
+  badge: '',               // اختياري: نص صغير مثل «الدفع عند الاستلام»
+  maxQty: 10
+};
+/* ============================================== */
+</script>
+<main class="wrap">
+  <div class="gallery" id="gal"></div>
+  <h1 id="title"></h1>
+  <div class="price"><b id="price"></b><s id="old"></s><span class="tag" id="badge" hidden></span></div>
+  <div class="card"><ul class="b" id="bul"></ul><p class="info" id="dlv"></p></div>
+
+  <form class="card" id="f" novalidate autocomplete="on">
+    <h2 style="margin:0 0 4px;font-size:18px">املأ بياناتك حتى نوصّل لك الطلب</h2>
+    <div class="hp"><label>لا تملأ هذا الحقل<input id="website" tabindex="-1" autocomplete="off"></label></div>
+    <label for="name">الاسم</label><input id="name" name="name" autocomplete="name" required>
+    <div class="err" id="e_name"></div>
+    <label for="phone">رقم الهاتف</label><input id="phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="07xxxxxxxxx" required>
+    <div class="err" id="e_phone"></div>
+    <div class="row">
+      <div><label for="gov">المحافظة</label><select id="gov" name="gov" required></select><div class="err" id="e_gov"></div></div>
+      <div><label for="qtyv">الكمية</label>
+        <div class="qty"><button type="button" id="minus" aria-label="أنقص">−</button><input id="qtyv" inputmode="numeric" value="1" aria-label="الكمية"><button type="button" id="plus" aria-label="زِد">+</button></div></div>
+    </div>
+    <label for="addr">العنوان بالتفصيل</label><textarea id="addr" name="addr" rows="2" autocomplete="street-address" required></textarea>
+    <div class="err" id="e_addr"></div>
+    <div style="margin-top:14px">
+      <div class="sum"><span>سعر المنتج</span><span id="s1"></span></div>
+      <div class="sum"><span>التوصيل</span><span id="s2"></span></div>
+      <div class="sum t"><span>المجموع</span><span id="s3"></span></div>
+    </div>
+    <p class="info">الدفع عند الاستلام. بعد الضغط راح يفتح واتساب برسالة طلبك جاهزة، اضغط إرسال لتأكيد الطلب.</p>
+  </form>
+
+  <div class="card ok" id="ok" role="status">
+    <h2>✅ تم تجهيز طلبك</h2>
+    <p>إذا ما انفتح واتساب تلقائياً، اضغط الزر وأرسل الرسالة لتأكيد طلبك.</p>
+    <a class="btn" id="wa" href="#" rel="noopener">افتح واتساب وأكّد الطلب</a>
+  </div>
+  <footer id="foot"></footer>
+</main>
+<div class="cta"><button type="submit" form="f" id="go">اطلب الآن — الدفع عند الاستلام</button></div>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString('en-US') + ' ' + SHOP.currencyLabel;
+  const track = (ev, p) => { try { snaptr('track', ev, p || {}); } catch (e) {} };
+  const GOVS = ['بغداد','البصرة','نينوى','أربيل','السليمانية','دهوك','كركوك','الأنبار','بابل','كربلاء','النجف','ديالى','واسط','ميسان','ذي قار','المثنى','القادسية','صلاح الدين','حلبجة'];
+  document.title = SHOP.product + ' | اطلب الآن';
+  $('title').textContent = SHOP.product; $('price').textContent = fmt(SHOP.price);
+  if (SHOP.oldPrice > SHOP.price) { $('old').textContent = fmt(SHOP.oldPrice); } else { $('old').remove(); }
+  if (SHOP.badge) { $('badge').textContent = SHOP.badge; $('badge').hidden = false; }
+  SHOP.bullets.forEach(t => { const li = document.createElement('li'); li.textContent = t; $('bul').appendChild(li); });
+  $('dlv').textContent = SHOP.deliveryText;
+  const g = $('gal');
+  if (SHOP.video) { const v = document.createElement('video'); v.src = SHOP.video; v.muted = true; v.loop = true; v.autoplay = true; v.playsInline = true; v.controls = true; g.appendChild(v); }
+  SHOP.images.forEach((s, i) => { const im = document.createElement('img'); im.src = s; im.alt = SHOP.product + ' ' + (i + 1); im.loading = i ? 'lazy' : 'eager'; g.appendChild(im); });
+  if (!g.children.length) { const d = document.createElement('div'); d.className = 'ph'; d.textContent = 'صورة المنتج'; g.appendChild(d); }
+  $('gov').innerHTML = '<option value="">اختر المحافظة</option>' + GOVS.map(x => '<option>' + x + '</option>').join('');
+  const qty = () => Math.min(SHOP.maxQty, Math.max(1, parseInt($('qtyv').value, 10) || 1));
+  const total = () => SHOP.price * qty() + SHOP.deliveryFee;
+  const sum = () => { $('qtyv').value = qty(); $('s1').textContent = fmt(SHOP.price * qty()); $('s2').textContent = SHOP.deliveryFee ? fmt(SHOP.deliveryFee) : 'يُحدد عند التأكيد'; $('s3').textContent = fmt(total()); };
+  $('minus').onclick = () => { $('qtyv').value = qty() - 1; sum(); }; $('plus').onclick = () => { $('qtyv').value = qty() + 1; sum(); }; $('qtyv').oninput = sum; sum();
+  $('foot').textContent = SHOP.product;
+  track('VIEW_CONTENT', { item_ids: [SHOP.sku], item_category: SHOP.product, price: SHOP.price, currency: SHOP.currency });
+  let started = false; $('f').addEventListener('focusin', () => { if (!started) { started = true; track('START_CHECKOUT', { item_ids: [SHOP.sku], price: total(), currency: SHOP.currency, number_items: qty() }); } });
+  const digits = s => String(s || '').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, c => String(c.charCodeAt(0) - 1776));
+  const setErr = (k, m) => { $('e_' + k).textContent = m || ''; return !m; };
+  let sent = false;
+  $('f').addEventListener('submit', ev => {
+    ev.preventDefault(); if (sent || $('website').value) return;
+    const name = $('name').value.trim(), phone = digits($('phone').value).replace(/[\s-]/g, ''), gov = $('gov').value, addr = $('addr').value.trim();
+    let ok = true;
+    ok = setErr('name', name.length < 3 ? 'اكتب الاسم' : '') && ok;
+    ok = setErr('phone', /^(07\d{9}|\+?9647\d{9})$/.test(phone) ? '' : 'اكتب رقم عراقي صحيح مثل 07xxxxxxxxx') && ok;
+    ok = setErr('gov', gov ? '' : 'اختر المحافظة') && ok;
+    ok = setErr('addr', addr.length < 5 ? 'اكتب العنوان بالتفصيل' : '') && ok;
+    if (!ok) { const first = document.querySelector('.err:not(:empty)'); if (first) first.scrollIntoView({ block: 'center' }); return; }
+    sent = true; $('go').disabled = true;
+    const q = qty(), t = total(), oid = 'O' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
+    track('PURCHASE', { item_ids: [SHOP.sku], price: t, currency: SHOP.currency, transaction_id: oid, number_items: q });
+    const msg = ['طلب جديد (' + oid + ')', 'المنتج: ' + SHOP.product, 'الكمية: ' + q, 'المجموع: ' + fmt(t) + ' (الدفع عند الاستلام)', 'الاسم: ' + name, 'الهاتف: ' + phone, 'المحافظة: ' + gov, 'العنوان: ' + addr].join('\n');
+    const url = 'https://wa.me/' + SHOP.whatsapp + '?text=' + encodeURIComponent(msg);
+    $('wa').href = url; $('f').style.display = 'none'; document.querySelector('.cta').style.display = 'none'; $('ok').classList.add('on'); $('ok').scrollIntoView({ block: 'center' });
+    setTimeout(() => { location.href = url; }, 700);
+  });
+})();
+</script>
+</body>
+</html>
