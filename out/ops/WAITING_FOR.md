@@ -27,3 +27,4 @@
 - 19-11: `out/ttcleans.txt` (removes inactive interest 3412382896 from mohm «جمهور 1») sent; delete partial TikTok campaign 1882297114773570; then retry the launch. Next: prevention patch (pre-validate interest_ids in Broker launch) — needs server service.py excerpt. Also new client عمار (ammar-mohmaed, IQD, 30 days → 2026-12-19) waiting for add-tenant run.
 - 19-11: p214 (`out/p214s.txt`) built — owner runs it (deploys Broker), then retries the «اختار جمهور 1» launch; also delete partial TikTok campaign 1882297114773570. New client عمار (ammar-mohmaed) still waiting.
 - 19-11: عمار (`ammar-mohmaed`) created + linked + READY; waiting for the client's /start, /accounts, /balance test. p214 result (markers p214=2 + retry of «اختار جمهور 1» launch) still unconfirmed by owner.
+- 19-11: agency switch for عمار done (new 3 accounts active, old 3 unlinked, READY). Waiting: client's /accounts + /balance check in Telegram.
