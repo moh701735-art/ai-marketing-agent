@@ -1,0 +1,32 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P197E_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+CL = '_SNAP_KEYS = ("sub_request_error_reason", "display_message", "debug_message", "error_description", "message", "error", "error_code", "reason")\n\n\ndef _snap_texts(x, out, depth=0):\n    """يجمع نصوص الرفض من أي مستوى بجسم رد سناب (p197e): السبب الحقيقي غالباً متداخل داخل قائمة الطلبات الفرعية."""\n    if depth > 6 or len(out) >= 8:\n        return\n    if isinstance(x, dict):\n        for k, v in x.items():\n            if k in _SNAP_KEYS and isinstance(v, str) and v.strip():\n                t = v.strip()[:200]\n                if t not in out:\n                    out.append(t)\n            elif isinstance(v, (dict, list)):\n                _snap_texts(v, out, depth + 1)\n    elif isinstance(x, list):\n        for v in x[:10]:\n            _snap_texts(v, out, depth + 1)\n\n\ndef _snapchat(status: int, body):\n    """سناب (p191d + p197e): النجاح = 2xx وrequest_status ≠ ERROR؛ الفشل يحمل نص سبب الرفض كاملاً (حتى المتداخل) بدل كلمة bad_request فقط."""\n    ok = 200 <= status < 300 and not (isinstance(body, dict) and str(body.get("request_status", "SUCCESS")).upper() == "ERROR")\n    if ok:\n        return _tiktok(status, {})\n    texts = []\n    _snap_texts(body, texts)\n    msg = " | ".join(texts)[:380] if texts else None\n    return _tiktok(status if status >= 400 else 400, {"message": msg} if msg else {})\n\n\n'
+HELPER = 'def snap_reason(x: dict) -> str:\n    """سبب رفض سناب لعنصر فرعي: sub_request_error_reason أولاً (p197e) ثم الرسائل المعتادة."""\n    for k in ("sub_request_error_reason", "display_message", "debug_message", "error_description", "message"):\n        v = x.get(k) if isinstance(x, dict) else None\n        if isinstance(v, str) and v.strip(): return v.strip()\n    return str((x or {}).get("sub_request_status") or "error")\n\n\n'
+pc, ps = 'broker/app/classify.py', 'broker/app/snapflow.py'
+c = open(BASE + pc, encoding='utf-8').read(); c0 = c
+f = open(BASE + ps, encoding='utf-8').read(); f0 = f
+if '_snap_texts' in c and 'def snap_reason' in f: print('APPLY197E_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(s, kw, n=3): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# classify: replace the p191d _snapchat function (up to parse_body)
+m = list(re.finditer(r'(?m)^def _snapchat\(status: int, body\):', c)); mp = list(re.finditer(r'(?m)^def parse_body\(', c))
+if len(m) != 1 or len(mp) != 1: FAILS.append('classify anchors _snapchat=%d parse_body=%d; lines: %s' % (len(m), len(mp), lw(c, '_snapchat')))
+elif not m[0].start() < mp[0].start(): FAILS.append('parse_body is before _snapchat')
+else:
+    old = c[m[0].start():mp[0].start()]
+    if 'display_message' not in old or '_tiktok(' not in old or len(old) > 3000: FAILS.append('old _snapchat shape unexpected: ' + ascii(old[:400]))
+    else: c = c[:m[0].start()] + CL + c[mp[0].start():]
+# snapflow: first_result reads sub_request_error_reason
+OLD = 'return None, str(x.get("display_message") or x.get("debug_message") or x.get("sub_request_status"))[:300]'
+if f.count(OLD) != 1: FAILS.append('snapflow first_result message anchor count=%d; lines: %s' % (f.count(OLD), lw(f, 'sub_request_status')))
+a = 'def first_result(data: dict, listkey: str, itemkey: str):'
+if f.count(a) != 1: FAILS.append('snapflow first_result def count=%d' % f.count(a))
+if FAILS: fail(' || '.join(FAILS))
+f = f.replace(OLD, 'return None, snap_reason(x)[:300]').replace(a, HELPER + a)
+for name, b in ((pc, c), (ps, f)):
+    try: compile(b, name, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (name, e))
+for name, a0, b in ((pc, c0, c), (ps, f0, f)):
+    shutil.copy(BASE + name, BASE + name + '.pre197e'); open(BASE + name, 'w', encoding='utf-8').write(b)
+print('APPLY197E_OK snap errors now carry Snap\'s real reason (classify: nested reasons; snapflow: sub_request_error_reason)')

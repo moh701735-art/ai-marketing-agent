@@ -165,6 +165,14 @@ def body(op_name: str, p: dict, account_id: str = "") -> dict:
     raise ValueError(op_name)
 
 
+def snap_reason(x: dict) -> str:
+    """سبب رفض سناب لعنصر فرعي: sub_request_error_reason أولاً (p197e) ثم الرسائل المعتادة."""
+    for k in ("sub_request_error_reason", "display_message", "debug_message", "error_description", "message"):
+        v = x.get(k) if isinstance(x, dict) else None
+        if isinstance(v, str) and v.strip(): return v.strip()
+    return str((x or {}).get("sub_request_status") or "error")
+
+
 def first_result(data: dict, listkey: str, itemkey: str):
     """يقرأ رد سناب {request_status, <list>:[{sub_request_status, <item>:{id}}]} → (id, رسالة خطأ)"""
     if not isinstance(data, dict): return None, "رد غير مفهوم"
@@ -172,7 +180,7 @@ def first_result(data: dict, listkey: str, itemkey: str):
     if not arr: return None, str(data.get("display_message") or data.get("debug_message") or "رد فاضي من سناب")[:300]
     x = arr[0] or {}
     if str(x.get("sub_request_status", "SUCCESS")).upper() != "SUCCESS":
-        return None, str(x.get("display_message") or x.get("debug_message") or x.get("sub_request_status"))[:300]
+        return None, snap_reason(x)[:300]
     i = (x.get(itemkey) or {}).get("id")
     return (str(i), None) if i else (None, "ما رجع id")
 

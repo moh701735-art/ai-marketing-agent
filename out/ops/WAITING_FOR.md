@@ -21,3 +21,4 @@
 - 18-11: p201b (`out/p201bs.txt`) sent — owner runs it (deploys). Next: hourly report rule line (needs `grep -n "rule\|noRes\|zero" n8n/wf_job_report.py` as TEXT).
 - 18-11: p201b applied. Next: hourly-report rule line (wf_job_report.py grep as TEXT), then rotate exposed keys / hide Smart button / Iraq-only for Meta+Snap.
 - 18-11: p201c (`out/p201cs.txt`) sent — owner runs it (deploys); then check the next hourly report shows «🛡 الحارس…» under each TikTok campaign. Rollback: `cp n8n/wf_job_report.py.pre201c n8n/wf_job_report.py` + update.sh.
+- 19-11: p201c v2 sent (owner to run); p197e (`out/p197es.txt`) built — owner runs, then ONE Snap retry to read Snap's real rejection; delete draft campaign 7ccf6d9b-c94a-4397-90b0-7d8dfaca7105 in Snap Ads Manager.
