@@ -33,11 +33,11 @@ if 'p215' not in sp:
     if len(ml) != 1: FAILS.append('spark IRAQ_ONLY lock count=%d; lines: %s' % (len(ml), lw(sp, 'IRAQ_ONLY')))
     if not FAILS:
         l = ml[0]; I1, I2 = l.group(1), l.group(2)
-        LOCK = (I1 + 'allowed = [str(x).upper() for x in (allowed or ["IQ"])]  # p215: الدول المسموحة للعميل (الافتراضي العراق فقط)\n'
-          + I1 + 'if __import__("os").environ.get("BROKER_TT_IRAQ_ONLY", "1") != "0" and not set(cs) <= set(allowed):  # p207/p215\n'
-          + I2 + 'return None, ("الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)" if allowed == ["IQ"] else "الاستهداف مسموح فقط للدول: " + ", ".join(allowed) + " (BROKER_TT_IRAQ_ONLY)")\n')
+        LOCK = (I1 + 'ctry_ok = [str(x).upper() for x in (allowed_countries or ["IQ"])]  # p215: الدول المسموحة للعميل (الافتراضي العراق فقط)\n'
+          + I1 + 'if __import__("os").environ.get("BROKER_TT_IRAQ_ONLY", "1") != "0" and not set(cs) <= set(ctry_ok):  # p207/p215\n'
+          + I2 + 'return None, ("الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)" if ctry_ok == ["IQ"] else "الاستهداف مسموح فقط للدول: " + ", ".join(ctry_ok) + " (BROKER_TT_IRAQ_ONLY)")\n')
         sp = sp[:l.start()] + LOCK + sp[l.end():]
-        sp = sp[:ms[0].start()] + 'def validate(params: dict, allowed=None):' + sp[ms[0].end():]
+        sp = sp[:ms[0].start()] + 'def validate(params: dict, allowed_countries=None):' + sp[ms[0].end():]
 # ---- service.py: read allowed countries before validate (fail-closed) ----
 if 'p215' not in sv:
     mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv))
@@ -48,9 +48,9 @@ if 'p215' not in sv:
 if FAILS: fail(' || '.join(FAILS))
 if 'p215' not in sv:
     mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv)); i = mv[0].group(1)
-    NEW = (i + 'allowed = None  # p215: دول مسموحة لهذا العميل (الافتراضي العراق فقط؛ فشل القراءة => عراق فقط)\n'
-         + i + 'try:\n' + i + '    allowed = await self.central.tenant_countries(ctx)\n' + i + 'except Exception:\n' + i + '    allowed = None\n'
-         + i + mv[0].group(2) + ', ' + mv[0].group(3) + ' = spark.validate(params, allowed=allowed)\n')
+    NEW = (i + 'tt_ctry = None  # p215: دول مسموحة لهذا العميل (الافتراضي العراق فقط؛ فشل القراءة => عراق فقط)\n'
+         + i + 'try:\n' + i + '    tt_ctry = await self.central.tenant_countries(ctx)\n' + i + 'except Exception:\n' + i + '    tt_ctry = None\n'
+         + i + mv[0].group(2) + ', ' + mv[0].group(3) + ' = spark.validate(params, allowed_countries=tt_ctry)\n')
     sv = sv[:mv[0].start()] + NEW + sv[mv[0].end():]
 for name, b in ((pc, c), (pp, sp), (ps, sv)):
     try: compile(b, name, 'exec')

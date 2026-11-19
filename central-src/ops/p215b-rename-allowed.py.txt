@@ -1,0 +1,29 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P215B_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pp, ps = 'broker/app/spark.py', 'broker/app/service.py'
+sp = open(BASE + pp, encoding='utf-8').read(); sv = open(BASE + ps, encoding='utf-8').read(); sp0, sv0 = sp, sv
+if 'ctry_ok' in sp and 'tt_ctry' in sv: print('APPLY215B_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def one(s, old, new, what):
+    if s.count(old) != 1: FAILS.append('%s count=%d' % (what, s.count(old))); return s
+    return s.replace(old, new)
+# spark.py: the validate() body already has its own local named `allowed` (param-name whitelist) that clobbered our parameter
+sp = one(sp, 'def validate(params: dict, allowed=None):', 'def validate(params: dict, allowed_countries=None):', 'spark signature')
+sp = one(sp, 'allowed = [str(x).upper() for x in (allowed or ["IQ"])]', 'ctry_ok = [str(x).upper() for x in (allowed_countries or ["IQ"])]', 'spark ctry line')
+sp = one(sp, 'not set(cs) <= set(allowed):', 'not set(cs) <= set(ctry_ok):', 'spark lock condition')
+sp = one(sp, 'if allowed == ["IQ"] else', 'if ctry_ok == ["IQ"] else', 'spark message cond')
+sp = one(sp, '", ".join(allowed)', '", ".join(ctry_ok)', 'spark message join')
+# service.py: collision-proof local name + keyword
+m = list(re.finditer(r'(?m)^([ \t]+)allowed = None  # p215[^\n]*\n[ \t]+try:\n[ \t]+allowed = await self\.central\.tenant_countries\(ctx\)\n[ \t]+except Exception:\n[ \t]+allowed = None\n', sv))
+if len(m) != 1: FAILS.append('service p215 block count=%d' % len(m))
+else:
+    blk = m[0].group(0); nb = blk.replace('allowed = None', 'tt_ctry = None').replace('allowed = await', 'tt_ctry = await'); sv = sv[:m[0].start()] + nb + sv[m[0].end():]
+sv = one(sv, 'spark.validate(params, allowed=allowed)', 'spark.validate(params, allowed_countries=tt_ctry)', 'service call')
+if FAILS: fail(' || '.join(FAILS))
+for name, b in ((pp, sp), (ps, sv)):
+    try: compile(b, name, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (name, e))
+for name, a0, b in ((pp, sp0, sp), (ps, sv0, sv)):
+    if a0 != b: shutil.copy(BASE + name, BASE + name + '.pre215b'); open(BASE + name, 'w', encoding='utf-8').write(b)
+print('APPLY215B_OK hotfix: country allow-list variables renamed (no clash with validate()\'s own `allowed` whitelist)')

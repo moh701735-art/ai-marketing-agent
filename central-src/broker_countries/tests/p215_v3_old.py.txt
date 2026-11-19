@@ -1,0 +1,72 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P215_BASE', '/opt/central/')
+NODB = bool(os.environ.get('P215_NODB'))
+SQL = '-- 75_tenant_countries.sql (p215): الدول المسموحة لاستهداف تيك توك لكل عميل. الافتراضي العراق فقط (IQ).\n-- القيمة بالقاعدة: core.tenants.features->\'allowed_countries\' = ["IQ","SA",...] (رمزان لاتينيان). الـBroker يقرأها قبل فحص القفل (BROKER_TT_IRAQ_ONLY).\n\\set ON_ERROR_STOP on\nSET ROLE app_owner;\nCREATE OR REPLACE FUNCTION api.tenant_countries(p_ctx text) RETURNS text[]\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $$\nDECLARE v_f jsonb; v_out text[];\nBEGIN\n  PERFORM private.enter_ctx(p_ctx, \'viewer\');\n  SELECT t.features->\'allowed_countries\' INTO v_f FROM core.tenants t WHERE t.tenant_id = private.cur_tenant();\n  IF v_f IS NULL OR jsonb_typeof(v_f) <> \'array\' THEN RETURN ARRAY[\'IQ\']; END IF;\n  SELECT array_agg(DISTINCT upper(e) ORDER BY upper(e)) INTO v_out FROM jsonb_array_elements_text(v_f) e WHERE e ~ \'^[A-Za-z]{2}$\';\n  RETURN coalesce(v_out, ARRAY[\'IQ\']);\nEND $$;\nREVOKE ALL ON FUNCTION api.tenant_countries(text) FROM PUBLIC;\nGRANT EXECUTE ON FUNCTION api.tenant_countries(text) TO app_broker;\n'
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+pc, pp, ps = 'broker/app/central.py', 'broker/app/spark.py', 'broker/app/service.py'
+c, sp, sv = rd(pc), rd(pp), rd(ps); c0, sp0, sv0 = c, sp, sv
+if 'p215' in c and 'p215' in sp and 'p215' in sv: print('APPLY215_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(s, kw, n=3): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# ---- central.py: tenant_countries (read, fail-closed to None) ----
+if 'p215' not in c:
+    m = list(re.finditer(r'(?m)^([ \t]+)async def report_connection\(self, ctx: str', c))
+    if len(m) != 1: FAILS.append('central report_connection anchor count=%d; lines: %s' % (len(m), lw(c, 'def ')))
+    else:
+        i = m[0].group(1)
+        NEW = (i + 'async def tenant_countries(self, ctx: str):\n'
+          + i + '    """p215: الدول المسموحة لتيك توك لهذا العميل (api.tenant_countries). أي خطأ => None والمستدعي يرجع للعراق فقط."""\n'
+          + i + '    try:\n'
+          + i + '        async with self.pool.connection() as c:\n'
+          + i + '            r = await (await c.execute("SELECT api.tenant_countries(%s)", (ctx,))).fetchone()\n'
+          + i + '        v = r[0] if r else None\n'
+          + i + '        return [str(x).upper() for x in v] if isinstance(v, (list, tuple)) and v else None\n'
+          + i + '    except Exception:\n'
+          + i + '        return None\n\n')
+        c = c[:m[0].start()] + NEW + c[m[0].start():]
+# ---- spark.py: validate(params, allowed=None) + subset lock ----
+if 'p215' not in sp:
+    ms = list(re.finditer(r'(?m)^def validate\(params(: dict)?\)(\s*->\s*[^:\n]+)?:', sp))
+    ml = list(re.finditer(r'(?m)^([ \t]*)if __import__\("os"\)\.environ\.get\("BROKER_TT_IRAQ_ONLY", "1"\) != "0" and cs != \["IQ"\]:[ \t]*# p207\n([ \t]+)(return None, )"[^"\n]*"\n', sp))
+    if len(ms) != 1: FAILS.append('spark validate def count=%d; lines: %s' % (len(ms), lw(sp, 'def validate')))
+    if len(ml) != 1: FAILS.append('spark IRAQ_ONLY lock count=%d; lines: %s' % (len(ml), lw(sp, 'IRAQ_ONLY')))
+    if not FAILS:
+        l = ml[0]; I1, I2 = l.group(1), l.group(2)
+        LOCK = (I1 + 'allowed = [str(x).upper() for x in (allowed or ["IQ"])]  # p215: الدول المسموحة للعميل (الافتراضي العراق فقط)\n'
+          + I1 + 'if __import__("os").environ.get("BROKER_TT_IRAQ_ONLY", "1") != "0" and not set(cs) <= set(allowed):  # p207/p215\n'
+          + I2 + 'return None, ("الاستهداف مقفل على العراق فقط، أي دولة ثانية غير مسموحة (BROKER_TT_IRAQ_ONLY)" if allowed == ["IQ"] else "الاستهداف مسموح فقط للدول: " + ", ".join(allowed) + " (BROKER_TT_IRAQ_ONLY)")\n')
+        sp = sp[:l.start()] + LOCK + sp[l.end():]
+        sp = sp[:ms[0].start()] + 'def validate(params: dict, allowed=None):' + sp[ms[0].end():]
+# ---- service.py: read allowed countries before validate (fail-closed) ----
+if 'p215' not in sv:
+    mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv))
+    if len(mv) != 1: FAILS.append('service spark.validate anchor count=%d; RAW lines: %s' % (len(mv), ' | '.join(ascii(l[:200]) for l in sv.split('\n') if 'spark.validate' in l) or 'none'))
+    else:
+        defs = list(re.finditer(r'(?m)^[ \t]*async def \w+\([^)\n]*\)[^\n]*:', sv[:mv[0].start()]))
+        if not defs or 'ctx' not in defs[-1].group(0): FAILS.append('enclosing def has no ctx: ' + (ascii(defs[-1].group(0)[:200]) if defs else 'none'))
+if FAILS: fail(' || '.join(FAILS))
+if 'p215' not in sv:
+    mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv)); i = mv[0].group(1)
+    NEW = (i + 'allowed = None  # p215: دول مسموحة لهذا العميل (الافتراضي العراق فقط؛ فشل القراءة => عراق فقط)\n'
+         + i + 'try:\n' + i + '    allowed = await self.central.tenant_countries(ctx)\n' + i + 'except Exception:\n' + i + '    allowed = None\n'
+         + i + mv[0].group(2) + ', ' + mv[0].group(3) + ' = spark.validate(params, allowed=allowed)\n')
+    sv = sv[:mv[0].start()] + NEW + sv[mv[0].end():]
+for name, b in ((pc, c), (pp, sp), (ps, sv)):
+    try: compile(b, name, 'exec')
+    except SyntaxError as e: fail('syntax %s: %s' % (name, e))
+# ---- DB: migration (idempotent) ----
+dbmsg = 'db skipped'
+if not NODB:
+    env = {}
+    for l in open(BASE + 'deploy/.env', encoding='utf-8'):
+        if '=' in l and not l.lstrip().startswith('#'): k2, v2 = l.rstrip('\n').split('=', 1); env[k2.strip()] = v2.strip().strip('"\'')
+    pgc = env.get('COMPOSE_PROJECT_NAME', 'central-stg') + '-pg'; db = env.get('DB_CENTRAL', 'central')
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-At', '-c', "select count(*) from pg_roles where rolname in ('app_owner','app_broker')"], capture_output=True, text=True)
+    if r.returncode or r.stdout.strip() != '2': fail('roles app_owner/app_broker missing: ' + (r.stderr or r.stdout).strip()[-150:])
+    r = subprocess.run(['docker', 'exec', '-i', pgc, 'psql', '-U', 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '-q', '-f', '-'], input=SQL, capture_output=True, text=True)
+    if r.returncode: fail('DB migration failed (nothing else written): ' + r.stderr.strip()[-250:])
+    dbmsg = 'api.tenant_countries created'
+for name, a0, b in ((pc, c0, c), (pp, sp0, sp), (ps, sv0, sv)):
+    if a0 != b: shutil.copy(BASE + name, BASE + name + '.pre215'); open(BASE + name, 'w', encoding='utf-8').write(b)
+print('APPLY215_OK per-tenant allowed countries (default IQ only): central.tenant_countries + spark.validate(allowed) + service pre-read; ' + dbmsg)
