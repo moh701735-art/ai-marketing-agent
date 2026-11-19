@@ -30,3 +30,4 @@
 - 19-11: agency switch for عمار done (new 3 accounts active, old 3 unlinked, READY). Waiting: client's /accounts + /balance check in Telegram.
 - 19-11: p215 (`out/p215s.txt`) built — owner runs it (deploys Broker + creates api.tenant_countries), THEN `out/p215mohm.txt` (opens Gulf countries for mohm only), then retries the PUBG launch.
 - 19-11 URGENT: p215 broke all TikTok launches → `out/p215bs.txt` hotfix must be applied NOW (owner). After it: retry PUBG Gulf launch (mohm has allowed_countries set). All TikTok launches (all tenants) fail until then.
+- 19-11: p216 (`out/p216s.txt`) built (LLM parser retry on bad_response) — owner runs it, then resends the long PUBG message (also test /report etc. still fine). Still pending: PUBG Gulf launch result after p215b (blocked by this parser failure), p214 verification, عمار /accounts+/balance test, Snap pixel/dresses page, leftover drafts cleanup.

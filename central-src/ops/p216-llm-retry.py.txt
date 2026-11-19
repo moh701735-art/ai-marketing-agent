@@ -1,0 +1,40 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P216_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+ps = 'broker/app/service.py'
+s = open(BASE + ps, encoding='utf-8').read(); s0 = s
+if 'p216' in s: print('APPLY216_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def raw(kw, n=4): return ' | '.join([ascii(l[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+# 1) t0 line of the llm handler (followed by the generateContent url line)
+m1 = list(re.finditer(r'(?m)^([ \t]+)t0 = time\.monotonic\(\)\n(?=[ \t]+url = self\.s\.llm_base_url)', s))
+if len(m1) != 1: FAILS.append('t0/url anchor count=%d; RAW t0 lines: %s' % (len(m1), raw('t0 = time.monotonic()')))
+# 2) the POST line
+m2 = list(re.finditer(r'(?mi)^([ \t]+)r = await self\.client\.post\(url, headers=\{"x-goog-api-key": self\.s\.llm_key\}, json=body, timeout=20\.0\)[ \t]*\n', s))
+if len(m2) != 1: FAILS.append('post anchor count=%d; RAW post lines: %s' % (len(m2), raw('client.post(url')))
+# 3) the 200-branch cls line + break
+m3 = list(re.finditer(r'(?m)^([ \t]+)(cls = [^\n]*"bad_response"[^\n]*)\n\1break\n', s))
+if len(m3) != 1: FAILS.append('bad_response cls/break anchor count=%d; RAW lines: %s' % (len(m3), raw('"bad_response"', 6)))
+elif 'result' not in m3[0].group(2): FAILS.append('cls line does not mention result: ' + ascii(m3[0].group(2)[:200]))
+if FAILS: fail(' || '.join(FAILS))
+if not (m1[0].start() < m2[0].start() < m3[0].start()): fail('anchors out of order (t0 < post < cls expected)')
+i1, i2, i3 = m1[0].group(1), m2[0].group(1), m3[0].group(1)
+INS1 = i1 + '_p216_retry = False  # p216: bad_response (JSON مقطوع من الموديل) يعاد مرة وحدة بحرارة أعلى\n'
+INS2 = i2 + 'if _p216_retry:\n' + i2 + '    body = {**body, "generationConfig": {**body.get("generationConfig", {}), "temperature": 0.4}}\n'
+INS3 = (i3 + 'if cls == "bad_response":\n'
+  + i3 + '    try:\n'
+  + i3 + '        _d = __import__("json").loads(r.content)\n'
+  + i3 + '        print("p216 llm bad_response finish=%s out_tokens=%s retry=%s" % (((_d.get("candidates") or [{}])[0] or {}).get("finishReason"), (_d.get("usageMetadata") or {}).get("candidatesTokenCount"), _p216_retry), flush=True)\n'
+  + i3 + '    except Exception:\n'
+  + i3 + '        pass\n'
+  + i3 + '    if not _p216_retry:\n'
+  + i3 + '        _p216_retry = True\n'
+  + i3 + '        continue\n')
+s = s[:m3[0].start(2)] + m3[0].group(2) + '\n' + INS3 + s[m3[0].end(2) + 1:]   # keep the original cls line, add the retry block, then the original `break`
+# apply later anchors first (positions of earlier ones stay valid)
+s = s[:m2[0].start()] + INS2 + s[m2[0].start():]
+s = s[:m1[0].end()] + INS1 + s[m1[0].end():]
+try: compile(s, ps, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (ps, e))
+shutil.copy(BASE + ps, BASE + ps + '.pre216'); open(BASE + ps, 'w', encoding='utf-8').write(s)
+print('APPLY216_OK llm.parse_command/chat: one automatic retry (temperature 0.4) when the model output is unusable (bad_response) + diagnostic log line')
