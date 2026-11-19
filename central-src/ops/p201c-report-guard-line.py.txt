@@ -12,10 +12,11 @@ la = [l for l in s.split('\n') if re.match(r'\s*acc = pg\(w, ', l)]
 newline = None; accname = None
 if len(la) != 1: FAILS.append('acc line count=%d: %s' % (len(la), lw('acc = pg')))
 else:
-    mm = re.match(r'^(\s*acc = pg\(w, ")([^"]*)(", ")(SELECT .*? FROM api\.list_ad_accounts\(\$1\))(".*)$', la[0])
+    mm = re.match(r'^(\s*acc = pg\(w, ")([^"]*)(", ")(SELECT .*? FROM api\.list_ad_accounts\(\$1\))([^"]*)(".*)$', la[0])
     if not mm: FAILS.append('acc line shape unexpected: ' + ascii(la[0][:300]) + ' ... ' + ascii(la[0][-160:]))
     else:
-        accname = mm.group(2); sql = mm.group(4)
+        accname = mm.group(2); sql = mm.group(4); trail = mm.group(5)
+        if re.search(r'\b(ORDER\s+BY|LIMIT|GROUP\s+BY|HAVING|OFFSET|FETCH|UNION|FOR\s+UPDATE)\b', trail, re.I): FAILS.append('acc SQL has trailing clause that a UNION ALL cannot follow: ' + ascii(trail[:200]))
         k = sql.find(' FROM ')
         sel = sql[len('SELECT '):k]
         cols = []; depth = 0; q = False; cur = ''
@@ -37,7 +38,7 @@ else:
         else:
             RJ = "'~rules~' || coalesce((SELECT jsonb_agg(jsonb_build_object('id', w.external_id, 'stop', w.stop, 'al', w.alerts::text)) FROM api.watch_list($1) w), '[]'::jsonb)::text"
             row = ', '.join(RJ if a == 'name' else 'NULL' for a in al)
-            newline = mm.group(1) + mm.group(2) + mm.group(3) + sql + ' UNION ALL SELECT ' + row + mm.group(5) + '   # p201c'
+            newline = mm.group(1) + mm.group(2) + mm.group(3) + sql + trail + ' UNION ALL SELECT ' + row + mm.group(6) + '   # p201c'
 # 2) fmt code: helper after `const res = ...` and the line after the verdict B.push
 mr = list(re.finditer(r'(?m)^([ \t]*)const res = \$input\.all\(\)\.map\(i => i\.json\);[ \t]*\n', s))
 if len(mr) != 1: FAILS.append('const res anchor count=%d: %s' % (len(mr), lw('const res')))
