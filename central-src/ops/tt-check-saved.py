@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""قراءة فقط: يفحص اهتمامات جمهور محفوظ عند تيك توك (tiktok.check_interests) ويطبع الصالح وغير الصالح. لا يكتب شي ولا يغيّر الجمهور.
-من /opt/central:  SA_SLUG=mohm SA_NAME='جمهور 1' python3 ops/tt-check-saved.py"""
+"""يفحص اهتمامات جمهور محفوظ عند تيك توك (tiktok.check_interests) ويطبع الصالح وغير الصالح. افتراضياً قراءة فقط.
+من /opt/central:  SA_SLUG=mohm SA_NAME='جمهور 1' python3 ops/tt-check-saved.py          (فحص)
+                  APPLY=1 SA_SLUG=mohm SA_NAME='جمهور 1' python3 ops/tt-check-saved.py  (يشيل فقط الاهتمامات اللي تيك توك قال حالتها غير EFFECTIVE، ويحتفظ بالباقي بنفس الترتيب)"""
 import json, os, re, subprocess, sys
 SLUG = os.environ.get("SA_SLUG", "mohm").strip(); NAME = os.environ.get("SA_NAME", "جمهور 1").strip()
 if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", SLUG): sys.exit("bad SA_SLUG")
@@ -51,3 +52,11 @@ print("جمهور «%s» (%s): %d اهتمام محفوظ، رجع من تيك �
 good = [i for i in ids if seen.get(i) == "EFFECTIVE"]; other = [i for i in ids if i in seen and seen[i] != "EFFECTIVE"]; missing = [i for i in ids if i not in seen]
 print("صالح (EFFECTIVE): %d | حالة غير صالحة: %d | ما رجع أبداً: %d" % (len(good), len(other), len(missing)))
 for i in other + missing: print("  ✗ %s  %s  [%s]" % (i, names.get(i, "")[:40], seen.get(i) or "غير موجود"))
+
+if os.environ.get("APPLY") == "1":
+    if bad_calls or not seen: sys.exit("APPLY ملغى: فشل التحقق من تيك توك (طلبات فاشلة %d)، ما غيّرت شي" % bad_calls)
+    if not other: print("ما فيه اهتمامات غير صالحة صريحة، ما غيّرت شي"); sys.exit(0)
+    if not good: sys.exit("APPLY ملغى: ما بقي أي اهتمام صالح، ما غيّرت شي")
+    arr = "array[" + ",".join("'%s'" % i for i in other if re.fullmatch(r"[0-9]{3,25}", i)) + "]::text[]"
+    r = psql("update smart_audience.saved s set interests = (select jsonb_agg(e order by ord) from jsonb_array_elements(s.interests) with ordinality as x(e, ord) where (e->>0) <> all(%s)), updated_at = now() from core.tenants t where t.tenant_id = s.tenant_id and t.slug = '%s' and s.name = '%s' returning jsonb_array_length(s.interests)" % (arr, SLUG, NAME))
+    print("تم: شلت %d اهتمام غير صالح، المتبقي بالجمهور: %s" % (len(other), r[0] if r else "؟"))
