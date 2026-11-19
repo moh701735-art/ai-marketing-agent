@@ -1,0 +1,51 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P214_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+pf = 'broker/app/service.py'
+s = open(BASE + pf, encoding='utf-8').read(); s0 = s
+if 'p214' in s: print('APPLY214_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(kw, n=3): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+ma = list(re.finditer(r'(?m)^([ \t]+)async def _product_interests\(self, ctx: str, ad_account: str,', s))
+if len(ma) != 1: FAILS.append('_product_interests anchor count=%d; lines: %s' % (len(ma), lw('_product_interests')))
+mb = list(re.finditer(r'(?m)^([ \t]+)iids = \[str\(x\) for x in p\["interest_ids"\]\]\[:500\]\n[ \t]+names = [^\n]*\n[ \t]+seen_prod, why, idbg = "", "", \{\}\n', s))
+if len(mb) != 1: FAILS.append('explicit interest_ids block anchor count=%d; lines: %s' % (len(mb), lw('interest_ids')))
+if not re.search(r'(?m)^[ \t]+async def call\(self, ctx', s): FAILS.append('async def call(self, ctx ...) not found')
+if FAILS: fail(' || '.join(FAILS))
+I = ma[0].group(1)
+METHOD = (I + 'async def _valid_interest_ids(self, ctx: str, ad_account: str, ids: list):\n'
+ + I + '    """p214: يفحص keyword_ids عند تيك توك (دفعات 50). يرجّع (ok, bad, note): bad = حالتها صريحة غير EFFECTIVE فقط (اللي ما رجع ما نحكم عليه)، note=\'check_failed\' لو ما انقرأ شي."""\n'
+ + I + '    seen, failed = {}, False\n'
+ + I + '    for i in range(0, len(ids), 50):\n'
+ + I + '        st, env = await self.call(ctx, "tiktok", "tiktok.check_interests", ad_account, {"keyword_ids": ids[i:i + 50]})\n'
+ + I + '        body = (((env or {}).get("data") or {}).get("data")) if st == 200 and (env or {}).get("ok") else None\n'
+ + I + '        arr = (body.get("keywords") or body.get("list") or body.get("interest_keywords")) if isinstance(body, dict) else None\n'
+ + I + '        if not isinstance(arr, list):\n'
+ + I + '            failed = True\n'
+ + I + '            continue\n'
+ + I + '        for y in arr:\n'
+ + I + '            y = y or {}\n'
+ + I + '            seen[str(y.get("keyword_id") or y.get("id") or "")] = str(y.get("status") or "")\n'
+ + I + '    bad = [x for x in ids if x in seen and seen[x] != "EFFECTIVE"]\n'
+ + I + '    return [x for x in ids if x not in bad], bad, ("check_failed" if failed and not seen else "")\n\n')
+d = mb[0].group(1)
+BLOCK = (d + '# p214: اهتمام ما عاد متوفر عند تيك توك يرفض المجموعة الإعلانية بعد ما تنشأ الحملة؛ نتحقق قبل أي إنشاء ونشيل غير الصالح ونبلّغ\n'
+ + d + 'try:\n'
+ + d + '    iids_ok, iids_bad, iids_note = await self._valid_interest_ids(ctx, ad_account, iids)\n'
+ + d + 'except Exception:\n'
+ + d + '    iids_ok, iids_bad, iids_note = list(iids), [], "check_failed"\n'
+ + d + 'if iids_bad and not iids_ok:\n'
+ + d + '    return 200, {"ok": False, "error": {"class": "invalid_params", "message": "كل الاهتمامات المحددة ما عادت متوفرة عند تيك توك. حدّث الجمهور من 🎯 منشئ الجمهور وأعد الطلب. ما أنشأت أي حملة.", "retryable": False}, "data": {"stage": "interests", "interests_dropped": len(iids_bad)}}\n'
+ + d + 'if iids_bad:\n'
+ + d + '    iids = iids_ok\n'
+ + d + '    why = "شلت %d اهتمام ما عاد متوفر عند تيك توك" % len(iids_bad)\n'
+ + d + '    made["interests_dropped"] = len(iids_bad)\n'
+ + d + 'elif iids_note:\n'
+ + d + '    why = "ما قدرت أتحقق من الاهتمامات عند تيك توك، كملت بالقائمة كما هي"\n')
+s = s[:mb[0].end()] + BLOCK + s[mb[0].end():]
+ma = list(re.finditer(r'(?m)^([ \t]+)async def _product_interests\(self, ctx: str, ad_account: str,', s))
+s = s[:ma[0].start()] + METHOD + s[ma[0].start():]
+try: compile(s, pf, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (pf, e))
+shutil.copy(BASE + pf, BASE + pf + '.pre214'); open(BASE + pf, 'w', encoding='utf-8').write(s)
+print('APPLY214_OK explicit interest_ids are validated at TikTok before the campaign is created (drops inactive ones, halts if none valid)')
