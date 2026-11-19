@@ -42,6 +42,11 @@ class T(unittest.TestCase):
     def test_sub_request_error_reason_is_surfaced(self):   # p197e
         s = Svc({"snapchat.adaccount": ADOK, "snapchat.create_campaign": CAMP, "snapchat.create_adsquad": ok({"adsquads": [{"sub_request_status": "ERROR", "sub_request_error_reason": "daily budget too low"}]})}); st, env = run(s)
         self.assertEqual(env["data"]["stage"], "adsquad"); self.assertIn("daily budget too low", env["error"]["message"]); self.assertEqual(env["data"]["campaign_id"], "camp-1")
+    def test_pixel_goal_sends_conversion_window_p197f(self):
+        b = sf.body("snapchat.create_adsquad", {"name": "n", "campaign_id": "c", "start_time": "2026-11-19T10:00:00.000+03:00", "targeting_json": "{}", "budget_micro": 20000000, "goal": "PIXEL_PURCHASE", "pixel_id": "px-1"})["adsquads"][0]
+        self.assertEqual(b["optimization_goal"], "PIXEL_PURCHASE"); self.assertEqual(b["pixel_id"], "px-1"); self.assertEqual(b["conversion_window"], "SWIPE_28DAY_VIEW_1DAY")
+        b2 = sf.body("snapchat.create_adsquad", {"name": "n", "campaign_id": "c", "start_time": "2026-11-19T10:00:00.000+03:00", "targeting_json": "{}", "budget_micro": 20000000, "goal": "SWIPES"})["adsquads"][0]
+        self.assertNotIn("conversion_window", b2)
     def test_validation(self):
         s = Svc({})
         for bad in (dict(GOOD, name=""), dict(GOOD, objective="sal"), dict(GOOD, budget=0), dict(GOOD, budget=10**9), dict(GOOD, days=0), dict(GOOD, regions=["abc"]), dict(GOOD, ages=["10-12"]), dict(GOOD, gender="x"),

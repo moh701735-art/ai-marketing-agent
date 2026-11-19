@@ -1,0 +1,33 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P197F_BASE', '/opt/central/')
+def fail(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+S_OLD = '        if p.get("pixel_id"): s["pixel_id"] = p["pixel_id"]\n        return {"adsquads": [s]}'
+S_NEW = '        if p.get("pixel_id"): s["pixel_id"] = p["pixel_id"]\n        if str(s["optimization_goal"]).startswith("PIXEL_"): s["conversion_window"] = p.get("conversion_window") or "SWIPE_28DAY_VIEW_1DAY"   # p197f: E3017 «…ineligible for PIXEL_PURCHASE null» = ما أرسلنا نافذة التحويل\n        return {"adsquads": [s]}'
+W_ADD = "  if (/E3017|ineligible for PIXEL/i.test(String((r.error && r.error.message) || ''))) L.push('', 'ℹ️ سناب رفض هدف «مبيعات»: البكسل غير مؤهل لتحسين الشراء (يحتاج أحداث Purchase كافية خلال نافذة التحويل، غالباً آخر 28 يوم). تأكد من Snap Events Manager إن البكسل سجّل شراء، أو اختر هدف زيارات/عملاء محتملين. ما غيّرت الهدف بدون ما تدري.');   // p197f\n"
+ps, pw = 'broker/app/snapflow.py', 'snapchat/wizard.py'
+f = open(BASE + ps, encoding='utf-8').read(); f0 = f
+w = open(BASE + pw, encoding='utf-8').read(); w0 = w
+if 'p197f' in f and 'p197f' in w: print('APPLY197F_OK changed=0 (already applied)'); sys.exit(0)
+FAILS = []
+def lw(s, kw, n=3): return ' | '.join([ascii(l.strip()[:200]) for l in s.split('\n') if kw in l][:n]) or 'none'
+if 'p197f' not in f:
+    if f.count(S_OLD) != 1: FAILS.append('snapflow adsquad anchor count=%d; lines: %s' % (f.count(S_OLD), lw(f, 'pixel_id')))
+    else: f = f.replace(S_OLD, S_NEW)
+if 'p197f' not in w:
+    m = list(re.finditer(r"(?m)^  const L = \['❌ [^\n]*\];\n", w))
+    if len(m) != 1: FAILS.append('wizard failure-screen anchor count=%d; lines: %s' % (len(m), lw(w, 'const L = [')))
+    else: w = w[:m[0].end()] + W_ADD + w[m[0].end():]
+if FAILS: fail(' || '.join(FAILS))
+try: compile(f, ps, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (ps, e))
+try: compile(w, pw, 'exec')
+except SyntaxError as e: fail('syntax %s: %s' % (pw, e))
+for name, a0, b in ((ps, f0, f), (pw, w0, w)):
+    if a0 != b: shutil.copy(BASE + name, BASE + name + '.pre197f'); open(BASE + name, 'w', encoding='utf-8').write(b)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        for name in (ps, pw):
+            if os.path.exists(BASE + name + '.pre197f'): shutil.copy(BASE + name + '.pre197f', BASE + name)
+        sys.exit('PATCH FAIL: build failed, restored: ' + r.stderr[-300:])
+print('APPLY197F_OK pixel goals send conversion_window; E3017 gets an Arabic explanation on the failure screen')

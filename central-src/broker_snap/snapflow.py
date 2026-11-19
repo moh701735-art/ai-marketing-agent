@@ -155,6 +155,7 @@ def body(op_name: str, p: dict, account_id: str = "") -> dict:
         if p.get("end_time"): s["end_time"] = p["end_time"]
         s["daily_budget_micro" if p.get("budget_kind") == "daily" else "lifetime_budget_micro"] = int(p["budget_micro"])
         if p.get("pixel_id"): s["pixel_id"] = p["pixel_id"]
+        if str(s["optimization_goal"]).startswith("PIXEL_"): s["conversion_window"] = p.get("conversion_window") or "SWIPE_28DAY_VIEW_1DAY"   # p197f: E3017 «…ineligible for PIXEL_PURCHASE null» = ما أرسلنا نافذة التحويل
         return {"adsquads": [s]}
     if op_name == "snapchat.create_media":
         return {"media": [{"name": p["name"], "type": "VIDEO", "ad_account_id": p.get("account_id") or account_id}]}

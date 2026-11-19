@@ -141,6 +141,7 @@ if (P.go) {
     return done(L.join('\n'), [[{ t: '🔁 حملة جديدة', c: 'sn:s' }, { t: '🏠 الرئيسية', c: 'h' }]]);
   }
   const L = ['❌ ما اكتملت الحملة (المرحلة: ' + (STG[dd.stage] || dd.stage || '؟') + ')', LINE, String((r.error && (r.error.message || r.error.class)) || 'خطأ غير معروف من سناب').slice(0, 600)];
+  if (/E3017|ineligible for PIXEL/i.test(String((r.error && r.error.message) || ''))) L.push('', 'ℹ️ سناب رفض هدف «مبيعات»: البكسل غير مؤهل لتحسين الشراء (يحتاج أحداث Purchase كافية خلال نافذة التحويل، غالباً آخر 28 يوم). تأكد من Snap Events Manager إن البكسل سجّل شراء، أو اختر هدف زيارات/عملاء محتملين. ما غيّرت الهدف بدون ما تدري.');   // p197f
   if (dd.campaign_id) L.push('', '⚠️ الحملة (متوقفة) انعملت برقم ' + dd.campaign_id + (dd.adsquad_id ? ' والمجموعة ' + dd.adsquad_id : '') + (dd.ad_id ? '' : ' بدون إعلان') + '. إعادة المحاولة تنشئ حملة جديدة، فاحذف هذي من Snap Ads Manager إذا ما تريدها.');
   return done(L.join('\n'), [[{ t: '⬅️ رجوع للملخص', c: 'sn:b:sum' }, { t: '🏠 الرئيسية', c: 'h' }]]);
 }

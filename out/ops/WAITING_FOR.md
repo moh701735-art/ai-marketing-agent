@@ -22,3 +22,4 @@
 - 18-11: p201b applied. Next: hourly-report rule line (wf_job_report.py grep as TEXT), then rotate exposed keys / hide Smart button / Iraq-only for Meta+Snap.
 - 18-11: p201c (`out/p201cs.txt`) sent — owner runs it (deploys); then check the next hourly report shows «🛡 الحارس…» under each TikTok campaign. Rollback: `cp n8n/wf_job_report.py.pre201c n8n/wf_job_report.py` + update.sh.
 - 19-11: p201c v2 sent (owner to run); p197e (`out/p197es.txt`) built — owner runs, then ONE Snap retry to read Snap's real rejection; delete draft campaign 7ccf6d9b-c94a-4397-90b0-7d8dfaca7105 in Snap Ads Manager.
+- 19-11: p197e applied (Snap shows real reasons). p197f (`out/p197fs.txt`) built: owner runs it, retries ONE Snap sales launch; if still E3017 → the pixel lacks Purchase events (business-side) → use traffic/leads objective or fire the pixel first. Delete 3 leftover draft campaigns in Snap Ads Manager.

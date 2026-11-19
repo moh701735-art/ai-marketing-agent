@@ -85,6 +85,12 @@ ok('success resets state', r.S.st === 'obj' && r.S.obj === '' && r.S.vid === '' 
 const idem1 = r.plan[0].idem; ok('double tap same idem', step('sn:go', S, GOOD).plan[0].idem === idem1);
 // open-ended age: only min_age
 { const g = step('sn:go', { ...S, amin: 25, amax: 0 }, GOOD); ok('open upper age: min only', g.plan[0].params.min_age === 25 && !('max_age' in g.plan[0].params), g.plan[0].params); const g2 = step('sn:go', { ...S, amin: 0, amax: 0 }, GOOD); ok('all ages: no age params', !('min_age' in g2.plan[0].params) && !('max_age' in g2.plan[0].params)); }
+// p197f: E3017 (pixel not eligible for PIXEL_PURCHASE) gets an Arabic explanation, other errors don't
+{ const e3017 = 'Error code: E3017, message: validation failed because event source is ineligible for the optimization goal and conversion window. : [AdSquad ineligible for PIXEL_PURCHASE null]';
+  r = step('sn:go', S, { ok: false, error: { class: 'bad_request', message: e3017 }, data: { stage: 'adsquad', campaign_id: 'camp-9' } });
+  ok('E3017 shows Snap text + Arabic explanation + no fake success', /E3017/.test(r.out.text) && /البكسل غير مؤهل لتحسين الشراء/.test(r.out.text) && /Snap Events Manager/.test(r.out.text) && /camp-9/.test(r.out.text) && !/انرفعت حملة/.test(r.out.text), r.out.text); checkKb('E3017', r.out);
+  r = step('sn:go', S, { ok: false, error: { class: 'bad_request', message: 'snap says no' }, data: { stage: 'adsquad', campaign_id: 'camp-9' } });
+  ok('other errors: no pixel explanation', !/البكسل غير مؤهل/.test(r.out.text), r.out.text); }
 // failures by stage
 for (const [stage, label] of [['adsquad', 'إنشاء المجموعة الإعلانية'], ['upload', 'رفع الفيديو'], ['profile', 'البروفايل العام'], ['creative', 'إنشاء التصميم'], ['ad', 'إنشاء الإعلان'], ['media', 'إنشاء ملف الفيديو بسناب']]) {
   r = step('sn:go', S, { ok: false, error: { class: 'bad_request', message: 'snap says no' }, data: { stage, campaign_id: 'camp-9', adsquad_id: 'sq-9' } });
