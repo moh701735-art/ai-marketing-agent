@@ -40,17 +40,17 @@ if 'p215' not in sp:
         sp = sp[:ms[0].start()] + 'def validate(params: dict, allowed=None):' + sp[ms[0].end():]
 # ---- service.py: read allowed countries before validate (fail-closed) ----
 if 'p215' not in sv:
-    mv = list(re.finditer(r'(?m)^([ \t]+)p,\s*err\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv))
+    mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv))
     if len(mv) != 1: FAILS.append('service spark.validate anchor count=%d; RAW lines: %s' % (len(mv), ' | '.join(ascii(l[:200]) for l in sv.split('\n') if 'spark.validate' in l) or 'none'))
     else:
         defs = list(re.finditer(r'(?m)^[ \t]*async def \w+\([^)\n]*\)[^\n]*:', sv[:mv[0].start()]))
         if not defs or 'ctx' not in defs[-1].group(0): FAILS.append('enclosing def has no ctx: ' + (ascii(defs[-1].group(0)[:200]) if defs else 'none'))
 if FAILS: fail(' || '.join(FAILS))
 if 'p215' not in sv:
-    mv = list(re.finditer(r'(?m)^([ \t]+)p,\s*err\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv)); i = mv[0].group(1)
+    mv = list(re.finditer(r'(?m)^([ \t]+)(\w+)\s*,\s*(\w+)\s*=\s*spark\.validate\(\s*params\s*\)[ \t]*(?:#[^\n]*)?\r?\n', sv)); i = mv[0].group(1)
     NEW = (i + 'allowed = None  # p215: دول مسموحة لهذا العميل (الافتراضي العراق فقط؛ فشل القراءة => عراق فقط)\n'
          + i + 'try:\n' + i + '    allowed = await self.central.tenant_countries(ctx)\n' + i + 'except Exception:\n' + i + '    allowed = None\n'
-         + i + 'p, err = spark.validate(params, allowed=allowed)\n')
+         + i + mv[0].group(2) + ', ' + mv[0].group(3) + ' = spark.validate(params, allowed=allowed)\n')
     sv = sv[:mv[0].start()] + NEW + sv[mv[0].end():]
 for name, b in ((pc, c), (pp, sp), (ps, sv)):
     try: compile(b, name, 'exec')

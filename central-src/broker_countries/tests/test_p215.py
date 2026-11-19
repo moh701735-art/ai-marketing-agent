@@ -97,11 +97,11 @@ class T(unittest.TestCase):
         r = subprocess.run([sys.executable, PATCH], env=dict(os.environ, P215_BASE=self.tmp + "/", P215_NODB="1"), capture_output=True, text=True); self.assertIn("changed=0", r.stdout)
         for n in ("central", "spark", "service"): self.assertTrue(os.path.exists(self.tmp + "/broker/app/%s.py.pre215" % n))
     def test_service_anchor_tolerates_trailing_whitespace_comment_and_crlf(self):
-        for variant in ("p, err = spark.validate(params)   ", "p, err = spark.validate(params)  # validate", "p,err=spark.validate( params )"):
+        for variant in ("p, err = spark.validate(params)   ", "p, err = spark.validate(params)  # validate", "p,err=spark.validate( params )", "params2, e = spark.validate(params)", "pp, msg = spark.validate(params)"):
             tmp = tempfile.mkdtemp(); os.makedirs(tmp + "/broker/app")
             for n, s in (("central", CENTRAL), ("spark", SPARK), ("service", SERVICE.replace("p, err = spark.validate(params)", variant))): open(tmp + "/broker/app/%s.py" % n, "w", encoding="utf-8", newline="").write(s.replace("\n", "\r\n") if "crlf" in variant else s)
             r = subprocess.run([sys.executable, PATCH], env=dict(os.environ, P215_BASE=tmp + "/", P215_NODB="1"), capture_output=True, text=True); self.assertIn("APPLY215_OK", r.stdout, variant + r.stdout + r.stderr)
-            self.assertIn("spark.validate(params, allowed=allowed)", open(tmp + "/broker/app/service.py", encoding="utf-8").read()); shutil.rmtree(tmp)
+            self.assertIn("spark.validate(params, allowed=allowed)", open(tmp + "/broker/app/service.py", encoding="utf-8").read()); self.assertTrue(open(tmp + "/broker/app/service.py", encoding="utf-8").read().count("= spark.validate(params, allowed=allowed)") == 1); shutil.rmtree(tmp)
     def test_anchor_failure_writes_nothing(self):
         tmp = tempfile.mkdtemp(); os.makedirs(tmp + "/broker/app")
         for n, s in (("central", CENTRAL), ("spark", SPARK), ("service", SERVICE.replace("launch(self, ctx: str,", "launch(self, c: str,"))): open(tmp + "/broker/app/%s.py" % n, "w", encoding="utf-8").write(s)
