@@ -28,3 +28,4 @@
 - 19-11: p214 (`out/p214s.txt`) built — owner runs it (deploys Broker), then retries the «اختار جمهور 1» launch; also delete partial TikTok campaign 1882297114773570. New client عمار (ammar-mohmaed) still waiting.
 - 19-11: عمار (`ammar-mohmaed`) created + linked + READY; waiting for the client's /start, /accounts, /balance test. p214 result (markers p214=2 + retry of «اختار جمهور 1» launch) still unconfirmed by owner.
 - 19-11: agency switch for عمار done (new 3 accounts active, old 3 unlinked, READY). Waiting: client's /accounts + /balance check in Telegram.
+- 19-11: p215 (`out/p215s.txt`) built — owner runs it (deploys Broker + creates api.tenant_countries), THEN `out/p215mohm.txt` (opens Gulf countries for mohm only), then retries the PUBG launch.

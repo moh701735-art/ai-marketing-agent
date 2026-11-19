@@ -1,0 +1,1 @@
+cd /opt/central && docker exec -i central-stg-pg psql -U postgres -d central -At -c "update core.tenants set features = features || jsonb_build_object('allowed_countries', jsonb_build_array('IQ','SA','KW','AE','QA','BH','OM')) where slug = 'mohm' returning slug, (features->'allowed_countries')::text"
