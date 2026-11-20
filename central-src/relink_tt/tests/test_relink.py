@@ -114,4 +114,22 @@ class TAsk(unittest.TestCase):
         self.assertEqual((slug, app, s, c), ("ammar-mohmaed", "7688235455380193301", SECRET, CODE))
 
 
+
+
+
+class TCode(unittest.TestCase):
+    def test_19_clean_code_variants(self):
+        for raw, exp in (("ABCDEF123456", "ABCDEF123456"), (" 'ABCDEF123456' ", "ABCDEF123456"),
+                         ("https://agent.mohammedai.tech/tiktok-cb?auth_code=ABCDEF123456&state=agency3", "ABCDEF123456"),
+                         ("auth_code=ABC%2FDEF123456", "ABC/DEF123456"), ("https://x/y?state=a&code=ZZZ999888&foo=1", "ZZZ999888"),
+                         ("https://x/y?state=a&auth_code=QQQ111222#frag", "QQQ111222")):
+            self.assertEqual(rtt.clean_code(raw), exp, raw)
+    def test_20_run_accepts_full_url(self):
+        url = "https://agent.mohammedai.tech/tiktok-cb?auth_code=" + CODE + "&state=agency3"
+        call = mkcall(); buf = []; at = FakeAt()
+        rtt.run("ammar-mohmaed", "7688235455380193301", SECRET, url, False, False, at, "central", call, buf.append)
+        ex = [c for c in call.calls if "oauth2" in c[0]][0]; self.assertEqual(ex[1]["auth_code"], CODE)
+        self.assertNotIn(CODE, "\n".join(buf))
+
+
 if __name__ == "__main__": unittest.main(verbosity=1)

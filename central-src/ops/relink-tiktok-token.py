@@ -35,7 +35,16 @@ def scrub(text, *secrets_):
     return text[:300]
 
 
+def clean_code(raw):
+    """يقبل auth_code لحاله أو الرابط كامل (…?auth_code=XXX&state=…) ويرجع القيمة فقط."""
+    raw = str(raw or "").strip().strip("'\"")
+    m = re.search(r"(?:^|[?&#\s])(?:auth_code|code)=([^&\s#]+)", raw)
+    v = urllib.parse.unquote(m.group(1)) if m else raw
+    return v.strip()
+
+
 def exchange(app_id, secret, code, call=http):
+    code = clean_code(code)
     r = call(API + "/oauth2/access_token/", {"app_id": app_id, "secret": secret, "auth_code": code})
     d = r.get("data") or {}
     if r.get("code") != 0 or not d.get("access_token"):
@@ -76,6 +85,7 @@ def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print
     if not re.fullmatch(r"[0-9]{5,24}", app_id): raise Stop("App ID غير صالح (أرقام فقط).")
     tid, cid, ext, ref, accts = db_state(at, db, slug)
     out("العميل: %s | الاتصال النشط: %s | عدد حساباته المفعّلة: %d" % (slug, ext, len(accts)))
+    out("طول الكود المستلم: %d حرف (بعد التنظيف)" % len(clean_code(code)))
     token, adv_ids = exchange(app_id, secret, code, call)
     info = account_info(token, accts, call)
     missing = [a for a in accts if a not in adv_ids]
