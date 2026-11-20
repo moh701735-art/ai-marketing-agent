@@ -1,0 +1,38 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P226_BASE', '/opt/central/')
+SV = 'broker/app/service.py'; CT = 'broker/app/catalog.py'
+sv = open(BASE + SV, encoding='utf-8').read(); ct = open(BASE + CT, encoding='utf-8').read()
+if 'p226' in sv and 'p226' in ct: print('APPLY226_OK changed=0 (already applied)'); sys.exit(0)
+if ('p226' in sv) != ('p226' in ct): sys.exit('PATCH FAIL (nothing written): half-applied state (service=%s catalog=%s)' % ('p226' in sv, 'p226' in ct))
+fails = []
+def lines_with(txt, kw): return ' | '.join(ascii(l.strip()[:200]) for l in txt.split('\n') if kw in l)[:500] or 'none'
+# 1) service.py: (أ) تصحيح شكل إرجاع p225 (None, (200, env)) (ب) طلب الأغلفة المقترحة عند غياب الغلاف التلقائي
+r_early = re.compile(r'(?m)^([ \t]*)return 200, (\{"ok": False, "error": \{"class": "bad_request", "message": "retryable: [^\n]*"stage": "cover", \*\*made\}\})[ \t]*$')
+m_early = list(r_early.finditer(sv))
+if len(m_early) != 1: fails.append('p225 early-return anchor count=%d (needs p225); lines: %s' % (len(m_early), lines_with(sv, '"stage": "cover"')))
+r_img = re.compile(r'(?m)^([ \t]*)image_id = ""\n\1if cover\.startswith\("https://"\):')
+m_img = list(r_img.finditer(sv))
+if len(m_img) != 1: fails.append('image_id/cover anchor count=%d; lines: %s' % (len(m_img), lines_with(sv, 'cover.startswith')))
+# 2) catalog.py: عملية قراءة جديدة tiktok.suggest_cover قبل read_identity_videos
+r_op = re.compile(r'(?m)^([ \t]*)Op\("tiktok\.read_identity_videos"')
+m_op = list(r_op.finditer(ct))
+if len(m_op) != 1: fails.append('catalog anchor read_identity_videos count=%d; lines: %s' % (len(m_op), lines_with(ct, 'read_identity_videos')))
+if '"tiktok.suggest_cover"' in ct: fails.append('tiktok.suggest_cover already defined in catalog')
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I = m_img[0].group(1)
+SUG = (I + 'if not cover:   # p226: تيك توك ما ولّد غلافاً تلقائياً ⇒ نطلب الأغلفة المقترحة للفيديو (suggestcover)\n' +
+       I + '    sg, fsg = await self.call(step("cover_suggest"), "tiktok.suggest_cover", {"video_id": video_id, "poster_number": 3})\n' +
+       I + '    if not fsg:\n' +
+       I + '        sgl = (sg.get("list") if isinstance(sg, dict) else None) or []\n' +
+       I + '        cover = str(next((x.get("url") for x in sgl if isinstance(x, dict) and str(x.get("url") or "").startswith("https://")), "") or "")\n')
+new_sv = sv
+edits = sorted([(m_img[0].start(), m_img[0].start(), SUG), (m_early[0].start(), m_early[0].end(), m_early[0].group(1) + 'return None, (200, ' + m_early[0].group(2) + ')   # p226: نفس شكل فشل بقية الدوال (None, (status, env))')], key=lambda e: -e[0])
+for a, b, t in edits: new_sv = new_sv[:a] + t + new_sv[b:]
+OP = (m_op[0].group(1) + 'Op("tiktok.suggest_cover", "tiktok", "GET", "/file/video/suggestcover/get/", bearer=False, advertiser_param="advertiser_id", params={"video_id": P("safe", required=True), "poster_number": P("int", lo=1, hi=6)}),   # p226\n')
+new_ct = ct[:m_op[0].start()] + OP + ct[m_op[0].start():]
+for name, txt in ((SV, new_sv), (CT, new_ct)):
+    try: compile(txt, name, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s: %s' % (name, e))
+for f in (SV, CT): shutil.copy(BASE + f, BASE + f + '.pre226')
+open(BASE + SV, 'w', encoding='utf-8').write(new_sv); open(BASE + CT, 'w', encoding='utf-8').write(new_ct)
+print('APPLY226_OK suggested cover fallback (tiktok.suggest_cover) + correct failure shape for the no-cover stop')
