@@ -11,14 +11,14 @@ class Svc:
         made["cover"] = bool(image_id)
         name = (p.get("identity_name") or p["campaign_name"]).strip()[:40]
         if p["objective"] == "tiktok_dm":         # الإعلان لازم يطلع بهوية حساب تيك توك فعلي (TT_USER أو BC_AUTH_TT)
-            dmi, fdm = await self._dm_identity(step, name)
+            dmi, fdm = await self._dm_identity(step, name, made)
             if fdm:
                 return fdm
             return {"video_id": video_id, "image_id": image_id, **dmi}, None
         lst, fl = await self.call(step, "tiktok.read_identities", {"identity_type": "CUSTOMIZED_USER", "page_size": 100})
         return {"video_id": video_id, "image_id": image_id, "identity_id": "custom", "identity_type": "CUSTOMIZED_USER"}, None
 
-    async def _dm_identity(self, step, name: str) -> tuple:
+    async def _dm_identity(self, step, name: str, made: dict) -> tuple:
         """هوية حساب تيك توك للإعلانات (TT_USER/BC_AUTH_TT)."""
         cands = []
         for itype in ("TT_USER", "BC_AUTH_TT"):
@@ -33,6 +33,7 @@ class Svc:
         nm_ = [c for c in ok_ if want and want == str(c[1].get("display_name") or "").lower()]
         pick = nm_[0] if nm_ else (ok_[0] if len(ok_) == 1 else None)
         if not pick:
+            made["identity_wanted"] = str(name)[:40]
             return 200, {"ok": False, "error": {"class": "bad_request", "message": "retryable: no_dm_identity ambiguous"}, "data": {"stage": "identity"}}
         return {"identity_id": str(pick[1]["identity_id"]), "identity_type": pick[0], "identity_bc": str(pick[1].get("identity_authorized_bc_id") or "")}, None
 '''
@@ -56,7 +57,7 @@ class T(unittest.TestCase):
     def test_01_patch_applies_idempotent_and_backup(self):
         r = apply(self.d); self.assertIn("APPLY223_OK video", r.stdout, r.stderr); self.assertTrue(os.path.exists(self.d + "/broker/app/service.py.pre223"))
         r2 = apply(self.d); self.assertIn("changed=0", r2.stdout)
-        src = open(self.d + "/broker/app/service.py", encoding="utf-8").read(); self.assertEqual(src.count("p223"), 1); self.assertIn("need_dm: bool = True", src); self.assertNotIn('if p["objective"] == "tiktok_dm":', src)
+        src = open(self.d + "/broker/app/service.py", encoding="utf-8").read(); self.assertEqual(src.count("p223"), 1); self.assertIn("name: str, made: dict, need_dm: bool = True", src); self.assertIn("self._dm_identity(step, name, made, need_dm=", src); self.assertNotIn('if p["objective"] == "tiktok_dm":', src)
     def test_02_lead_ad_uses_authorized_identity_without_dm_capability(self):
         apply(self.d); s = self.mk({"TT_USER": [{"identity_id": "U1", "display_name": "benin", "available_status": "AVAILABLE", "can_manage_message": False}]})
         (vid, err), made = self.run_(s, "lead_gen"); self.assertIsNone(err); self.assertEqual(vid["identity_type"], "TT_USER"); self.assertEqual(vid["identity_id"], "U1"); self.assertEqual(vid["video_id"], "V1")

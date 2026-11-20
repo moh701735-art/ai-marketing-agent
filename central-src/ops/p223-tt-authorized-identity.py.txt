@@ -6,11 +6,11 @@ if 'p223' in s: print('APPLY223_OK changed=0 (already applied)'); sys.exit(0)
 fails = []
 def lines_with(kw, n=4): return ' | '.join(ascii(l.strip()[:230]) for l in s.split('\n') if kw in l)[:700] or 'none'
 # 1) فرع الهوية بمسار الفيديو: كان للـDM فقط ⇒ لكل الأهداف (تيك توك ألغى الهوية المخصصة CUSTOMIZED_USER)
-r1 = re.compile(r'(?m)^([ \t]*)if p\["objective"\] == "tiktok_dm":[^\n]*\n\1[ \t]+dmi, fdm = await self\._dm_identity\(step, name\)[^\n]*\n')
+r1 = re.compile(r'(?m)^([ \t]*)if p\["objective"\] == "tiktok_dm":[^\n]*\n\1[ \t]+dmi, fdm = await self\._dm_identity\(step, name((?:, made)?)\)[^\n]*\n')
 m1 = list(r1.finditer(s))
 if len(m1) != 1: fails.append('identity branch anchor count=%d; lines: %s' % (len(m1), lines_with('_dm_identity(')))
 # 2) توقيع _dm_identity: وسيط need_dm (الافتراضي True = سلوك الـDM كما هو)
-r2 = re.compile(r'\bdef _dm_identity\(self, step, name(?:: str)?\)( -> tuple)?:')
+r2 = re.compile(r'\bdef _dm_identity\(self, step, name(?:: str)?((?:, made(?:: dict)?)?)\)( -> tuple)?:')
 m2 = list(r2.finditer(s))
 if len(m2) != 1: fails.append('_dm_identity signature count=%d; lines: %s' % (len(m2), lines_with('def _dm_identity')))
 # 3) فلتر can_manage_message بدالة _dm_identity فقط عند need_dm
@@ -19,9 +19,9 @@ if s.count(A3) != 1: fails.append('ok_ filter count=%d; lines: %s' % (s.count(A3
 if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
 I = m1[0].group(1)
 R1 = (I + 'if True:   # p223: كل الأهداف بهوية حساب تيك توك فعلي (تيك توك ألغى الهوية المخصصة)\n' +
-      I + '    dmi, fdm = await self._dm_identity(step, name, need_dm=(p["objective"] == "tiktok_dm"))\n')
+      I + '    dmi, fdm = await self._dm_identity(step, name' + m1[0].group(2) + ', need_dm=(p["objective"] == "tiktok_dm"))\n')
 new = s
-for pos0, pos1, txt in sorted([(m1[0].start(), m1[0].end(), R1), (m2[0].start(), m2[0].end(), 'def _dm_identity(self, step, name: str, need_dm: bool = True) -> tuple:'), (s.index(A3), s.index(A3) + len(A3), 'ok_ = [c for c in cands if (c[1].get("can_manage_message") or not need_dm)]')], reverse=True):
+for pos0, pos1, txt in sorted([(m1[0].start(), m1[0].end(), R1), (m2[0].start(), m2[0].end(), 'def _dm_identity(self, step, name: str' + m2[0].group(1) + ', need_dm: bool = True) -> tuple:'), (s.index(A3), s.index(A3) + len(A3), 'ok_ = [c for c in cands if (c[1].get("can_manage_message") or not need_dm)]')], reverse=True):
     new = new[:pos0] + txt + new[pos1:]
 try: compile(new, P, 'exec')
 except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
