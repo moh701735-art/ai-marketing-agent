@@ -27,8 +27,8 @@ CADDYFILE = '''{
 '''
 
 
-def load(base):
-    os.environ["WA_BASE"] = base + "/"; os.environ["WA_DOMAIN"] = "twasuliraq.com"
+def load(base, domain="twasuliraq.com"):
+    os.environ["WA_BASE"] = base + "/"; os.environ["WA_DOMAIN"] = domain
     spec = importlib.util.spec_from_file_location("wap", os.path.join(HERE, "..", "..", "ops", "wa-page.py")); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
 
 
@@ -111,6 +111,13 @@ class T(Base):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf): self.assertEqual(self.m.main(["list"]), 0); self.assertEqual(self.m.main(["show", code]), 0); self.assertEqual(self.m.main(["show", "nope1234"]), 1)
         self.assertIn(code, buf.getvalue())
+
+    def test_14_subdomain_has_no_www_alias_and_default_is_wa_subdomain(self):
+        m = load(self.d, "wa.twasuliraq.com"); m.update_caddyfile(CADDYFILE, [])
+        blk = m.build_block([]); self.assertIn("wa.twasuliraq.com {", blk); self.assertNotIn("www.", blk)
+        self.assertIn("twasuliraq.com, www.twasuliraq.com {", load(self.d, "twasuliraq.com").build_block([]))
+        os.environ.pop("WA_DOMAIN", None); spec = importlib.util.spec_from_file_location("wap2", os.path.join(HERE, "..", "..", "ops", "wa-page.py")); d = importlib.util.module_from_spec(spec); spec.loader.exec_module(d)
+        self.assertEqual(d.DOMAIN, "wa.twasuliraq.com")
 
 
 if __name__ == "__main__": unittest.main(verbosity=1)
