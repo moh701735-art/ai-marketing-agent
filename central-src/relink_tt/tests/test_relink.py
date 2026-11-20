@@ -132,4 +132,26 @@ class TCode(unittest.TestCase):
         self.assertNotIn(CODE, "\n".join(buf))
 
 
+
+
+
+class TShape(unittest.TestCase):
+    def test_21_shape_never_leaks_value(self):
+        for v in (SECRET, CODE, "abcdef0123456789" * 2 + "ab"):
+            self.assertNotIn(v, rtt.shape(v)); self.assertIn("طول %d" % len(v), rtt.shape(v))
+        self.assertIn("hex", rtt.shape("abcdef0123")); self.assertIn("رموز", rtt.shape("ab-cd"))
+    def test_22_variants_strip_edge_symbols_and_retry(self):
+        self.assertEqual(rtt.code_variants("ABCDEF123456"), ["ABCDEF123456"]); self.assertEqual(rtt.code_variants('"ABCDEF123456/'), ['"ABCDEF123456/', "ABCDEF123456"])
+        seen = []
+        def call(url, body=None, token=None, timeout=30):
+            seen.append(body["auth_code"]) if body else None
+            if body and body["auth_code"] == "ABCDEF123456": return {"code": 0, "data": {"access_token": TOKEN, "advertiser_ids": ACC}}
+            return {"code": 40002, "message": "invalid"}
+        tok, ids = rtt.exchange("7000000000001", SECRET, '"ABCDEF123456/', call)
+        self.assertEqual(tok, TOKEN); self.assertEqual(len(seen), 2)
+    def test_23_rejection_message_has_shapes_but_no_secrets(self):
+        at, call, r, err, out = run(call=mkcall(code_ok=False), apply=True)
+        self.assertIn("شكل الكود", err); self.assertIn("شكل السر", err); self.assertNotIn(SECRET, err + out); self.assertNotIn(CODE, err + out)
+
+
 if __name__ == "__main__": unittest.main(verbosity=1)

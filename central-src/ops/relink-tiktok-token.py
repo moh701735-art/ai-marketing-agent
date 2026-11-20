@@ -43,12 +43,30 @@ def clean_code(raw):
     return v.strip()
 
 
+def shape(v):
+    """وصف غير سري للقيمة: الطول ونوع الأحرف (بدون أي حرف منها)."""
+    v = str(v or "")
+    kind = "hex" if re.fullmatch(r"[0-9a-fA-F]+", v) else "alnum" if re.fullmatch(r"[0-9A-Za-z]+", v) else "alnum+رموز"
+    return "طول %d، نوع %s" % (len(v), kind)
+
+
+def code_variants(code):
+    """الكود كما هو، ثم نسخة بدون رموز بالأطراف (علامات اقتباس/نقطة/شرطة مايلة من النسخ)."""
+    out = [code]
+    t = re.sub(r"^[^0-9A-Za-z]+|[^0-9A-Za-z]+$", "", code)
+    if t and t not in out: out.append(t)
+    return out
+
+
 def exchange(app_id, secret, code, call=http):
     code = clean_code(code)
-    r = call(API + "/oauth2/access_token/", {"app_id": app_id, "secret": secret, "auth_code": code})
+    r = {}
+    for c in code_variants(code):
+        r = call(API + "/oauth2/access_token/", {"app_id": app_id, "secret": secret, "auth_code": c})
+        if r.get("code") == 0 and (r.get("data") or {}).get("access_token"): break
     d = r.get("data") or {}
     if r.get("code") != 0 or not d.get("access_token"):
-        raise Stop("تيك توك رفض الكود (code=%s): %s. الكود يُستعمل مرة وحدة وينتهي بسرعة؛ أعد التفويض وانسخ كود جديد." % (r.get("code"), scrub(r.get("message", ""), secret, code)))
+        raise Stop("تيك توك رفض الكود (code=%s): %s. [شكل الكود: %s | شكل السر: %s]. الكود يُستعمل مرة وحدة وينتهي بسرعة؛ خذ كود جديد والصقه مباشرة." % (r.get("code"), scrub(r.get("message", ""), secret, code), shape(code), shape(secret)))
     ids = [str(x) for x in d.get("advertiser_ids", []) if re.fullmatch(r"[0-9]{5,24}", str(x))]
     return d["access_token"], ids
 
@@ -85,7 +103,7 @@ def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print
     if not re.fullmatch(r"[0-9]{5,24}", app_id): raise Stop("App ID غير صالح (أرقام فقط).")
     tid, cid, ext, ref, accts = db_state(at, db, slug)
     out("العميل: %s | الاتصال النشط: %s | عدد حساباته المفعّلة: %d" % (slug, ext, len(accts)))
-    out("طول الكود المستلم: %d حرف (بعد التنظيف)" % len(clean_code(code)))
+    out("الكود المستلم: %s | App ID: %s" % (shape(clean_code(code)), shape(app_id)))
     token, adv_ids = exchange(app_id, secret, code, call)
     info = account_info(token, accts, call)
     missing = [a for a in accts if a not in adv_ids]
