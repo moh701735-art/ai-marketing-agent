@@ -35,9 +35,9 @@ let S0 = null; const sr = rows.find(r => r.kind === 'state'); if (sr) { try { S0
 const isCb = !!d.cb;
 const base = { ctx: d.ctx, chatId: d.chatId, edit: isCb, linked: accts.length > 0, items: 0, accts: ACCS };
 const cmd = String(d.cmd || '');
-const isLink = !isCb && cmd === 'snaplink', isIn = !isCb && cmd === 'snapin';
-const p = isCb ? String(d.cb).split(':') : (isLink ? ['sn', 'lk'] : (isIn ? ['sn', 'ti'] : ['sn', 's'])); const op = p[1] || 's', arg = p.slice(2).join(':');
-const fresh = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE' };
+const isLink = !isCb && cmd === 'snaplink', isIn = !isCb && cmd === 'snapin', isTx = !isCb && cmd === 'snaptext';
+const p = isCb ? String(d.cb).split(':') : (isLink ? ['sn', 'lk'] : (isIn ? ['sn', 'ti'] : (isTx ? ['sn', 'tx'] : ['sn', 's']))); const op = p[1] || 's', arg = p.slice(2).join(':');
+const fresh = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE', nm: '' };
 let S = (S0 && typeof S0 === 'object' && !Array.isArray(S0)) ? { ...fresh, ...S0 } : { ...fresh };
 if (!Array.isArray(S.regs)) S.regs = []; if (!Array.isArray(S.ints)) S.ints = [];
 const tog = (arr, v, max) => { const i = arr.indexOf(v); if (i >= 0) { arr.splice(i, 1); return arr; } if (arr.length < max) arr.push(v); return arr; };
@@ -67,6 +67,31 @@ else if (op === 'in') { S.st = 'int'; adv(); }
 else if (op === 'bu') { const a = ACCS.find(x => x.id === S.acct); const L = (a && BUDS[a.cur]) || BUD_DEF; if (L.indexOf(num(arg)) >= 0) { S.bud = num(arg); S.st = 'bud'; adv(); } }
 else if (op === 'du') { if (DURS.indexOf(num(arg)) >= 0) { S.days = num(arg); S.st = 'dur'; adv(); } }
 else if (op === 'lk') { const m = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(String(d.args || '')); if (m) { S.url = m[0]; if (S.st === 'url') adv(); base.linkOk = true; } else base.linkBad = true; }
+else if (op === 'tx') {
+  // p221: رفع من رسالة واحدة (نص + فيديو): يملأ الحالة مما فهمه بالقواعد، وكل شي ناقص أو غير مفهوم يسأل عنه المعالج بأزراره. لا يرفع شي لحاله؛ يوصل لشاشة الملخص وانت تضغط 🚀.
+  S = { ...fresh }; const got = [], miss = [];
+  const raw = String(d.args || '').replace(/[٠-٩]/g, c => String(c.charCodeAt(0) - 1632));
+  const nzt = s => String(s || '').replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').toLowerCase().replace(/[،,؟?!:："'«»()]/g, ' ').replace(/\s+/g, ' ').trim();
+  const TB = nzt(raw.replace(/https?:\/\/\S+/g, ' '));
+  const mu = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(raw); if (mu) { S.url = mu[0]; got.push('🔗 الرابط: ' + sh(S.url, 60)); }
+  if (/مبيعات|مبيع|بيع/.test(TB)) S.obj = 'sal'; else if (/زيارات|زياره|ترافيك|traffic/.test(TB)) S.obj = 'trf'; else if (/مشاهدات|مشاهده/.test(TB)) S.obj = 'vid'; else if (/عملاء محتملين|ليدز|leads/.test(TB)) { base.ledNote = true; miss.push('«عملاء محتملين» يحتاج نموذج عملاء بسناب (مو متاح)'); }
+  if (S.obj) got.push('🎯 الهدف: ' + OBJ[S.obj][1]);
+  const sm = /(?:بحساب|حساب) ([^\n]{1,40})/.exec(TB);
+  if (sm && ACCS.length) { const ws = sm[1].split(' ').filter(w => w.length >= 3).slice(0, 3); const hit = ACCS.filter(a => { const an = nzt(a.name).split(' '); return ws.some(w => an.some(x => x.length >= 3 && (x.indexOf(w) === 0 || w.indexOf(x) === 0))); }); if (hit.length === 1) { S.acct = hit[0].id; got.push('🏷️ الحساب: ' + sh(hit[0].name, 30)); } else miss.push(hit.length ? 'اسم الحساب يطابق أكثر من حساب' : 'ما لقيت حساب سناب بهذا الاسم'); }
+  if (!S.acct && ACCS.length === 1) { S.acct = ACCS[0].id; got.push('🏷️ الحساب: ' + sh(ACCS[0].name, 30)); }
+  let dy = 0; if (/يوم واحد|يوم وحد/.test(TB) || /(^| )1 يوم/.test(TB)) dy = 1; else if (/يومين/.test(TB)) dy = 2; else if (/اسبوعين/.test(TB)) dy = 14; else if (/اسبوع/.test(TB)) dy = 7; else if (/(^| )شهر/.test(TB)) dy = 30; else { const m = /(\d{1,3}) (?:يوم|ايام)/.exec(TB); if (m) dy = parseInt(m[1], 10); }
+  if (dy) { if (DURS.indexOf(dy) >= 0) { S.days = dy; got.push('📅 المدة: ' + dy + ' يوم'); } else miss.push('المدة ' + dy + ' يوم مو من الخيارات (' + DURS.join('/') + ')'); }
+  { const m1 = /(\d+(?:\.\d+)?) ?(?:دولار|\$|usd)/.exec(TB) || /\$ ?(\d+(?:\.\d+)?)/.exec(TB), m2 = /(\d+(?:\.\d+)?) ?(?:الف|الاف)/.exec(TB), m3 = /(\d{4,}) ?(?:دينار|iqd)?/.exec(TB), m4 = /ميزانيه ?(\d+(?:\.\d+)?)/.exec(TB);
+    let usd = 0, iqd = 0; if (m1) usd = parseFloat(m1[1]); else if (m2) iqd = Math.round(parseFloat(m2[1]) * 1000); else if (m3) iqd = parseInt(m3[1], 10); else if (m4) { const v = parseFloat(m4[1]); if (v >= 1000) iqd = Math.round(v); else usd = v; }
+    if (usd || iqd) { const a = ACCS.find(x => x.id === S.acct); if (a) { const L = BUDS[a.cur] || BUD_DEF; const v = a.cur === 'IQD' ? iqd : usd; if (v && L.indexOf(v) >= 0) { S.bud = v; got.push('💰 الميزانية: ' + fnum(v) + ' ' + a.cur); } else miss.push('الميزانية ' + (usd ? usd + '$' : fnum(iqd) + ' د.ع') + ' مو من خيارات حساب ' + a.cur + ' (' + L.map(fnum).join('/') + ')'); } else miss.push('الميزانية تتحدد بعد اختيار الحساب'); } }
+  const nmm = /سمي(?:ها|ه)\s+([^\n]{1,40})/.exec(raw); if (nmm) { const v = nmm[1].replace(/[\x00-\x1f<>]/g, ' ').replace(/\s+/g, ' ').trim(); if (v) { S.nm = v.slice(0, 40); got.push('🏷️ الاسم: ' + S.nm); } }
+  const fid = String(d.fileId || '').trim();
+  if (fid) { if (/^[A-Za-z0-9_\-]{10,200}$/.test(fid) && Number(d.fileSize || 0) <= 20000000) { S.vid = fid; S.vnm = String(d.fileName || '').slice(0, 40); got.push('🎬 الفيديو: وصل'); } else miss.push('الفيديو (أكبر من 20MB أو غير صالح)'); }
+  if (/عراق/.test(TB)) got.push('📍 الموقع: العراق (كل المحافظات)');
+  const SQx = SEQ(S.obj || 'trf'); const must = { obj: () => !!S.obj, acct: () => !!S.acct, pix: () => !!S.pix, url: () => /^https:\/\//.test(S.url || ''), bud: () => !!S.bud, dur: () => !!S.days, vid: () => !!S.vid };
+  S.st = 'sum'; for (const k of SQx) { if (must[k] && !must[k]()) { S.st = k; break; } }
+  base.tx = { got, miss };
+}
 else if (op === 'ti') {
   const txt = String(d.args || '').trim(), fid = String(d.fileId || '').trim();
   if (S.st === 'url') { const m = /^(https:\/\/[^\s\x00-\x1f<>"']{4,500})$/.exec(txt); if (m) { S.url = m[1]; adv(); } else base.linkBad = true; }
@@ -95,7 +120,7 @@ if (base.go) {
   if (!OBJ_OK[S.obj]) base.goErr = 'هذا الهدف غير متاح للرفع حالياً. اختر هدف ثاني.';
   else if (!a || !S.bud || !S.days || !S.vid || (needUrl && !/^https:\/\//.test(S.url || '')) || (S.obj === 'sal' && !S.pix)) base.goErr = 'ناقصة معلومات: تأكد من الحساب والميزانية والمدة والفيديو' + (needUrl ? ' والرابط' : '') + (S.obj === 'sal' ? ' والبكسل' : '') + '.';
   else {
-    const nm = ('Snap · ' + OBJ[S.obj][1] + ' · ' + new Date().toISOString().slice(5, 10)).slice(0, 120);
+    const nm = S.nm ? String(S.nm).slice(0, 120) : ('Snap · ' + OBJ[S.obj][1] + ' · ' + new Date().toISOString().slice(5, 10)).slice(0, 120);
     const prm = { account_id: a.id, name: nm, objective: S.obj, budget: S.bud, days: S.days, regions: S.regs, gender: S.gen, lang: S.lng, interests: S.ints, file_id: S.vid, cta: needUrl ? S.cta : 'MORE', brand_name: String(a.name || nm).slice(0, 25), headline: String(S.hdl || nm).slice(0, 34) };
     if (S.amin) { prm.min_age = S.amin; if (S.amax) prm.max_age = S.amax; }
     if (needUrl) prm.landing_url = S.url;
@@ -118,7 +143,8 @@ if (!P.linked) return [{ json: { ctx: P.ctx, chatId: P.chatId, text: '👻 سن�
 const ACCS_N = () => (P.accts || []).length;
 const SQ = SEQ(S.obj || 'trf');
 const stepNo = () => (Math.max(0, SQ.indexOf(S.st)) + 1) + '/' + SQ.length;
-const head = t => '👻 حملة سناب شات\n' + LINE + '\n' + t + '  [' + stepNo() + ']\n';
+const TXN = P.tx ? ('📝 فهمت من رسالتك:\n' + (P.tx.got.length ? P.tx.got.join('\n') : 'ما فهمت تفاصيل') + (P.tx.miss.length ? '\n⚠️ ' + P.tx.miss.join('\n⚠️ ') : '') + '\n' + LINE + '\n') : '';
+const head = t => '👻 حملة سناب شات\n' + LINE + '\n' + TXN + t + '  [' + stepNo() + ']\n';
 const prevOf = () => { const q = SQ; let i = q.indexOf(S.st) - 1; if (q[i] === 'acct' && ACCS_N() === 1) i--; return q[Math.max(0, i)]; };
 const back = () => ({ t: '⬅️ رجوع', c: 'sn:b:' + prevOf() });
 const chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
@@ -128,7 +154,7 @@ const interestList = () => { const r = R.ints || {}; if (!r.ok) return null; ret
 const pixelList = () => { const r = R.pix || {}; if (!r.ok) return null; return listOf(r, 'pixels').map(x => ((x || {}).pixel || x || {})).filter(x => x.id).map(x => ({ id: String(x.id), name: String(x.name || 'Pixel') })); };
 const errText = r => '⚠️ ما كدرت أقرأ البيانات من سناب: ' + String(((r || {}).error && (r.error.message || r.error.class)) || 'خطأ').slice(0, 140) + '\nجرّب مرة ثانية بعد شوي.';
 const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
-const FR = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE' };
+const FR = { st: 'obj', obj: '', regs: [], amin: 0, amax: 0, aset: false, gen: 'a', lng: 'ar', ints: [], rp: 0, ip: 0, acct: '', pix: '', bud: 0, days: 0, url: '', vid: '', vnm: '', hdl: '', cta: 'MORE', nm: '' };
 const STG = { account: 'قراءة الحساب', campaign: 'إنشاء الحملة', adsquad: 'إنشاء المجموعة الإعلانية', media: 'إنشاء ملف الفيديو بسناب', upload: 'رفع الفيديو', profile: 'البروفايل العام', creative: 'إنشاء التصميم', ad: 'إنشاء الإعلان' };
 if (P.go) {
   if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع للملخص', c: 'sn:b:sum' }]]);
