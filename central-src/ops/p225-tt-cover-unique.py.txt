@@ -1,0 +1,24 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P225_BASE', '/opt/central/')
+P = 'broker/app/service.py'
+s = open(BASE + P, encoding='utf-8').read()
+if 'p225' in s: print('APPLY225_OK changed=0 (already applied)'); sys.exit(0)
+fails = []
+def lines_with(kw): return ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if kw in l)[:600] or 'none'
+r1 = re.compile(r'\{"image_url": cover, "file_name": "cover\.jpg"\}')
+m1 = list(r1.finditer(s))
+if len(m1) != 1: fails.append('cover upload anchor count=%d; lines: %s' % (len(m1), lines_with('cover.jpg')))
+r2 = re.compile(r'(?m)^([ \t]*)made\["cover"\] = bool\(image_id\)[^\n]*$')
+m2 = list(r2.finditer(s))
+if len(m2) != 1: fails.append('made[cover] anchor count=%d; lines: %s' % (len(m2), lines_with('made["cover"]')))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I = m2[0].group(1)
+NEWUP = '{"image_url": cover, "file_name": ("cover-" + __import__("hashlib").md5(("%s|%s" % (__import__("time").time(), idem)).encode()).hexdigest()[:8] + ".jpg")}'
+EARLY = ('\n' + I + 'if not image_id:   # p225: بدون صورة غلاف تيك توك يرفض الإعلان (You must upload an image) ويتبقى حملة ناقصة؛ نوقف قبل إنشاء أي حملة\n' +
+         I + '    return 200, {"ok": False, "error": {"class": "bad_request", "message": "retryable: ما قدرت أجيب صورة غلاف للفيديو (تيك توك ما ولّد غلافاً أو رفض رفعه). أعد المحاولة بعد دقيقة، وإذا تكرر جرّب فيديو mp4 عادي."}, "data": {"stage": "cover", **made}}')
+new = s
+for a, b, t in sorted([(m1[0].start(), m1[0].end(), NEWUP), (m2[0].end(), m2[0].end(), EARLY)], reverse=True): new = new[:a] + t + new[b:]
+try: compile(new, P, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + P, BASE + P + '.pre225'); open(BASE + P, 'w', encoding='utf-8').write(new)
+print('APPLY225_OK unique cover image name (fixes duplicate cover.jpg) + stop before any campaign when no cover')
