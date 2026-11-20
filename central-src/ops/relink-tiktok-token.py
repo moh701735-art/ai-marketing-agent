@@ -101,6 +101,15 @@ def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print
     return {"written": True, "ref": ref}
 
 
+def ask(read, prompt, rx, tries=6):
+    """يعيد السؤال لين تنكتب قيمة صالحة (سطر فاضي من لصق الأمر ما يخرّب الجلسة)."""
+    for _ in range(tries):
+        v = read(prompt).strip()
+        if rx.fullmatch(v): return v
+        print("  ⚠️ القيمة فاضية أو غير صالحة، أعد الكتابة.")
+    print("⛔ توقفت بعد محاولات كثيرة. ما انكتب شي."); sys.exit(1)
+
+
 def main(argv=None, inp=input, hidden=getpass.getpass):
     argv = list(sys.argv[1:] if argv is None else argv)
     apply, new_ref = "--apply" in argv, "--new-ref" in argv
@@ -109,10 +118,10 @@ def main(argv=None, inp=input, hidden=getpass.getpass):
     spec = importlib.util.spec_from_file_location("lw", Path(__file__).resolve().parent / "link-web.py")
     lw = importlib.util.module_from_spec(spec); spec.loader.exec_module(lw)
     at = lw.at
-    slug = inp("slug العميل (مثال ammar-mohmaed): ").strip()
-    app_id = inp("TikTok App ID: ").strip()
-    secret = hidden("TikTok App Secret (مخفي): ").strip()
-    code = hidden("auth_code (مخفي): ").strip()
+    slug = ask(inp, "slug العميل بالإنجليزي (مثال ammar-mohmaed): ", SLUG_RE)
+    app_id = ask(inp, "TikTok App ID (أرقام): ", re.compile(r"[0-9]{5,24}"))
+    secret = ask(hidden, "TikTok App Secret (مخفي، الصقه ثم Enter): ", re.compile(r"\S{8,200}"))
+    code = ask(hidden, "auth_code (مخفي، الصقه ثم Enter): ", re.compile(r"\S{8,400}"))
     try:
         run(slug, app_id, secret, code, apply, new_ref, at, lw.DB)
     except Stop as e:

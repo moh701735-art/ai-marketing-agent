@@ -93,4 +93,25 @@ class T(unittest.TestCase):
         self.assertNotIn(CODE, rtt.scrub("x " + CODE + " y", SECRET, CODE)); self.assertIn("***", rtt.scrub("x " + CODE, CODE))
 
 
+
+
+
+class TAsk(unittest.TestCase):
+    def test_16_ask_reprompts_on_empty_and_bad(self):
+        vals = iter(["", "  ", "Bad Slug!", "ammar-mohmaed"]); out = []
+        with contextlib.redirect_stdout(io.StringIO()):
+            v = rtt.ask(lambda p: next(vals), "p", rtt.SLUG_RE)
+        self.assertEqual(v, "ammar-mohmaed")
+    def test_17_ask_gives_up_without_writing(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit): rtt.ask(lambda p: "", "p", rtt.SLUG_RE, tries=3)
+    def test_18_main_with_stray_blank_line_still_runs(self):
+        # simulate main()'s prompts through ask(): first blank line (stray Enter from pasting) then real values
+        seq = iter(["", "ammar-mohmaed", "7688235455380193301"]); sec = iter(["", SECRET, CODE])
+        with contextlib.redirect_stdout(io.StringIO()):
+            slug = rtt.ask(lambda p: next(seq), "s", rtt.SLUG_RE); app = rtt.ask(lambda p: next(seq), "a", __import__("re").compile(r"[0-9]{5,24}"))
+            s = rtt.ask(lambda p: next(sec), "x", __import__("re").compile(r"\S{8,200}")); c = rtt.ask(lambda p: next(sec), "y", __import__("re").compile(r"\S{8,400}"))
+        self.assertEqual((slug, app, s, c), ("ammar-mohmaed", "7688235455380193301", SECRET, CODE))
+
+
 if __name__ == "__main__": unittest.main(verbosity=1)
