@@ -1,0 +1,17 @@
+import os, shutil, subprocess, sys
+BASE = os.environ.get('P222_BASE', '/opt/central/')
+WZ = 'snapchat/wizard.py'
+s = open(BASE + WZ, encoding='utf-8').read()
+if 'p222' in s: print('APPLY222_OK changed=0 (already applied)'); sys.exit(0)
+A = "  if (S.obj) got.push('🎯 الهدف: ' + OBJ[S.obj][1]);\n"
+B = "  if (S.obj) got.push('🎯 الهدف: ' + OBJ[S.obj][1]);\n  if (S.obj === 'sal') miss.push('مبيعات: سناب يرفضها لأن البكسل بدون أحداث شراء (E3017)، ولرابط واتساب اكتب «زيارات» بدلها.');   // p222\n"
+if s.count(A) != 1: sys.exit('PATCH FAIL (nothing written): anchor count=%d (needs p221); lines: %s' % (s.count(A), ' | '.join(ascii(l.strip()[:160]) for l in s.split('\n') if 'OBJ[S.obj][1]' in l)[:400]))
+new = s.replace(A, B)
+try: compile(new, WZ, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + WZ, BASE + WZ + '.pre222'); open(BASE + WZ, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + WZ + '.pre222', BASE + WZ); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY222_OK Snap text launch warns before launch when objective is sales (E3017)')

@@ -63,4 +63,7 @@ r = tx(OWNER.replace('مبيعا', 'زيارات'), [A1], { fileId: FID, fileSiz
 r = tx(OWNER.replace('مبيعا', 'زيارات'), [A1], withV);
 const go = run(D.plan, { Route: { ctx: 'CTX', chatId: 77, cmd: 'snapwiz', cb: 'sn:go' } }, [A1, { kind: 'state', a: JSON.stringify(r.S), b: '5' }]);
 ok('14 launch params carry custom name + file + url', go[0].k === 'go' && go[0].params.name === 'فستان' && go[0].params.file_id === FID && go[0].params.landing_url === URL && go[0].params.budget === 5, go[0].params);
+// 15) p222: مبيعات تُحذَّر قبل الملخص؛ زيارات بدون تحذير
+r = tx(OWNER, [A1], withV); ok('15 sales warns about E3017 before launch', /E3017/.test(r.out.text) && /زيارات/.test(r.out.text), r.out.text);
+r = tx(OWNER.replace('مبيعا', 'زيارات'), [A1], withV); ok('15b traffic has no E3017 warning', !/E3017/.test(r.out.text), r.out.text);
 console.log('TX tests: pass=' + pass + ' fail=' + fail); process.exit(fail ? 1 : 0);

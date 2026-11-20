@@ -76,6 +76,7 @@ else if (op === 'tx') {
   const mu = /https:\/\/[^\s\x00-\x1f<>"']{4,500}/.exec(raw); if (mu) { S.url = mu[0]; got.push('🔗 الرابط: ' + sh(S.url, 60)); }
   if (/مبيعات|مبيع|بيع/.test(TB)) S.obj = 'sal'; else if (/زيارات|زياره|ترافيك|traffic/.test(TB)) S.obj = 'trf'; else if (/مشاهدات|مشاهده/.test(TB)) S.obj = 'vid'; else if (/عملاء محتملين|ليدز|leads/.test(TB)) { base.ledNote = true; miss.push('«عملاء محتملين» يحتاج نموذج عملاء بسناب (مو متاح)'); }
   if (S.obj) got.push('🎯 الهدف: ' + OBJ[S.obj][1]);
+  if (S.obj === 'sal') miss.push('مبيعات: سناب يرفضها لأن البكسل بدون أحداث شراء (E3017)، ولرابط واتساب اكتب «زيارات» بدلها.');   // p222
   const sm = /(?:بحساب|حساب) ([^\n]{1,40})/.exec(TB);
   if (sm && ACCS.length) { const ws = sm[1].split(' ').filter(w => w.length >= 3).slice(0, 3); const hit = ACCS.filter(a => { const an = nzt(a.name).split(' '); return ws.some(w => an.some(x => x.length >= 3 && (x.indexOf(w) === 0 || w.indexOf(x) === 0))); }); if (hit.length === 1) { S.acct = hit[0].id; got.push('🏷️ الحساب: ' + sh(hit[0].name, 30)); } else miss.push(hit.length ? 'اسم الحساب يطابق أكثر من حساب' : 'ما لقيت حساب سناب بهذا الاسم'); }
   if (!S.acct && ACCS.length === 1) { S.acct = ACCS[0].id; got.push('🏷️ الحساب: ' + sh(ACCS[0].name, 30)); }
