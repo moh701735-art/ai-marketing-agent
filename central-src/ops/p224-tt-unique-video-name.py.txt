@@ -9,7 +9,7 @@ if len(m) != 1:
     sys.exit('PATCH FAIL (nothing written): fname anchor count=%d; lines: %s' % (len(m), ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if 'fname =' in l)[:600] or 'none'))
 I = m[0].group(1)
 new_txt = (I + 'import hashlib as _h224, time as _t224   # p224\n' +
-           I + 'fname = (p["campaign_name"][:90] + "-" + _h224.md5(("%s|%s" % (_t224.time(), idem)).encode()).hexdigest()[:6] + ".mp4")   # p224: اسم ملف فريد لكل رفع (تيك توك يرفض الاسم المكرر: Duplicated material name)')
+           I + 'fname = (p["campaign_name"][:85] + "-" + _h224.md5(("%s|%s" % (_t224.time(), idem)).encode()).hexdigest()[:6] + ".mp4")   # p224: اسم ملف فريد لكل رفع (تيك توك يرفض الاسم المكرر: Duplicated material name)')
 new = s[:m[0].start()] + new_txt + s[m[0].end():]
 try: compile(new, P, 'exec')
 except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
