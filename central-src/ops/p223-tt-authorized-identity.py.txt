@@ -14,14 +14,15 @@ r2 = re.compile(r'\bdef _dm_identity\(self, step, name(?:: str)?((?:, made(?:: d
 m2 = list(r2.finditer(s))
 if len(m2) != 1: fails.append('_dm_identity signature count=%d; lines: %s' % (len(m2), lines_with('def _dm_identity')))
 # 3) فلتر can_manage_message بدالة _dm_identity فقط عند need_dm
-A3 = 'ok_ = [c for c in cands if c[1].get("can_manage_message")]'
-if s.count(A3) != 1: fails.append('ok_ filter count=%d; lines: %s' % (s.count(A3), lines_with('ok_ = ')))
+r3 = re.compile(r'ok_ = \[c for c in cands if c\[1\]\.get\("can_manage_message"\)( is not False)?\]')
+m3 = list(r3.finditer(s))
+if len(m3) != 1: fails.append('ok_ filter count=%d; lines: %s' % (len(m3), lines_with('ok_ = ')))
 if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
 I = m1[0].group(1)
 R1 = (I + 'if True:   # p223: كل الأهداف بهوية حساب تيك توك فعلي (تيك توك ألغى الهوية المخصصة)\n' +
       I + '    dmi, fdm = await self._dm_identity(step, name' + m1[0].group(2) + ', need_dm=(p["objective"] == "tiktok_dm"))\n')
 new = s
-for pos0, pos1, txt in sorted([(m1[0].start(), m1[0].end(), R1), (m2[0].start(), m2[0].end(), 'def _dm_identity(self, step, name: str' + m2[0].group(1) + ', need_dm: bool = True) -> tuple:'), (s.index(A3), s.index(A3) + len(A3), 'ok_ = [c for c in cands if (c[1].get("can_manage_message") or not need_dm)]')], reverse=True):
+for pos0, pos1, txt in sorted([(m1[0].start(), m1[0].end(), R1), (m2[0].start(), m2[0].end(), 'def _dm_identity(self, step, name: str' + m2[0].group(1) + ', need_dm: bool = True) -> tuple:'), (m3[0].start(), m3[0].end(), 'ok_ = [c for c in cands if (not need_dm or c[1].get("can_manage_message")' + (m3[0].group(1) or '') + ')]')], reverse=True):
     new = new[:pos0] + txt + new[pos1:]
 try: compile(new, P, 'exec')
 except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)

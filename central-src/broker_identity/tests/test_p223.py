@@ -28,7 +28,7 @@ class Svc:
             for x in (li.get("identity_list") or li.get("list") or []):
                 if isinstance(x, dict) and str(x.get("available_status") or "") == "AVAILABLE":
                     cands.append((itype, x))
-        ok_ = [c for c in cands if c[1].get("can_manage_message")]
+        ok_ = [c for c in cands if c[1].get("can_manage_message") is not False]
         want = (name or "").lower()
         nm_ = [c for c in ok_ if want and want == str(c[1].get("display_name") or "").lower()]
         pick = nm_[0] if nm_ else (ok_[0] if len(ok_) == 1 else None)
@@ -78,8 +78,11 @@ class T(unittest.TestCase):
     def test_07_anchor_failure_writes_nothing_and_prints_lines(self):
         open(self.d + "/broker/app/service.py", "w", encoding="utf-8").write("def _dm_identity(self, a, b, c):\n  pass\n")
         before = open(self.d + "/broker/app/service.py", encoding="utf-8").read(); r = apply(self.d); self.assertIn("PATCH FAIL (nothing written)", r.stderr); self.assertEqual(open(self.d + "/broker/app/service.py", encoding="utf-8").read(), before)
+    def test_09_plain_filter_variant_also_patched(self):
+        open(self.d + "/broker/app/service.py", "w", encoding="utf-8").write(SERVICE.replace('c[1].get("can_manage_message") is not False', 'c[1].get("can_manage_message")'))
+        r = apply(self.d); self.assertIn("APPLY223_OK", r.stdout, r.stderr); self.assertIn('not need_dm or c[1].get("can_manage_message"))]', open(self.d + "/broker/app/service.py", encoding="utf-8").read())
     def test_08_duplicate_filter_anchor_refuses(self):
-        src = SERVICE + '\n        ok_ = [c for c in cands if c[1].get("can_manage_message")]\n'; open(self.d + "/broker/app/service.py", "w", encoding="utf-8").write(src)
+        src = SERVICE + '\n        ok_ = [c for c in cands if c[1].get("can_manage_message") is not False]\n'; open(self.d + "/broker/app/service.py", "w", encoding="utf-8").write(src)
         r = apply(self.d); self.assertIn("ok_ filter count=2", r.stderr)
 
 if __name__ == "__main__": unittest.main(verbosity=1)
