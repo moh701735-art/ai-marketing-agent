@@ -1,0 +1,38 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P227_BASE', '/opt/central/')
+P = 'broker/app/service.py'
+s = open(BASE + P, encoding='utf-8').read()
+if 'p227' in s: print('APPLY227_OK changed=0 (already applied)'); sys.exit(0)
+fails = []
+def lines_with(kw): return ' | '.join(ascii(l.strip()[:200]) for l in s.split('\n') if kw in l)[:600] or 'none'
+r1 = re.compile(r'(?m)^([ \t]*)if not cover:   # p226[^\n]*$'); m1 = list(r1.finditer(s))
+if len(m1) != 1: fails.append('p226 cover block anchor count=%d (needs p226); lines: %s' % (len(m1), lines_with('p226')))
+r2 = re.compile(r'(?m)^([ \t]*)if not image_id:   # p225[^\n]*$'); m2 = list(r2.finditer(s))
+if len(m2) != 1: fails.append('p225 early-stop anchor count=%d (needs p225); lines: %s' % (len(m2), lines_with('p225')))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I1 = m1[0].group(1); I2 = m2[0].group(1)
+NORM = (I1 + 'if cover.startswith("http://"): cover = "https://" + cover[7:]   # p227: تيك توك قد يرجّع الغلاف بـhttp أو //؛ رفعه بالمسار https\n' +
+        I1 + 'elif cover.startswith("//"): cover = "https:" + cover\n' +
+        I1 + '_sg227 = False\n' +
+        I1 + 'if not cover.startswith("https://"):   # p227: لا غلاف صالح ⇒ الأغلفة المقترحة (suggestcover)\n' +
+        I1 + '    _sg227 = True')
+SECOND = (I2 + 'if not image_id and not _sg227:   # p227: غلاف تيك توك التلقائي ما انرفع ⇒ جرّب الغلاف المقترح مرة وحدة\n' +
+          I2 + '    sg2, fsg2 = await self.call(step("cover_suggest"), "tiktok.suggest_cover", {"video_id": video_id, "poster_number": 3})\n' +
+          I2 + '    if not fsg2:\n' +
+          I2 + '        for _u in [str(x.get("url") or "") for x in ((sg2.get("list") if isinstance(sg2, dict) else None) or []) if isinstance(x, dict)][:3]:\n' +
+          I2 + '            _u = ("https://" + _u[7:]) if _u.startswith("http://") else _u\n' +
+          I2 + '            if not _u.startswith("https://"):\n' +
+          I2 + '                continue\n' +
+          I2 + '            im2, fim2 = await self.call(step("cover"), "tiktok.upload_image_url", {"image_url": _u, "file_name": ("cover-" + __import__("hashlib").md5(("%s|%s|2" % (__import__("time").time(), idem)).encode()).hexdigest()[:8] + ".jpg")}, f"{idem}-ci2")\n' +
+          I2 + '            if not fim2:\n' +
+          I2 + '                _ims = im2 if isinstance(im2, list) else [im2]\n' +
+          I2 + '                image_id = str(next((x.get("image_id") for x in _ims if isinstance(x, dict) and x.get("image_id")), "") or "")\n' +
+          I2 + '                if image_id:\n' +
+          I2 + '                    made["cover"] = True\n' +
+          I2 + '                    break\n')
+new = s
+for a, b, t in sorted([(m1[0].start(), m1[0].end(), NORM), (m2[0].start(), m2[0].start(), SECOND)], key=lambda e: -e[0]): new = new[:a] + t + new[b:]
+try: compile(new, P, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + P, BASE + P + '.pre227'); open(BASE + P, 'w', encoding='utf-8').write(new)
+print('APPLY227_OK cover URL normalized (http/protocol-relative -> https) + second-chance suggested cover')
