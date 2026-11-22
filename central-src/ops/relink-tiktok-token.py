@@ -2,7 +2,8 @@
 """تجديد توكن تيك توك لعميل موجود (بدون إنشاء اتصال جديد وبدون لمس الحسابات).
 الاستعمال (من /opt/central):  python3 ops/relink-tiktok-token.py [--apply] [--new-ref]
   بدون --apply = فحص فقط (ما يكتب شي). الأسرار (App Secret و auth_code) تنكتب مخفية بالطرفية ولا تنطبع.
-الفحص: يبدّل الكود بتوكن، ثم يتأكد أن التوكن يشمل **كل** حسابات العميل المربوطة بالاتصال النشط، وإلا يتوقف بدون كتابة.
+الفحص: يبدّل الكود بتوكن، ثم يتأكد أن التوكن يشمل **كل** حسابات العميل المربوطة بالاتصال (النشط أو المنتهي)، وإلا يتوقف بدون كتابة.
+(p232) اتصال حالته «expired» (النظام علّمه بعد auth_expired) يُقبل أيضاً، وبعد نجاح الفحص والكتابة يرجع «active» (مع تصفير alerted_at).
 الكتابة (--apply): نسخة جديدة بالخزنة تحت نفس المرجع (أو مرجع جديد مع --new-ref ويحدّث الاتصال)."""
 import getpass, json, os, re, secrets, sys, urllib.error, urllib.parse, urllib.request
 
@@ -87,22 +88,31 @@ def account_info(token, ids, call=http):
 def db_state(at, db, slug):
     tid = at.psql(db, "SELECT tenant_id FROM core.tenants WHERE slug = :'slug'", {"slug": slug}, tx=False).strip()
     if not tid: raise Stop("ما لقيت عميل بهذا الاسم (%s)." % slug)
-    rows = [l for l in at.psql(db, "SELECT connection_id::text || '|' || external_user_id || '|' || secret_ref FROM core.platform_connections "
-                                   "WHERE tenant_id = :'tid' AND platform = 'tiktok' AND status = 'active' ORDER BY created_at", {"tid": tid}, tx=False).splitlines() if l.strip()]
+    rows = [l for l in at.psql(db, "SELECT connection_id::text || '|' || external_user_id || '|' || secret_ref || '|' || status::text FROM core.platform_connections "
+                                   "WHERE tenant_id = :'tid' AND platform = 'tiktok' AND status IN ('active', 'expired') ORDER BY created_at", {"tid": tid}, tx=False).splitlines() if l.strip()]
     if len(rows) != 1:
-        raise Stop("لازم يكون عند العميل اتصال تيك توك نشط **واحد** بالضبط، لقيت %d. ما أكتب شي. (%s)" % (len(rows), "; ".join(r.split("|")[1] for r in rows)[:200] or "لا شي"))
-    cid, ext, ref = rows[0].split("|")
+        raise Stop("لازم يكون عند العميل اتصال تيك توك **واحد** بالضبط (نشط أو منتهي)، لقيت %d. ما أكتب شي. (%s)" % (len(rows), "; ".join(r.split("|")[1] for r in rows)[:200] or "لا شي"))
+    parts = rows[0].split("|"); cid, ext, ref = parts[0], parts[1], parts[2]; cstatus = parts[3] if len(parts) > 3 else "active"
     accts = [l.strip() for l in at.psql(db, "SELECT external_id FROM core.ad_accounts WHERE tenant_id = :'tid' AND platform = 'tiktok' AND enabled AND unlinked_at IS NULL "
                                             "AND connection_id::text = :'cid' ORDER BY external_id", {"tid": tid, "cid": cid}, tx=False).splitlines() if l.strip()]
     if not accts: raise Stop("الاتصال النشط ما عنده حسابات مفعّلة. ما أكتب شي.")
-    return tid, cid, ext, ref, accts
+    return tid, cid, ext, ref, accts, cstatus
+
+
+def reactivate(at, db, tid, cid, cstatus, out):
+    """p232: اتصال «expired» يرجع «active» (بعد التحقق والكتابة فقط)."""
+    if cstatus != "expired": return False
+    at.psql(db, "UPDATE core.platform_connections SET status = 'active', last_verified_at = now(), alerted_at = NULL "
+                "WHERE connection_id::text = :'cid' AND tenant_id = :'tid' AND status = 'expired'", {"cid": cid, "tid": tid}, tx=False)
+    out("✅ حالة الاتصال رجعت «active» (كانت expired).")
+    return True
 
 
 def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print):
     if not SLUG_RE.fullmatch(slug): raise Stop("slug غير صالح.")
     if not re.fullmatch(r"[0-9]{5,24}", app_id): raise Stop("App ID غير صالح (أرقام فقط).")
-    tid, cid, ext, ref, accts = db_state(at, db, slug)
-    out("العميل: %s | الاتصال النشط: %s | عدد حساباته المفعّلة: %d" % (slug, ext, len(accts)))
+    tid, cid, ext, ref, accts, cstatus = db_state(at, db, slug)
+    out("العميل: %s | الاتصال: %s (حالته: %s) | عدد حساباته المفعّلة: %d" % (slug, ext, cstatus, len(accts)))
     out("الكود المستلم: %s | App ID: %s" % (shape(clean_code(code)), shape(app_id)))
     token, adv_ids = exchange(app_id, secret, code, call)
     info = account_info(token, accts, call)
@@ -123,10 +133,10 @@ def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print
         at.psql(db, "UPDATE core.platform_connections SET secret_ref = :'nref' WHERE connection_id::text = :'cid' AND tenant_id = :'tid'",
                 {"nref": nref, "cid": cid, "tid": tid}, tx=False)
         out("✅ انحفظ التوكن بمرجع جديد وانربط بالاتصال %s" % ext)
-        return {"written": True, "ref": nref}
+        return {"written": True, "ref": nref, "reactivated": reactivate(at, db, tid, cid, cstatus, out)}
     at.vault([{"tenant_id": tid, "kind": "tiktok_token", "secret_ref": ref, "value": token}])
-    out("✅ انحفظ التوكن الجديد بالخزنة (نسخة جديدة تحت نفس المرجع). الاتصال والحسابات ما تغيّروا.")
-    return {"written": True, "ref": ref}
+    out("✅ انحفظ التوكن الجديد بالخزنة (نسخة جديدة تحت نفس المرجع). الحسابات ما تغيّرت.")
+    return {"written": True, "ref": ref, "reactivated": reactivate(at, db, tid, cid, cstatus, out)}
 
 
 def ask(read, prompt, rx, tries=6):
