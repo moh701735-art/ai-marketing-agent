@@ -3,11 +3,14 @@ BASE = os.environ.get('P228_BASE', '/opt/central/')
 P = 'broker/app/catalog.py'
 s = open(BASE + P, encoding='utf-8').read()
 if 'p228' in s: print('APPLY228_OK changed=0 (already applied)'); sys.exit(0)
-A = 're.fullmatch(r"[A-Za-z0-9_.-]{1,60}", x)'
-if s.count(A) != 1:
-    sys.exit('PATCH FAIL (nothing written): safelist regex anchor count=%d; lines: %s' % (s.count(A), ' | '.join(ascii(l.strip()[:220]) for l in s.split('\n') if 'fullmatch' in l)[:700] or 'none'))
-B = '(re.fullmatch((r"[A-Za-z0-9_./-]{1,120}" if name == "image_ids" else r"[A-Za-z0-9_.-]{1,60}"), x) and not (name == "image_ids" and ".." in x))'
-new = s.replace(A, B).rstrip('\n') + '\n# p228: معرّفات صور تيك توك تحتوي "/" (مثل ad-site-i18n-sg/2026...)؛ تُقبل لحقل image_ids فقط (بدون ".." وبحد 120 حرف)\n'
+import re
+R = re.compile(r're\.fullmatch\(r"(\[A-Za-z0-9_[^"\]]*\]\{1,60\})", x\)')
+M = list(R.finditer(s))
+if len(M) != 1:
+    sys.exit('PATCH FAIL (nothing written): safelist regex anchor count=%d; lines: %s' % (len(M), ' | '.join(ascii(l.strip()[:220]) for l in s.split('\n') if 'fullmatch' in l)[:900] or 'none'))
+CLS = M[0].group(1)
+B = '(re.fullmatch((r"[A-Za-z0-9_./-]{1,120}" if name == "image_ids" else r"' + CLS + '"), x) and not (name == "image_ids" and ".." in x))'
+new = (s[:M[0].start()] + B + s[M[0].end():]).rstrip('\n') + '\n# p228: معرّفات صور تيك توك تحتوي "/" (مثل ad-site-i18n-sg/2026...)؛ تُقبل لحقل image_ids فقط (بدون ".." وبحد 120 حرف)\n'
 try: compile(new, P, 'exec')
 except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
 shutil.copy(BASE + P, BASE + P + '.pre228'); open(BASE + P, 'w', encoding='utf-8').write(new)

@@ -32,6 +32,10 @@ class T(unittest.TestCase):
     def test_04_idempotent_backup_marker(self):
         apply(self.d); self.assertTrue(os.path.exists(self.d + "/broker/app/catalog.py.pre228")); self.assertIn("changed=0", apply(self.d).stdout)
         self.assertEqual(sum(1 for l in open(self.d + "/broker/app/catalog.py", encoding="utf-8") if "p228" in l), 1)
+    def test_06_regex_class_variants_all_patched_preserving_original_class(self):
+        for cls in (r"[A-Za-z0-9_.-]", r"[A-Za-z0-9_.\\-]", r"[A-Za-z0-9_.]"):
+            self.setUp(); open(self.d + "/broker/app/catalog.py", "w", encoding="utf-8").write(CAT.replace(r"[A-Za-z0-9_.-]", cls)); r = apply(self.d); self.assertIn("APPLY228_OK", r.stdout, (cls, r.stderr)); ns = self.mod()
+            self.assertTrue(self.ok(ns, "image_ids", ["ad-site-i18n-sg/abc123"]), cls); self.assertFalse(self.ok(ns, "video_ids", ["a/b"]), cls); self.assertTrue(self.ok(ns, "video_ids", ["abc_1.2"]), cls)
     def test_05_missing_or_duplicate_anchor_writes_nothing(self):
         for src in ("x = 1\n", CAT + CAT.split("def _check")[1]):
             open(self.d + "/broker/app/catalog.py", "w", encoding="utf-8").write(src); r = apply(self.d); self.assertIn("PATCH FAIL (nothing written)", r.stderr); self.assertEqual(open(self.d + "/broker/app/catalog.py", encoding="utf-8").read(), src)
