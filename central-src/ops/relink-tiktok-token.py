@@ -59,6 +59,22 @@ def code_variants(code):
     return out
 
 
+LAST_META = ""
+
+
+def meta_summary(d):
+    """p234: وصف غير سري لرد تيك توك (أسماء الحقول + أرقام/قوائم أرقام قصيرة + أطوال)، لنعرف هل يرجع expires_in أو refresh_token. لا تُطبع قيمة نصية طويلة أبداً."""
+    out = []
+    for k in sorted(d or {}):
+        v = d[k]
+        if k == "advertiser_ids": out.append("advertiser_ids(%d)" % len(v or []))
+        elif isinstance(v, (bool, int, float)): out.append("%s=%s" % (k, v))
+        elif isinstance(v, list) and len(v) <= 40 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v): out.append("%s=%s" % (k, v))
+        elif isinstance(v, str) and len(v) <= 12 and not re.search(r"token|secret|code|key", str(k), re.I): out.append("%s=%s" % (k, v))
+        else: out.append("%s(%s, طول %d)" % (k, type(v).__name__, len(v) if hasattr(v, "__len__") else 0))
+    return ", ".join(out)[:400]
+
+
 def exchange(app_id, secret, code, call=http):
     code = clean_code(code)
     r = {}
@@ -69,6 +85,8 @@ def exchange(app_id, secret, code, call=http):
     if r.get("code") != 0 or not d.get("access_token"):
         raise Stop("تيك توك رفض الكود (code=%s): %s. [شكل الكود: %s | شكل السر: %s]. الكود يُستعمل مرة وحدة وينتهي بسرعة؛ خذ كود جديد والصقه مباشرة." % (r.get("code"), scrub(r.get("message", ""), secret, code), shape(code), shape(secret)))
     ids = [str(x) for x in d.get("advertiser_ids", []) if re.fullmatch(r"[0-9]{5,24}", str(x))]
+    global LAST_META
+    LAST_META = meta_summary(d)
     return d["access_token"], ids
 
 
@@ -115,6 +133,7 @@ def run(slug, app_id, secret, code, apply, new_ref, at, db, call=http, out=print
     out("العميل: %s | الاتصال: %s (حالته: %s) | عدد حساباته المفعّلة: %d" % (slug, ext, cstatus, len(accts)))
     out("الكود المستلم: %s | App ID: %s" % (shape(clean_code(code)), shape(app_id)))
     token, adv_ids = exchange(app_id, secret, code, call)
+    out("حقول رد تيك توك (بدون أسرار): " + LAST_META)
     info = account_info(token, accts, call)
     missing = [a for a in accts if a not in adv_ids]
     unreadable = [a for a in accts if a not in info]
