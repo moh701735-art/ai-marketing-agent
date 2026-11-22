@@ -1,10 +1,10 @@
-// p230: نافذة جدولة التيك توك (p230c: كلمة اليوم تنربط بالساعة اللي جنبها؛ للإيقاف يوم خاص) «روّج الساعة 22:00 وقف 10:00» (بغداد UTC+3 → UTC). صيغة غير مفهومة أو غامضة = توقف قبل أي حملة.
+// p230: نافذة جدولة التيك توك (p230c: كلمة اليوم تنربط بالساعة اللي جنبها؛ للإيقاف يوم خاص؛ p230d: بدون فعل بداية + كلمة حملة) «روّج الساعة 22:00 وقف 10:00» (بغداد UTC+3 → UTC). صيغة غير مفهومة أو غامضة = توقف قبل أي حملة.
 {
   const BG = 3 * 3600000, LET = '\\u0621-\\u064A';
   const s = String(d.text || '').replace(/[\u0660-\u0669]/g, c => String(c.charCodeAt(0) - 1632)).replace(/[\u064B-\u065F\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase();
   const L1 = '(?<![' + LET + '])', L2 = '(?![' + LET + '])';
   const MKW = 'صباحا|صباح|صبح|الصبح|فجرا|فجر|مساءا|مساء|المساء|ليلا|ليل|الليل|عصرا|عصر|العصر|ظهرا|ظهر|الظهر';
-  const TOK = new RegExp('^\\s*(?:(?:لها|ها|عند|في|من|ب|بعد\\s*بكر[هاة]|بعد\\s*يومين|بكر[هاة]|غدا|باجر|ثاني\\s*يوم|اليوم\\s*الثاني|اليوم)\\s*)*(?:(?:ب?الساعه|ساعه)\\s*(\\d{1,2})(?::(\\d{2}))?|(\\d{1,2}):(\\d{2})|(\\d{1,2})(?=\\s*ب?(?:' + MKW + ')' + L2 + '))(?:\\s*ب?(' + MKW + ')' + L2 + ')?');
+  const TOK = new RegExp('^\\s*(?:(?:لها|ها|عند|في|من|ب|حمله|الحمله|اعلان|الاعلان|هاي|هذي|هذه|بعد\\s*بكر[هاة]|بعد\\s*يومين|بكر[هاة]|غدا|باجر|ثاني\\s*يوم|اليوم\\s*الثاني|اليوم)\\s*)*(?:(?:ب?الساعه|ساعه)\\s*(\\d{1,2})(?::(\\d{2}))?|(\\d{1,2}):(\\d{2})|(\\d{1,2})(?=\\s*ب?(?:' + MKW + ')' + L2 + '))(?:\\s*ب?(' + MKW + ')' + L2 + ')?');
   const DAYS = (t) => {   // p230c: كلمة يوم قرب الساعة → {abs: يوم من اليوم} أو {rel: يوم من يوم البداية}
     if (new RegExp(L1 + 'بعد\\s*(?:بكر[هاة]|غد)' + L2).test(t)) return { abs: 2 };
     if (new RegExp(L1 + 'بعد\\s*يومين' + L2).test(t)) return { rel: 2 };
@@ -50,6 +50,20 @@
         const a = mb.index + mb[0].length, x = tok(s.slice(a)); if (!x) continue;
         const rest = s.slice(a + x.len, a + x.len + 25), me = /^\s*(?:الي|لين|لحد|حتي)\s*/.exec(rest); if (!me) continue;
         const y = tok(rest.slice(me[0].length)); if (y) { t1 = x; t2 = y; span = [mb.index, a + x.len + me[0].length + y.len]; break; }
+      }
+    }
+    if (!t1) {   // p230d: بدون فعل بداية («ارفع حمله ساعه 10 بليل وقفها ساعه 7 صبح»): آخر ساعة قبل كلمة الإيقاف
+      const reE = new RegExp(L1 + '(?:اوقفها|اوقف|وقفها|وقف|ايقاف|توقف|تتوقف|تنتهي|تخلص)' + L2, 'g');
+      const reC = new RegExp('(?:ب?الساعه|ساعه)\\s*\\d{1,2}(?::\\d{2})?|\\d{1,2}:\\d{2}|\\d{1,2}(?=\\s*ب?(?:' + MKW + ')' + L2 + ')', 'g');
+      let me2;
+      while ((me2 = reE.exec(s))) {
+        const y = tok(s.slice(me2.index + me2[0].length)); if (!y) continue;
+        const before = s.slice(0, me2.index); let x = null, mc; reC.lastIndex = 0;
+        while ((mc = reC.exec(before))) { const c = tok(before.slice(mc.index)); if (c) { c.at = mc.index; x = c; } }
+        if (x) {
+          if (!x.day) { const pre = /(?:بعد\s*(?:بكر[هاة]|غد)|بكر[هاة]|غدا|باجر|اليوم)\s*$/.exec(before.slice(Math.max(0, x.at - 14), x.at)); if (pre) x.day = DAYS(pre[0]); }
+          t1 = x; t2 = y; span = [x.at, me2.index + me2[0].length + y.len]; break;
+        }
       }
     }
     if (!t1) return hasCue ? { err: ERR_FMT } : null;

@@ -19,7 +19,7 @@ class T(unittest.TestCase):
     def test_01_upgrade_replaces_block_exactly(self):
         before = rd(os.path.join(self.d, ING)); r = apply_c(self.d); self.assertIn("APPLY230C_OK", r.stdout, r.stdout + r.stderr)
         after = rd(os.path.join(self.d, ING)); self.assertEqual(rd(os.path.join(self.d, ING + ".pre230c")), before)
-        blk = rd(os.path.join(ROOT, "block.js")).rstrip("\n"); self.assertIn("\n" + blk.split("\n")[0], "\n" + after)
+        blk = rd(os.path.join(ROOT, "block_v2.js")).rstrip("\n"); self.assertIn("\n" + blk.split("\n")[0], "\n" + after)
         self.assertEqual(sum(1 for l in after.split("\n") if "p230c" in l), 2); self.assertEqual(sum(1 for l in after.split("\n") if "p230" in l), 3)
         self.assertEqual(after.count("/*p230*/"), 1)                                  # بطاقة النتيجة لم تتغيّر
         self.assertNotIn("const dOff = /", after)                                      # فحص اليوم العام انحذف
@@ -49,7 +49,7 @@ class T(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0); self.assertIn("restored", r.stdout + r.stderr); self.assertEqual(rd(p), before)
 
     def test_06_embedded_blocks_match_files(self):
-        t = rd(PATCH_C); self.assertIn("OLD = r'''" + rd(os.path.join(ROOT, "block_v1.js")).rstrip("\n") + "'''", t); self.assertIn("NEW = r'''" + rd(os.path.join(ROOT, "block.js")).rstrip("\n") + "'''", t)
+        t = rd(PATCH_C); self.assertIn("OLD = r'''" + rd(os.path.join(ROOT, "block_v1.js")).rstrip("\n") + "'''", t); self.assertIn("NEW = r'''" + rd(os.path.join(ROOT, "block_v2.js")).rstrip("\n") + "'''", t)
 
     def test_07_v1_block_equals_what_p230_installs(self):
         # الكتلة القديمة بالرقعة = حرفياً اللي ركّبتها p230 (المطبّقة بالسيرفر)

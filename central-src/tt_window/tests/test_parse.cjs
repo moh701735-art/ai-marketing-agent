@@ -51,4 +51,12 @@ T('35 p230c: explicit end before the start halts', () => { HALT(run('روج بع
 T('36 p230c: unrelated «بكرة» elsewhere in the text no longer moves the start', () => { assert.strictEqual(E('ارفع حمله بكرة اهم يوم ميزانية 30 دولار روجها 22:00 وقفها 7 صباحا')[0], '2026-11-22 19:00:00'); });
 T('37 p230c: duration word «يومين» (not «بعد يومين») is not a day offset', () => { assert.deepStrictEqual(E('روج بكرة الساعة 8 مساء يومين', { days: 2 }), ['2026-11-23 17:00:00', '2026-11-25 17:00:00']); });
 T('38 p230c: same-day end 20 minutes after start still refused (under 30 minutes)', () => { HALT(run('روج بكرة 10 صباحا وقف بكرة 10:20 صباحا'), /30 دقيقة/); });
+T('39 p230d: owner message — «ارفع حمله ساعه ١٠ بليل / وقفها ساعه ٧ صبح» (no start verb, Arabic digits, بليل) → 22:00 → 07:00', () => {
+  const l = OK(run('ارفع حمله ساعه ١٠ بليل\nوقفها ساعه ٧ صبح\n\nيوم واحد\nميزانيه ٢٠ الف\nبحساب boostpro13\n\n#TjqKk15B4dbIMrdXmm+zc3LHTHEdYUzFRmir2he0Az8XwKQErgHldu2HVjbcMZ0=\n\nعميل محتمل واتساب\n07829503973', { budget: 20000 }));
+  assert.strictEqual(l.start_at, '2026-11-22 19:00:00'); assert.strictEqual(l.end_at, '2026-11-23 04:00:00'); });
+T('40 p230d: no start verb with day words: «ارفع حمله بكرة ساعه 10 صباحا وقفها بعد بكرة ساعه 8 مساء»', () => { assert.deepStrictEqual(E('ارفع حمله بكرة ساعه 10 صباحا وقفها بعد بكرة ساعه 8 مساء'), ['2026-11-23 07:00:00', '2026-11-24 17:00:00']); });
+T('41 p230d: noun words between the verb and the clock («روج الحملة بكرة ساعة 8 مساء») for start-only', () => { assert.strictEqual(E('روج الحملة بكرة ساعة 8 مساء')[0], '2026-11-23 17:00:00'); });
+T('42 p230d: end only (no start clock) still halts with the format hint (no guessing)', () => { HALT(run('ارفع حمله وقفها الساعة 8 مساء'), /روّج الساعة 22:00/); });
+T('43 p230d: phone, handle digits and budget words are never read as the start clock', () => { const l = OK(run('ارفع حمله عميل محتمل واتساب 07829503973 بحساب boostpro13 ميزانيه 20 الف', { budget: 20000 })); assert(!('start_at' in l)); });
+T('44 p230d: ambiguous start in the no-verb form still asks (ساعه 10 وقفها ساعه 7 صبح)', () => { HALT(run('ارفع حمله ساعه 10 وقفها ساعه 7 صبح'), /مو واضحة/); });
 console.log(n + ' passed');
