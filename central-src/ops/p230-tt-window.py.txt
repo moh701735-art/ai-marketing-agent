@@ -1,0 +1,165 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P230_BASE', '/opt/central/')
+SP = 'broker/app/spark.py'; SV = 'broker/app/service.py'; IN = 'n8n/wf_ingress.py'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+sp, sv, ing = rd(SP), rd(SV), rd(IN)
+has = ['p230' in sp, 'p230' in sv, 'p230' in ing]
+if all(has): print('APPLY230_OK changed=0 (already applied)'); sys.exit(0)
+if any(has): sys.exit('PATCH FAIL (nothing written): half-applied state (spark=%s service=%s ingress=%s)' % tuple(has))
+BLOCK = r'''// p230: نافذة جدولة التيك توك «روّج الساعة 22:00 وقف 10:00» (بغداد UTC+3 → UTC). صيغة غير مفهومة أو غامضة = توقف قبل أي حملة.
+{
+  const BG = 3 * 3600000, LET = '\\u0621-\\u064A';
+  const s = String(d.text || '').replace(/[\u0660-\u0669]/g, c => String(c.charCodeAt(0) - 1632)).replace(/[\u064B-\u065F\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase();
+  const L1 = '(?<![' + LET + '])', L2 = '(?![' + LET + '])';
+  const MKW = 'صباحا|صباح|صبح|الصبح|فجرا|فجر|مساءا|مساء|المساء|ليلا|ليل|الليل|عصرا|عصر|العصر|ظهرا|ظهر|الظهر';
+  const TOK = new RegExp('^\\s*(?:(?:لها|ها|عند|في|من|ب|بعد\\s*بكر[هاة]|بكر[هاة]|غدا|باجر|اليوم)\\s*)*(?:(?:ب?الساعه|ساعه)\\s*(\\d{1,2})(?::(\\d{2}))?|(\\d{1,2}):(\\d{2})|(\\d{1,2})(?=\\s*ب?(?:' + MKW + ')' + L2 + '))(?:\\s*ب?(' + MKW + ')' + L2 + ')?');
+  const tok = (str) => { const m = TOK.exec(str); if (!m) return null; return { h: +(m[1] || m[3] || m[5]), mi: +(m[2] || m[4] || 0), mk: m[6] || '', len: m[0].length, raw: m[0] }; };
+  const to24 = (t) => { if (!t.mk) return t.h; if (/صب|فجر/.test(t.mk)) return t.h === 12 ? 0 : t.h; if (/ظهر/.test(t.mk)) return t.h < 7 ? t.h + 12 : t.h; return t.h < 12 ? t.h + 12 : (/ليل/.test(t.mk) && t.h === 12 ? 0 : t.h); };
+  const amb = (t) => !t.mk && t.h >= 1 && t.h <= 12 && !/(?:^|\D)0\d:/.test(t.raw);
+  const fmtB = (ms) => new Date(ms + BG).toISOString().slice(0, 16).replace('T', ' ');
+  const fmtU = (ms) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+  const tail = ' ما أنشأت أي حملة.';
+  const ERR_FMT = '⛔ فهمت أنك تريد جدولة الحملة بس ما قدرت أقرأ الوقت. اكتب مثل: «روّج الساعة 22:00 وقف الساعة 10:00 صباحاً».' + tail;
+  const W = (() => {
+    const cueS = new RegExp(L1 + '(?:روجها|روج|ابدا|ابدي|تبدا|تنطلق|شغلها|شغل|فعلها|فعل)' + L2);
+    const cueE = new RegExp(L1 + '(?:اوقفها|اوقف|وقفها|وقف|ايقاف|توقف|تتوقف|تنتهي|تخلص|لين|لحد|حتي|الي)' + L2);
+    const hasClock = /\d{1,2}:\d{2}/.test(s) || /(?:ب?الساعه|ساعه)\s*\d{1,2}/.test(s) || new RegExp('\\d{1,2}\\s*ب?(?:' + MKW + ')' + L2).test(s);
+    const hasCue = new RegExp(L1 + '(?:روجها|روج|ابدا|ابدي|تبدا|تنطلق|شغلها|شغل|فعلها|فعل|وقفها|وقف|اوقفها|اوقف|ايقاف|توقف|تتوقف|تنتهي|تخلص)' + L2).test(s);
+    if (!hasClock) return null;
+    let t1 = null, t2 = null, span = null, endCue = false;
+    const ms = cueS.exec(s);
+    if (ms) {
+      const a = ms.index + ms[0].length; t1 = tok(s.slice(a));
+      if (t1) {
+        const b = a + t1.len, rest = s.slice(b, b + 80), me = cueE.exec(rest);
+        if (!me) span = [ms.index, b];
+        else { endCue = true; t2 = tok(rest.slice(me.index + me[0].length)); if (t2) span = [ms.index, b + me.index + me[0].length + t2.len]; }
+      }
+    }
+    if (!t1 || (endCue && !t2)) {
+      t1 = null; t2 = null; span = null;
+      const rb = new RegExp(L1 + 'من\\s*', 'g'); let mb;
+      while ((mb = rb.exec(s))) {
+        const a = mb.index + mb[0].length, x = tok(s.slice(a)); if (!x) continue;
+        const rest = s.slice(a + x.len, a + x.len + 25), me = /^\s*(?:الي|لين|لحد|حتي)\s*/.exec(rest); if (!me) continue;
+        const y = tok(rest.slice(me[0].length)); if (y) { t1 = x; t2 = y; span = [mb.index, a + x.len + me[0].length + y.len]; break; }
+      }
+    }
+    if (!t1) return hasCue ? { err: ERR_FMT } : null;
+    for (const t of (t2 ? [t1, t2] : [t1])) {
+      if (t.h > 23 || t.mi > 59) return { err: '⛔ الساعة ' + t.h + ':' + String(t.mi).padStart(2, '0') + ' مو صالحة.' + tail };
+      if (amb(t)) return { err: '⛔ الساعة ' + t.h + ' مو واضحة (صباحاً أم مساءً؟). اكتب ' + t.h + ' صباحاً أو ' + t.h + ' مساءً أو بنظام 24 ساعة مثل 22:00.' + tail };
+    }
+    const now = Date.now(), nb = new Date(now + BG);
+    const dOff = /بعد\s*بكر[هاة]|بعد\s*غد/.test(s) ? 2 : new RegExp(L1 + '(?:بكر[هاة]|غدا|باجر)' + L2).test(s) ? 1 : 0;
+    const h1 = to24(t1), startMs = Date.UTC(nb.getUTCFullYear(), nb.getUTCMonth(), nb.getUTCDate() + dOff, h1, t1.mi, 0) - BG;
+    if (startMs < now + 10 * 60000) return { err: '⛔ وقت البداية ' + fmtB(startMs) + ' (بغداد) فات أو أقل من 10 دقائق من الآن (الآن ' + fmtB(now) + '). اكتب «بكرة» أو ساعة أبعد.' + tail };
+    if (startMs > now + 30 * 86400000) return { err: '⛔ وقت البداية بعيد أكثر من 30 يوم.' + tail };
+    let endMs;
+    if (t2) {
+      const sb = new Date(startMs + BG);
+      endMs = Date.UTC(sb.getUTCFullYear(), sb.getUTCMonth(), sb.getUTCDate(), to24(t2), t2.mi, 0) - BG;
+      while (endMs <= startMs) endMs += 86400000;
+    } else {
+      endMs = startMs + Math.min(90, Math.max(1, Number(launch.days) || 1)) * 86400000;
+    }
+    const dur = endMs - startMs;
+    if (dur < 30 * 60000 || dur > 7 * 86400000) return { err: '⛔ طول النافذة لازم يكون بين 30 دقيقة و7 أيام (الحالي ' + Math.round(dur / 60000) + ' دقيقة).' + tail };
+    return { start_at: fmtU(startMs), end_at: fmtU(endMs), h1: t1.h, h2: t2 ? t2.h : null, span };
+  })();
+  if (W && W.err) return say(W.err);
+  if (W) {
+    const nBud = Number(it && it.budget);
+    if (nBud && (nBud === W.h1 || nBud === W.h2)) {
+      const restNums = (s.slice(0, W.span[0]) + ' ' + s.slice(W.span[1])).match(/\d+/g) || [];
+      if (!restNums.map(Number).includes(nBud)) return say('⛔ ما قدرت أحدد الميزانية بوضوح (حسبت رقم الساعة ' + nBud + ' كميزانية). اكتب الميزانية بكلمة مثل «ميزانية 30 دولار».' + tail);
+    }
+    launch.start_at = W.start_at; launch.end_at = W.end_at;
+  }
+}'''
+if "'''" in BLOCK or '"""' in BLOCK: sys.exit('PATCH FAIL (nothing written): block contains triple quotes')
+fails = []
+def lines_with(txt, kw): return ' | '.join(ascii(l.strip()[:200]) for l in txt.split('\n') if kw in l)[:500] or 'none'
+# ---- spark.py ----
+r_allowed = re.compile(r'\ballowed\s*=\s*\{'); m_allowed = list(r_allowed.finditer(sp))
+if len(m_allowed) != 1: fails.append('spark allowed-set anchor count=%d; lines: %s' % (len(m_allowed), lines_with(sp, 'allowed')))
+r_def = re.compile(r'(?m)^def validate\('); m_def = list(r_def.finditer(sp))
+if len(m_def) != 1: fails.append('spark def validate anchor count=%d' % len(m_def))
+r_ret = re.compile(r'(?m)^([ \t]+)return \{\*\*params,'); m_ret = list(r_ret.finditer(sp))
+if len(m_ret) != 1: fails.append('spark validate return anchor count=%d; lines: %s' % (len(m_ret), lines_with(sp, 'return {**params')))
+R_SE = r'(?m)^([ \t]+)start = now \+ datetime\.timedelta\(minutes=10\)[ \t]*\n[ \t]+end = start \+ datetime\.timedelta\(days=p\[["\']days["\']\]\)[ \t]*$'
+m_se = list(re.finditer(R_SE, sp))
+if len(m_se) != 1: fails.append('spark start/end lines anchor count=%d; lines: %s' % (len(m_se), lines_with(sp, 'timedelta')))
+if not re.search(r'(?m)^import .*\bre\b|^import re\b', sp): fails.append('spark.py does not import re')
+if not re.search(r'(?m)^import .*\bdatetime\b|^import datetime\b', sp): fails.append('spark.py does not import datetime')
+# ---- service.py (_launch_smart) ----
+m_sv = list(re.finditer(R_SE, sv))
+if len(m_sv) != 1: fails.append('service start/end lines anchor count=%d; lines: %s' % (len(m_sv), lines_with(sv, 'timedelta')))
+if 'spark.adgroup_params(' not in sv: fails.append('service.py does not call spark.adgroup_params (module name differs?)')
+# ---- wf_ingress.py ----
+KEY = "'tgupd-' + d.chatId + '-' + d.updateId + '-launch'"
+if ing.count(KEY) != 1: fails.append('ingress launch key anchor count=%d; lines: %s' % (ing.count(KEY), lines_with(ing, "-launch'")))
+ret_i = -1
+if ing.count(KEY) == 1:
+    k = ing.index(KEY)
+    for pat in ('return [{ json:', 'return [{json:'): ret_i = max(ret_i, ing.rfind(pat, 0, k))
+    if ret_i < 0: fails.append('no "return [{ json:" before the launch key')
+    else:
+        ls = ing.rfind('\n', 0, ret_i) + 1
+        if ing[ls:ret_i].strip(): fails.append('launch return is not at line start: %s' % ascii(ing[ls:ret_i + 40]))
+        else: IND = ing[ls:ret_i]; INS = ls
+r_card = re.compile(r'\(L\.countries\s*&&\s*L\.countries\.length\s*\?'); m_card = list(r_card.finditer(ing))
+if len(m_card) != 1: fails.append('result-card countries anchor count=%d; lines: %s' % (len(m_card), lines_with(ing, 'L.countries')))
+else:
+    pre = ing[max(0, m_card[0].start() - 6):m_card[0].start()]
+    if not pre.rstrip().endswith('+'): fails.append('card anchor is not preceded by +: %s' % ascii(pre))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+# ---- build new texts ----
+HELP = '''import datetime as _p230dt
+_P230_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$")   # p230: نافذة جدولة (UTC)
+def _p230_dt(v): return _p230dt.datetime.strptime(v, "%Y-%m-%d %H:%M:%S")
+def window_error(params, now=None):   # p230: "" إن كانت النافذة صالحة أو غير موجودة
+    sa, ea = params.get("start_at"), params.get("end_at")
+    if sa is None and ea is None: return ""
+    if not (isinstance(sa, str) and isinstance(ea, str) and _P230_RE.match(sa) and _P230_RE.match(ea)): return "نافذة الجدولة غير صالحة (start_at و end_at مطلوبين معاً بصيغة UTC)."
+    try: s, e = _p230_dt(sa), _p230_dt(ea)
+    except ValueError: return "نافذة الجدولة غير صالحة (تاريخ غير موجود)."
+    now = now or _p230dt.datetime.now(_p230dt.timezone.utc).replace(tzinfo=None)
+    if s < now + _p230dt.timedelta(minutes=5): return "وقت بداية الجدولة فات أو قريب جداً (لازم بعد 5 دقائق على الأقل)."
+    if s > now + _p230dt.timedelta(days=30): return "وقت بداية الجدولة بعيد أكثر من 30 يوم."
+    if not _p230dt.timedelta(minutes=30) <= e - s <= _p230dt.timedelta(days=7): return "طول نافذة الجدولة لازم يكون بين 30 دقيقة و7 أيام."
+    return ""
+def window(p, now):   # p230: (البداية، النهاية) UTC: النافذة المطلوبة وإلا الآن+10 دقائق ثم عدد الأيام
+    if p.get("start_at") and p.get("end_at"): return _p230_dt(p["start_at"]), _p230_dt(p["end_at"])
+    start = now + _p230dt.timedelta(minutes=10)
+    return start, start + _p230dt.timedelta(days=p["days"])
+
+'''
+new_sp = sp
+edits = []
+edits.append((m_allowed[0].end(), m_allowed[0].end(), '"start_at", "end_at", '))
+edits.append((m_def[0].start(), m_def[0].start(), HELP))
+I = m_ret[0].group(1)
+edits.append((m_ret[0].start(), m_ret[0].start(), I + '_we = window_error(params)   # p230\n' + I + 'if _we: return None, _we\n'))
+I2 = m_se[0].group(1)
+edits.append((m_se[0].start(), m_se[0].end(), I2 + 'start, end = window(p, now)   # p230: نافذة جدولة أو الآن+10 دقائق'))
+for a, b, t in sorted(edits, key=lambda e: -e[0]): new_sp = new_sp[:a] + t + new_sp[b:]
+I3 = m_sv[0].group(1)
+new_sv = sv[:m_sv[0].start()] + I3 + 'start, end = spark.window(p, now)   # p230: نافذة جدولة أو الآن+10 دقائق' + sv[m_sv[0].end():]
+FMT = "((s) => new Date(Date.parse(String(s).replace(' ', 'T') + 'Z') + 10800000).toISOString().slice(0, 16).replace('T', ' '))"
+CARD = ("(L.start_at && L.end_at ? '\\n🕘 النافذة (بغداد): ' + " + FMT + "(L.start_at) + ' ← ' + " + FMT + "(L.end_at) + '\\n(تيك توك يوزّع الصرف على النافذة ولا يضمن صرف المبلغ كله)' : '') /*p230*/ + ")
+blk = ''.join((IND + ln if ln.strip() else ln) + '\n' for ln in BLOCK.rstrip('\n').split('\n'))
+new_ing = ing[:m_card[0].start()] + CARD + ing[m_card[0].start():]
+new_ing = new_ing[:INS] + blk + new_ing[INS:] if INS < m_card[0].start() else None
+if new_ing is None: sys.exit('PATCH FAIL (nothing written): card is before the launch return (unexpected layout)')
+for name, txt in ((SP, new_sp), (SV, new_sv)):
+    try: compile(txt, name, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s: %s' % (name, e))
+for f in (SP, SV, IN): shutil.copy(BASE + f, BASE + f + '.pre230')
+for f, t in ((SP, new_sp), (SV, new_sv), (IN, new_ing)): open(BASE + f, 'w', encoding='utf-8').write(t)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        for f in (SP, SV, IN): shutil.copy(BASE + f + '.pre230', BASE + f)
+        sys.exit('PATCH FAIL: build failed, restored all files: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY230_OK scheduled window: start_at/end_at (Baghdad clock times parsed in ingress, UTC to TikTok) + spark.window + Smart+ path + result-card line')
