@@ -1,0 +1,64 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P229_BASE', '/opt/central/')
+SV = 'broker/app/service.py'; CT = 'broker/app/catalog.py'; JR = 'n8n/wf_job_report.py'
+def rd(p): return open(BASE + p, encoding='utf-8').read()
+sv, ct, jr = rd(SV), rd(CT), rd(JR)
+if 'p229' in sv and 'p229' in ct and 'p229' in jr: print('APPLY229_OK changed=0 (already applied)'); sys.exit(0)
+if 'p229' in sv or 'p229' in ct or 'p229' in jr: sys.exit('PATCH FAIL (nothing written): half-applied state (service=%s catalog=%s job_report=%s)' % ('p229' in sv, 'p229' in ct, 'p229' in jr))
+NEWLOOP = "for (const g of Object.values(groups)) {   // p229: تقرير الحملات الشغالة (الصرف الكلي من بداية الحملة + تجميع حسب الحساب)\n  const N = v => { const x = Number(v); return isFinite(x) ? x : 0; };\n  const capv = (typeof CAP === 'number') ? CAP : 0.40;\n  const OFFRE = /DISABLE|PAUSE|DELETE|BUDGET_EXCEED|TIME_DONE|NOT_START|NOT_ENOUGH|AUDIT_DENY|BALANCE/i;\n  const isOff = k => OFFRE.test(String(k.status || '')) || OFFRE.test(String(k.sec_status || ''));\n  const stopped = g.camps.filter(isOff);\n  g.camps = g.camps.filter(k => !isOff(k));\n  const money = (k, v) => k.currency === 'IQD' ? Math.round(N(v)).toLocaleString('en-US') + ' د.ع' : '$' + (Math.round(N(v) * 100) / 100).toFixed(2);\n  const num = v => Math.round(N(v)).toLocaleString('en-US');\n  const small = (k, d) => k.currency === 'IQD' ? Math.abs(d) < 1 : Math.abs(d) < 0.01;\n  const dtxt = (k, d) => (d === null || d === undefined || small(k, d)) ? '' : ' (' + (d > 0 ? '+' : '-') + money(k, Math.abs(d)) + ' آخر ساعة)';\n  const vrd = k => {\n    const r = N(k.results), su = N(k.spend_usd); const cpr = r > 0 ? su / r : null;\n    if (r === 0) return su >= 1.93 ? ['❌', 'فاشلة'] : ['⏳', 'جمع بيانات'];\n    if (r < 2 && su < 1.93) return ['⏳', 'جمع بيانات'];\n    if (cpr <= capv) return ['✅', 'ناجحة'];\n    return cpr <= 0.60 ? ['⚠️', 'ضعيفة'] : ['❌', 'فاشلة'];\n  };\n  const RANK = { '✅': 0, '⚠️': 1, '⏳': 2, '❌': 3 };\n  const cards = g.camps.map(k => {\n    const key = g.chatId + '|' + k.campaign_id;\n    const lifeOk = k.spend_life_local !== null && k.spend_life_local !== undefined;\n    const life = lifeOk ? N(k.spend_life_local) : N(k.spend_local);\n    const lifeUsd = (k.spend_life_usd !== null && k.spend_life_usd !== undefined) ? N(k.spend_life_usd) : N(k.spend_usd);\n    const today = N(k.spend_local);\n    const prevL = sd.snap[key + '|L'], prev = sd.snap[key];\n    const dS = (prevL && lifeOk) ? life - N(prevL.sp) : null;\n    const dM = prev ? N(k.results) - N(prev.m) : null;\n    sd.snap[key + '|L'] = { sp: life }; sd.snap[key] = { sp: today, m: N(k.results) };\n    const v = vrd(k); const ctr = N(k.impressions) > 0 ? N(k.clicks) / N(k.impressions) * 100 : 0;\n    const cprL = N(k.results) > 0 ? (k.cost_per_result_local !== null && k.cost_per_result_local !== undefined ? N(k.cost_per_result_local) : today / N(k.results)) : null;\n    const L = [];\n    L.push(v[0] + ' ' + String(k.name || k.campaign_id).slice(0, 40) + ' — ' + v[1]);\n    L.push('💰 الصرف الكلي: ' + money(k, life) + (lifeOk ? '' : ' (اليوم فقط، الكلي غير متوفر)') + dtxt(k, dS));\n    L.push('📅 صرف اليوم: ' + money(k, today));\n    L.push('📩 رسائل اليوم: ' + num(k.results) + (dM ? ' (' + (dM > 0 ? '+' : '') + dM + ')' : '') + (cprL !== null ? ' | سعر الرسالة ' + money(k, cprL) : ''));\n    L.push((N(k.reach) ? '👁 وصول ' + num(k.reach) + ' | ' : '') + 'CTR ' + ctr.toFixed(2) + '%');\n    if (v[0] === '❌') L.push('↪ أقترح توقفها: /pause_' + k.campaign_id); else if (v[0] === '✅') L.push('↪ ناجحة، تكدر تكرّرها: /duplicate_' + k.campaign_id);\n    return { k, v, life, lifeUsd, text: L.join('\\n') };\n  });\n  cards.sort((a, b) => (RANK[a.v[0]] - RANK[b.v[0]]) || (b.life - a.life));\n  const byAcc = {}; const order = [];\n  for (const c of cards) { const a = c.k.account_name || c.k.ad_account || ''; if (!byAcc[a]) { byAcc[a] = []; order.push(a); } byAcc[a].push(c); }\n  const totUsd = cards.reduce((a, c) => a + c.lifeUsd, 0), totMsg = cards.reduce((a, c) => a + N(c.k.results), 0);\n  const stamp = new Date(Date.now() + 3 * 3600000).toISOString().slice(11, 16);\n  const blocks = [];\n  if (cards.length) {\n    blocks.push('📊 الحملات الشغالة الحين (' + cards.length + ') — ' + stamp + '\\n💰 الصرف الكلي ≈ $' + (Math.round(totUsd * 100) / 100).toFixed(2) + ' | 📩 رسائل اليوم ' + totMsg);\n    for (const a of order) {\n      const list = byAcc[a]; const sub = list.reduce((s, c) => s + c.life, 0), subM = list.reduce((s, c) => s + N(c.k.results), 0);\n      blocks.push('━━━━━━━━━━━━━━━\\n👤 ' + (a || 'حساب') + ' — ' + list.length + ' حملة | الصرف الكلي ' + money(list[0].k, sub) + ' | رسائل اليوم ' + subM + '\\n━━━━━━━━━━━━━━━');\n      for (const c of list) blocks.push(c.text);\n    }\n  } else if (!(g.fb && g.fb.length) && !g.meta.length) {\n    blocks.push('📊 ما في حملات شغالة حالياً.');\n  }\n  const tail = [];\n  if (stopped.length) tail.push('⏸ ' + stopped.length + ' حملة متوقفة أو منتهية (ما انعرضت)');\n  if (g.fb && g.fb.length) { const f = g.fb.sort((a, b) => b.sp - a.sp); tail.push(f.slice(0, 12).map(x => x.t).join('\\n\\n') + (f.length > 12 ? '\\n\\n… و' + (f.length - 12) + ' حملة ثانية' : '')); }\n  if (g.meta.length) tail.push(g.meta.join('\\n'));\n  if (g.bad.length) tail.push(g.bad.join('\\n'));\n  if (g.failed) tail.push('⚠️ ' + g.failed + ' حساب ما جاوبوا');\n  const msgs = []; let cur = '';\n  for (const b of blocks) { if (cur && (cur + '\\n\\n' + b).length > 3500) { msgs.push(cur); cur = b; } else cur += (cur ? '\\n\\n' : '') + b; }\n  if (tail.length) { const t = tail.join('\\n\\n'); if (cur && (cur + '\\n\\n' + t).length > 3800) { msgs.push(cur); cur = t; } else cur += (cur ? '\\n\\n' : '') + t; }\n  if (cur) msgs.push(cur);\n  for (const text of msgs) out.push({ json: { ctx: g.ctx, chatId: g.chatId, platform: 'telegram', op: 'telegram.send_message', ad_account: g.chatId, params: { text: text.slice(0, 3900) } } });\n}"
+fails = []
+def lines_with(txt, kw): return ' | '.join(ascii(l.strip()[:200]) for l in txt.split('\n') if kw in l)[:500] or 'none'
+# --- service.py ---
+r_adv = re.compile(r'(?m)^([ \t]*)(\w+) = await rd\(acct, "tiktok\.read_advertiser", \{"fields": \["currency", "name"\]\}\)[^\n]*$')
+m_adv = list(r_adv.finditer(sv))
+if len(m_adv) != 1: fails.append('read_advertiser(currency,name) anchor count=%d; lines: %s' % (len(m_adv), lines_with(sv, 'read_advertiser')))
+r_cpr = re.compile(r'(?m)^([ \t]*)t\["cost_per_result_usd"\] = [^\n]*$')
+m_cpr = list(r_cpr.finditer(sv))
+if len(m_cpr) != 1: fails.append('cost_per_result_usd anchor count=%d; lines: %s' % (len(m_cpr), lines_with(sv, 'cost_per_result')))
+dayvar = None
+if len(m_adv) == 1:
+    pre = [m for m in re.finditer(r'(?m)^[ \t]*(\w+) = datetime\.date\.today\(\)\.isoformat\(\)', sv) if m.end() < m_adv[0].start()]
+    if not pre: fails.append('today variable (datetime.date.today().isoformat()) not found before read_advertiser; lines: %s' % lines_with(sv, 'isoformat'))
+    else: dayvar = pre[-1].group(1)
+    if 'day_report' not in sv[max(0, m_adv[0].start() - 6000):m_adv[0].start()]: fails.append('day_report handler not found near the anchor')
+# --- catalog.py ---
+i_rr = ct.find('Op("tiktok.read_report"'); m_end = None
+if i_rr < 0: fails.append('catalog Op tiktok.read_report not found')
+else:
+    m_end = re.compile(r'"end_date": P\("date", required=True\)').search(ct, i_rr, i_rr + 1200)
+    if not m_end: fails.append('catalog end_date param not found inside read_report; lines: %s' % lines_with(ct, 'end_date'))
+if 'query_lifetime' in ct: fails.append('query_lifetime already in catalog')
+# --- wf_job_report.py ---
+r_loop = re.compile(r'(?m)^for \(const g of Object\.values\(groups\)\) \{\n[\s\S]*?\n\}\n(?=return out;)')
+m_loop = list(r_loop.finditer(jr))
+if len(m_loop) != 1: fails.append('job_report report loop anchor count=%d; lines: %s' % (len(m_loop), lines_with(jr, 'Object.values')))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+I = m_adv[0].group(1)
+LIFE = (I + 'if op_name == "tiktok.day_report":   # p229: حالة ثانوية + الصرف الكلي من بداية الحملة\n' +
+        I + '    ss_ = {str(c.get("campaign_id")): str(c.get("secondary_status") or "") for c in ((cl or {}).get("list") or [])}\n' +
+        I + '    for t in rows:\n' + I + '        t["sec_status"] = ss_.get(t["campaign_id"]) or ""\n' +
+        I + '    life_ = {}\n' +
+        I + '    rl_ = await rd(acct, "tiktok.read_report", {"report_type": "BASIC", "data_level": "AUCTION_CAMPAIGN", "dimensions": ["campaign_id"], "metrics": ["spend"], "query_lifetime": "true", "start_date": ' + dayvar + ', "end_date": ' + dayvar + ', "page_size": 1000})\n' +
+        I + '    for x in ((rl_ or {}).get("list") or []):\n' +
+        I + '        cid_ = str(((x.get("dimensions") or {}).get("campaign_id")) or "")\n' +
+        I + '        v_ = num_(((x.get("metrics") or {}).get("spend")))\n' +
+        I + '        if cid_ and v_:\n' + I + '            life_[cid_] = v_\n' +
+        I + '    for t in rows:\n' + I + '        t["_life"] = life_.get(t["campaign_id"])\n')
+I2 = m_cpr[0].group(1)
+CONV = ('\n' + I2 + '_lf = t.pop("_life", None)   # p229\n' + I2 + 't["spend_life_local"] = round(_lf, 2) if _lf else None\n' + I2 + 't["spend_life_usd"] = round(_lf / fx, 2) if _lf else None')
+new_sv = sv
+for a, b, t in sorted([(m_adv[0].start(), m_adv[0].start(), LIFE), (m_cpr[0].end(), m_cpr[0].end(), CONV)], key=lambda e: -e[0]): new_sv = new_sv[:a] + t + new_sv[b:]
+new_ct = ct[:m_end.end()] + ', "query_lifetime": P("enum", values=("true",))' + ct[m_end.end():]
+new_ct = new_ct.rstrip('\n') + '\n# p229: query_lifetime (الصرف الكلي من بداية الحملة) مسموح لـtiktok.read_report\n'
+new_jr = jr[:m_loop[0].start()] + NEWLOOP + '\n' + jr[m_loop[0].end():]
+for name, txt in ((SV, new_sv), (CT, new_ct), (JR, new_jr)):
+    try: compile(txt, name, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s: %s' % (name, e))
+for f in (SV, CT, JR): shutil.copy(BASE + f, BASE + f + '.pre229')
+for f, t in ((SV, new_sv), (CT, new_ct), (JR, new_jr)): open(BASE + f, 'w', encoding='utf-8').write(t)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        for f in (SV, CT, JR): shutil.copy(BASE + f + '.pre229', BASE + f)
+        sys.exit('PATCH FAIL: build failed, restored all files: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY229_OK report v2: lifetime spend, running campaigns only, grouped by account (Broker day_report + catalog query_lifetime + hourly report format)')
