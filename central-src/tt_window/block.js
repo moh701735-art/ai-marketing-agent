@@ -1,11 +1,25 @@
-// p230: نافذة جدولة التيك توك «روّج الساعة 22:00 وقف 10:00» (بغداد UTC+3 → UTC). صيغة غير مفهومة أو غامضة = توقف قبل أي حملة.
+// p230: نافذة جدولة التيك توك (p230c: كلمة اليوم تنربط بالساعة اللي جنبها؛ للإيقاف يوم خاص) «روّج الساعة 22:00 وقف 10:00» (بغداد UTC+3 → UTC). صيغة غير مفهومة أو غامضة = توقف قبل أي حملة.
 {
   const BG = 3 * 3600000, LET = '\\u0621-\\u064A';
   const s = String(d.text || '').replace(/[\u0660-\u0669]/g, c => String(c.charCodeAt(0) - 1632)).replace(/[\u064B-\u065F\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase();
   const L1 = '(?<![' + LET + '])', L2 = '(?![' + LET + '])';
   const MKW = 'صباحا|صباح|صبح|الصبح|فجرا|فجر|مساءا|مساء|المساء|ليلا|ليل|الليل|عصرا|عصر|العصر|ظهرا|ظهر|الظهر';
-  const TOK = new RegExp('^\\s*(?:(?:لها|ها|عند|في|من|ب|بعد\\s*بكر[هاة]|بكر[هاة]|غدا|باجر|اليوم)\\s*)*(?:(?:ب?الساعه|ساعه)\\s*(\\d{1,2})(?::(\\d{2}))?|(\\d{1,2}):(\\d{2})|(\\d{1,2})(?=\\s*ب?(?:' + MKW + ')' + L2 + '))(?:\\s*ب?(' + MKW + ')' + L2 + ')?');
-  const tok = (str) => { const m = TOK.exec(str); if (!m) return null; return { h: +(m[1] || m[3] || m[5]), mi: +(m[2] || m[4] || 0), mk: m[6] || '', len: m[0].length, raw: m[0] }; };
+  const TOK = new RegExp('^\\s*(?:(?:لها|ها|عند|في|من|ب|بعد\\s*بكر[هاة]|بعد\\s*يومين|بكر[هاة]|غدا|باجر|ثاني\\s*يوم|اليوم\\s*الثاني|اليوم)\\s*)*(?:(?:ب?الساعه|ساعه)\\s*(\\d{1,2})(?::(\\d{2}))?|(\\d{1,2}):(\\d{2})|(\\d{1,2})(?=\\s*ب?(?:' + MKW + ')' + L2 + '))(?:\\s*ب?(' + MKW + ')' + L2 + ')?');
+  const DAYS = (t) => {   // p230c: كلمة يوم قرب الساعة → {abs: يوم من اليوم} أو {rel: يوم من يوم البداية}
+    if (new RegExp(L1 + 'بعد\\s*(?:بكر[هاة]|غد)' + L2).test(t)) return { abs: 2 };
+    if (new RegExp(L1 + 'بعد\\s*يومين' + L2).test(t)) return { rel: 2 };
+    if (/ثاني\s*يوم|اليوم\s*الثاني|يوم\s*بعده/.test(t)) return { rel: 1 };
+    if (new RegExp(L1 + '(?:بكر[هاة]|غدا|باجر)' + L2).test(t)) return { abs: 1 };
+    if (new RegExp(L1 + '(?:هاليوم|اليوم|الليله|هالليله)' + L2).test(t)) return { abs: 0 };
+    return null;
+  };
+  const DTAIL = new RegExp('^\\s*(?:بعد\\s*(?:بكر[هاة]|غد|يومين)|بكر[هاة]|غدا|باجر|ثاني\\s*يوم|اليوم\\s*الثاني|هاليوم|اليوم)' + L2);
+  const tok = (str) => {
+    const m = TOK.exec(str); if (!m) return null;
+    let len = m[0].length, day = DAYS(m[0]);
+    if (!day) { const mt = DTAIL.exec(str.slice(len, len + 20)); if (mt) { day = DAYS(mt[0]); len += mt[0].length; } }
+    return { h: +(m[1] || m[3] || m[5]), mi: +(m[2] || m[4] || 0), mk: m[6] || '', len, raw: m[0], day };
+  };
   const to24 = (t) => { if (!t.mk) return t.h; if (/صب|فجر/.test(t.mk)) return t.h === 12 ? 0 : t.h; if (/ظهر/.test(t.mk)) return t.h < 7 ? t.h + 12 : t.h; return t.h < 12 ? t.h + 12 : (/ليل/.test(t.mk) && t.h === 12 ? 0 : t.h); };
   const amb = (t) => !t.mk && t.h >= 1 && t.h <= 12 && !/(?:^|\D)0\d:/.test(t.raw);
   const fmtB = (ms) => new Date(ms + BG).toISOString().slice(0, 16).replace('T', ' ');
@@ -22,6 +36,7 @@
     const ms = cueS.exec(s);
     if (ms) {
       const a = ms.index + ms[0].length; t1 = tok(s.slice(a));
+      if (t1 && !t1.day) { const pre = /(?:بعد\s*(?:بكر[هاة]|غد)|بكر[هاة]|غدا|باجر|اليوم)\s*$/.exec(s.slice(Math.max(0, ms.index - 14), ms.index)); if (pre) t1.day = DAYS(pre[0]); }
       if (t1) {
         const b = a + t1.len, rest = s.slice(b, b + 80), me = cueE.exec(rest);
         if (!me) span = [ms.index, b];
@@ -43,15 +58,21 @@
       if (amb(t)) return { err: '⛔ الساعة ' + t.h + ' مو واضحة (صباحاً أم مساءً؟). اكتب ' + t.h + ' صباحاً أو ' + t.h + ' مساءً أو بنظام 24 ساعة مثل 22:00.' + tail };
     }
     const now = Date.now(), nb = new Date(now + BG);
-    const dOff = /بعد\s*بكر[هاة]|بعد\s*غد/.test(s) ? 2 : new RegExp(L1 + '(?:بكر[هاة]|غدا|باجر)' + L2).test(s) ? 1 : 0;
+    const dOff = t1.day ? (t1.day.abs != null ? t1.day.abs : t1.day.rel) : 0;
     const h1 = to24(t1), startMs = Date.UTC(nb.getUTCFullYear(), nb.getUTCMonth(), nb.getUTCDate() + dOff, h1, t1.mi, 0) - BG;
     if (startMs < now + 10 * 60000) return { err: '⛔ وقت البداية ' + fmtB(startMs) + ' (بغداد) فات أو أقل من 10 دقائق من الآن (الآن ' + fmtB(now) + '). اكتب «بكرة» أو ساعة أبعد.' + tail };
     if (startMs > now + 30 * 86400000) return { err: '⛔ وقت البداية بعيد أكثر من 30 يوم.' + tail };
     let endMs;
     if (t2) {
       const sb = new Date(startMs + BG);
-      endMs = Date.UTC(sb.getUTCFullYear(), sb.getUTCMonth(), sb.getUTCDate(), to24(t2), t2.mi, 0) - BG;
-      while (endMs <= startMs) endMs += 86400000;
+      if (t2.day) {
+        const base = t2.day.abs != null ? [nb, t2.day.abs] : [sb, t2.day.rel];
+        endMs = Date.UTC(base[0].getUTCFullYear(), base[0].getUTCMonth(), base[0].getUTCDate() + base[1], to24(t2), t2.mi, 0) - BG;
+        if (endMs <= startMs) return { err: '⛔ وقت الإيقاف ' + fmtB(endMs) + ' (بغداد) قبل وقت البداية ' + fmtB(startMs) + ' أو يساويه.' + tail };
+      } else {
+        endMs = Date.UTC(sb.getUTCFullYear(), sb.getUTCMonth(), sb.getUTCDate(), to24(t2), t2.mi, 0) - BG;
+        while (endMs <= startMs) endMs += 86400000;
+      }
     } else {
       endMs = startMs + Math.min(90, Math.max(1, Number(launch.days) || 1)) * 86400000;
     }

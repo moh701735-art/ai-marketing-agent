@@ -127,7 +127,7 @@ class T(unittest.TestCase):
         self.assertIn("2026-11-22 22:00", w); self.assertIn("2026-11-23 10:00", w); self.assertIn("C: IQ", w); self.assertNotIn("النافذة", plain)
 
     def test_05_embedded_block_equals_block_js(self):
-        t = open(PATCH, encoding="utf-8").read(); blk = open(os.path.join(ROOT, "block.js"), encoding="utf-8").read().rstrip("\n")
+        t = open(PATCH, encoding="utf-8").read(); blk = open(os.path.join(ROOT, "block_v1.js"), encoding="utf-8").read().rstrip("\n")
         self.assertIn("BLOCK = r'''" + blk + "'''", t)
 
     def test_06_anchor_failures_write_nothing(self):

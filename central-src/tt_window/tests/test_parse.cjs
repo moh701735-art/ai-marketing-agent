@@ -40,4 +40,15 @@ T('27 real owner templates without a clock stay untouched (dress campaign, PUBG-
   for (const t of ['ارفع حمله يدويه عميل محتمل رسائل واتساب / 07829503973 / هوية: كوزمتك وملابس / يوم واحد / 20 الف / اختار جمهور 1 / سميها فستان هودي / بحساب بنين ودالية',
     'ارفع حمله هدف الحملة: مبيعات / الدول المستهدفة: السعودية الكويت / العمر 18-45 / الجنس رجال / اللغة عربي / ميزانية 30 دولار / 3 ايام / بحساب غزل وزينب سميها ببجي']) { const l = OK(run(t, { budget: 30 })); assert(!('start_at' in l)); } });
 T('28 tonight/now words alone do not schedule (ابدأ الان، فعلها)', () => { for (const t of ['ابدا الان ميزانية 30 دولار يوم واحد', 'ارفع حمله وفعلها مباشرة 5 دولار']) assert(!('start_at' in OK(run(t, { budget: 5 })))); });
+const E = (t, o = {}) => { const l = OK(run(t, { budget: 30 }, { days: 1, budget: 30, ...o })); return [l.start_at, l.end_at]; };
+T('29 p230c: end day word «بكرة» is the END day only — start stays today (was shifting the start)', () => { assert.deepStrictEqual(E('روجها 22:00 وقفها بكرة 7 صباحا'), ['2026-11-22 19:00:00', '2026-11-23 04:00:00']); });
+T('30 p230c: start tomorrow 10 AM, stop tomorrow 8 PM (10h, same day)', () => { assert.deepStrictEqual(E('روج بكرة 10 صباحا وقف بكرة 8 مساء'), ['2026-11-23 07:00:00', '2026-11-23 17:00:00']); });
+T('31 p230c: multi-day window — stop «بعد بكرة 8 مساء» (34h)', () => { assert.deepStrictEqual(E('روج بكرة 10 صباحا وقف بعد بكرة 8 مساء'), ['2026-11-23 07:00:00', '2026-11-24 17:00:00']); });
+T('32 p230c: «ثاني يوم» is relative to the start day', () => { assert.deepStrictEqual(E('روج بكرة 10 صباحا وقف ثاني يوم 8 مساء'), ['2026-11-23 07:00:00', '2026-11-24 17:00:00']); assert.deepStrictEqual(E('روجها الساعة 22:00 وقفها ثاني يوم الساعة 7 صباحا'), ['2026-11-22 19:00:00', '2026-11-23 04:00:00']); });
+T('33 p230c: «بعد يومين» for the end is 2 days after the start day', () => { assert.deepStrictEqual(E('روج بكرة 10 صباحا وقف بعد يومين 8 مساء'), ['2026-11-23 07:00:00', '2026-11-25 17:00:00']); });
+T('34 p230c: day word before the cue («بكرة روجها الساعة 8 مساء») and after the clock («8 مساء بكرة»)', () => { assert.strictEqual(E('بكرة روجها الساعة 8 مساء وقفها 11 مساء')[0], '2026-11-23 17:00:00'); assert.deepStrictEqual(E('روجها الساعة 8 مساء بكرة وقفها 11 مساء'), ['2026-11-23 17:00:00', '2026-11-23 20:00:00']); });
+T('35 p230c: explicit end before the start halts', () => { HALT(run('روج بعد بكرة 10 صباحا وقف بكرة 8 مساء'), /قبل وقت البداية/); });
+T('36 p230c: unrelated «بكرة» elsewhere in the text no longer moves the start', () => { assert.strictEqual(E('ارفع حمله بكرة اهم يوم ميزانية 30 دولار روجها 22:00 وقفها 7 صباحا')[0], '2026-11-22 19:00:00'); });
+T('37 p230c: duration word «يومين» (not «بعد يومين») is not a day offset', () => { assert.deepStrictEqual(E('روج بكرة الساعة 8 مساء يومين', { days: 2 }), ['2026-11-23 17:00:00', '2026-11-25 17:00:00']); });
+T('38 p230c: same-day end 20 minutes after start still refused (under 30 minutes)', () => { HALT(run('روج بكرة 10 صباحا وقف بكرة 10:20 صباحا'), /30 دقيقة/); });
 console.log(n + ' passed');
