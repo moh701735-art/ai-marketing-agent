@@ -48,12 +48,12 @@ class T(unittest.TestCase):
             self.assertNotEqual(r.returncode, 0, name); self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr, name)
             self.assertEqual(open(os.path.join(d, "broker/app/catalog.py"), encoding="utf-8").read(), before, name); self.assertFalse(os.path.exists(os.path.join(d, "broker/app/catalog.py.pre236")), name)
     def test_05_embedded_test_script_is_the_repo_file(self):
-        d = mk(); apply(d); self.assertEqual(open(os.path.join(d, "ops/tt-smart-toggle-test.py"), encoding="utf-8").read(), open(os.path.join(ROOT, "ops", "tt-smart-toggle-test.py"), encoding="utf-8").read())
+        d = mk(); apply(d); self.assertEqual(open(os.path.join(d, "ops/tt-smart-toggle-test.py"), encoding="utf-8").read(), open(os.path.join(H, "script_v1.py"), encoding="utf-8").read())
     def test_06_script_helpers_and_write_scope(self):
-        spec = importlib.util.spec_from_file_location("tst", os.path.join(ROOT, "ops", "tt-smart-toggle-test.py")); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+        spec = importlib.util.spec_from_file_location("tst", os.path.join(H, "script_v1.py")); m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
         self.assertEqual((m.default_budget("IQD"), m.default_budget("usd"), m.default_budget(None)), (10000, 10, 10))
         self.assertEqual(m.build_params(10000), {"campaign_name": "PROBE-SMART-TOGGLE-DELETE-ME", "budget": 10000, "budget_mode": "BUDGET_MODE_DYNAMIC_DAILY", "budget_auto_adjust_strategy": "AUTO_BUDGET_INCREASE"})
-        src = open(os.path.join(ROOT, "ops", "tt-smart-toggle-test.py"), encoding="utf-8").read(); compile(m.PY, "PY", "exec")
+        src = open(os.path.join(H, "script_v1.py"), encoding="utf-8").read(); compile(m.PY, "PY", "exec")
         for op in ("tiktok.sp_create_campaign", "tiktok.sp_read_campaigns"): self.assertIn(op, src)
         for bad in ("set_campaign_status", "sp_create_adgroup", "sp_create_ad", "operation_status\": \"ENABLE"): self.assertNotIn(bad, src)
         self.assertEqual(bytes.fromhex(m.hexs("AUTO_BUDGET_INCREASE")).decode(), "AUTO_BUDGET_INCREASE")

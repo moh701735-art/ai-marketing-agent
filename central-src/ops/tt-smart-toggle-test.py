@@ -2,19 +2,20 @@
 """اختبار حي صغير: ينشئ **حملة Smart+ متوقفة** (DISABLE بالـBroker، بدون مجموعة ولا إعلان، بدون صرف) اسمها PROBE-SMART-TOGGLE-DELETE-ME
 بالحقل budget_auto_adjust_strategy=AUTO_BUDGET_INCREASE ثم يقرأها ويطبع القيمة المخزّنة (وhex لها). بعدها افتح الحملة بتيك توك Ads Manager
 وصوّر قسم الميزانية (نسبة الزيادة وأقصى عدد مرات)، ثم احذفها. من /opt/central:
-  SA_SLUG=mohm SA_ACCT=<advertiser_id> python3 ops/tt-smart-toggle-test.py        (SA_BUDGET اختياري؛ الافتراضي 10000 دينار أو 10 دولار)"""
+  SA_SLUG=mohm SA_ACCT=<advertiser_id> python3 ops/tt-smart-toggle-test.py        (SA_BUDGET اختياري؛ الافتراضي 10000 دينار أو 10 دولار. SA_MODE=DYNAMIC_DAILY_BUDGET (الافتراضي) أو TOTAL)"""
 import json, os, re, secrets, subprocess, sys
 
 NAME = "PROBE-SMART-TOGGLE-DELETE-ME"
 TOGGLE = "AUTO_BUDGET_INCREASE"
+MODES = {"DYNAMIC_DAILY_BUDGET": "BUDGET_MODE_DYNAMIC_DAILY_BUDGET", "TOTAL": "BUDGET_MODE_TOTAL"}   # قيم تيك توك الصحيحة (رفض BUDGET_MODE_DYNAMIC_DAILY بـ40002)
 
 
 def default_budget(currency):
     return 10000 if str(currency or "").upper() == "IQD" else 10
 
 
-def build_params(budget):
-    return {"campaign_name": NAME, "budget": budget, "budget_mode": "BUDGET_MODE_DYNAMIC_DAILY", "budget_auto_adjust_strategy": TOGGLE}
+def build_params(budget, mode="DYNAMIC_DAILY_BUDGET"):
+    return {"campaign_name": NAME, "budget": budget, "budget_mode": MODES[mode], "budget_auto_adjust_strategy": TOGGLE}
 
 
 def hexs(v):
@@ -76,13 +77,14 @@ def main():
     if not ctx: sys.exit("no ctx")
     row = psql("select currency from api.list_ad_accounts('%s') where platform::text='tiktok' and enabled and external_id='%s'" % (ctx[0], acct))
     if not row: sys.exit("هذا الحساب مو من حسابات تيك توك المفعّلة لهذا العميل")
-    budget = int(os.environ.get("SA_BUDGET") or default_budget(row[0]))
-    params = build_params(budget)
+    budget = int(os.environ.get("SA_BUDGET") or default_budget(row[0])); mode = os.environ.get("SA_MODE", "DYNAMIC_DAILY_BUDGET").strip().upper()
+    if mode not in MODES: sys.exit("SA_MODE لازم يكون: " + " أو ".join(MODES))
+    params = build_params(budget, mode)
     job = json.dumps({"ctx": ctx[0], "host": host, "acct": acct, "params": params, "idem": "probe-" + secrets.token_hex(12)})
     r = subprocess.run(["docker", "run", "--rm", "-i", "--network", net, "-v", sec + ":/s.json:ro", "--entrypoint", "python", img, "-c", PY], input=job, capture_output=True, text=True)
     if r.returncode or not r.stdout.strip(): sys.exit("call failed: " + (r.stderr or r.stdout)[-300:])
     res = json.loads(r.stdout.strip().splitlines()[-1]); cr = res["create"]
-    print("حساب %s (%s) | ميزانية الاختبار %s" % (acct, row[0], budget))
+    print("حساب %s (%s) | ميزانية الاختبار %s | وضع الميزانية %s" % (acct, row[0], budget, params["budget_mode"]))
     if not cr.get("ok"):
         print("❌ تيك توك/الـBroker رفض الإنشاء:", json.dumps(cr.get("error"), ensure_ascii=False)[:500]); return
     print("✅ انخلقت حملة Smart+ متوقفة: ", json.dumps(cr.get("data"), ensure_ascii=False)[:300])
