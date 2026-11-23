@@ -32,7 +32,7 @@ class T(unittest.TestCase):
         finally:
             for k in ("SA_SLUG", "SA_CAMP", "SA_ACCT"): os.environ.pop(k, None)
     def test_10_spaced_names_defeat_translation_and_stay_readable(self):
-        self.assertEqual(m.spaced("budget_mode"), "b u d g e t _ m o d e"); self.assertIn("  " + m.spaced("safe_budget_increase"), m.render(A))
+        self.assertEqual(m.spaced("budget_mode"), "b u d g e t _ m o d e")
     def test_11_first_picks_matching_op_only(self):
         res = [{"op": "a", "ok": True, "data": {"list": [{"x": 1}]}}, {"op": "b", "ok": False}, {"op": "b", "ok": True, "data": {"list": [{"y": 2}]}}]
         self.assertEqual(m.first(res, "a"), {"x": 1}); self.assertEqual(m.first(res, "b"), {"y": 2}); self.assertIsNone(m.first(res, "c"))
@@ -43,6 +43,9 @@ class T(unittest.TestCase):
     def test_13_brief_hides_the_rest(self):
         out = "\n".join(m.render(A, brief=True)); self.assertIn("SA_BRIEF", out); self.assertNotIn("create_time", out); self.assertNotIn("interest_keyword_ids", out)
         self.assertIn("interest_keyword_ids", "\n".join(m.render(A))); self.assertNotIn("-- باقي الحقول (", "\n".join(m.report(A, B, brief=True)))
+    def test_14_hex_lines_for_adjust_fields_roundtrip(self):
+        ag = {"budget_auto_adjust_strategy": "AUTO_BUDGET_INCREASE", "budget": 1, "x": 2}; out = m.render(ag, brief=True); line = [l for l in out if l.startswith("  HEX ")]
+        self.assertEqual(len(line), 1); k, v = line[0][6:].split(" | "); self.assertEqual(bytes.fromhex(k).decode(), "budget_auto_adjust_strategy"); self.assertEqual(bytes.fromhex(v).decode(), "AUTO_BUDGET_INCREASE")
     def test_07_env_validation_exits(self):
         os.environ.pop("SA_SLUG", None)
         with self.assertRaises(SystemExit): m.main()

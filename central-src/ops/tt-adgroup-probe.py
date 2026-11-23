@@ -31,12 +31,22 @@ def spaced(k):
     return " ".join(str(k))
 
 
+HEXKEY = re.compile(r"adjust|increase|strategy|auto_budget|budget_auto|step|times|percent|ratio|rate", re.I)
+
+
+def hexline(k, v):
+    """سطر hex لاسم الحقل وقيمته القصيرة (hex ما تترجمه ترجمة المتصفح؛ أفكّه أنا لاسم/قيمة إنجليزية بالضبط)."""
+    val = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+    return "  HEX %s | %s" % (str(k).encode().hex(), str(val)[:60].encode().hex())
+
+
 def render(ag, brief=False):
     """سطور وصف مجموعة إعلانية: المرشّحات أولاً (قيمة كاملة تقريباً) ثم باقي الحقول مختصرة."""
     keys = sorted(ag)
     cand = [k for k in keys if CAND.search(k)]
     out = ["-- حقول مرشّحة للزر (%d) --" % len(cand)] + ["  %s = %s" % (k, short(ag[k], 400)) for k in cand]
-    out += ["-- أسماء المرشّحة بحروف مفصولة (ضد الترجمة) --"] + ["  " + spaced(k) for k in cand]
+    hx = [k for k in keys if HEXKEY.search(k)]
+    out += ["-- hex (اسم | قيمة) للحقول المهمة (%d) --" % len(hx)] + [hexline(k, ag[k]) for k in hx]
     if brief: return out + ["-- (باقي الحقول %d مخفية: SA_BRIEF) --" % (len(keys) - len(cand))]
     out += ["-- باقي الحقول (%d) --" % (len(keys) - len(cand))] + ["  %s = %s" % (k, short(ag[k], 100)) for k in keys if k not in cand]
     return out
