@@ -1,0 +1,32 @@
+import os, shutil, sys
+BASE = os.environ.get('P240D_BASE', '/opt/central/')
+SV = 'broker/app/service.py'
+sv = open(BASE + SV, encoding='utf-8').read()
+if 'p240d' in sv: print('APPLY240D_OK changed=0 (already applied)'); sys.exit(0)
+if 'p240a' not in sv: sys.exit('PATCH FAIL (nothing written): p240a must be applied first')
+i0 = sv.find('async def _pause_by_name('); i1 = sv.find('async def _find_campaign(', i0)
+if i0 < 0 or i1 < 0: sys.exit('PATCH FAIL (nothing written): _pause_by_name not found')
+body = sv[i0:i1]
+A1 = 'sem = asyncio.Semaphore(8); camps = {}; accounts_failed = {}'
+A2 = '        for acct, lst in zip(accts, await asyncio.gather(*[scan(a) for a in accts])):\n            if lst is not None:\n                camps[acct] = lst\n'
+fails = [m for m, a in (('semaphore line', A1), ('scan loop', A2)) if body.count(a) != 1]
+if fails: sys.exit('PATCH FAIL (nothing written): anchors not found once: ' + ', '.join(fails))
+N2 = ('        for acct, lst in zip(accts, await asyncio.gather(*[scan(a) for a in accts])):\n'
+      '            if lst is not None:\n'
+      '                camps[acct] = lst\n'
+      '        for _rt in (1, 2, 3):   # p240d: حدّ QPS للتطبيق عند تيك توك (10/ثانية) — أعد قراءة الحسابات الفاشلة بسبب rate_limited بهدوء\n'
+      '            again = [a for a in accts if a in accounts_failed and any(k in accounts_failed[a].lower() for k in ("rate", "qps", "frequen"))]\n'
+      '            if not again:\n'
+      '                break\n'
+      '            await asyncio.sleep(1.5 * _rt)\n'
+      '            for a in again:\n'
+      '                accounts_failed.pop(a, None)\n'
+      '            for acct, lst in zip(again, await asyncio.gather(*[scan(a) for a in again])):\n'
+      '                if lst is not None:\n'
+      '                    camps[acct] = lst\n')
+nb = body.replace(A1, 'sem = asyncio.Semaphore(4); camps = {}; accounts_failed = {}   # p240d: 4 بدل 8').replace(A2, N2)
+new = sv[:i0] + nb + sv[i1:]
+try: compile(new, SV, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + SV, BASE + SV + '.pre240d'); open(BASE + SV, 'w', encoding='utf-8').write(new)
+print('APPLY240D_OK pause_by_name: concurrency 4 + automatic retry of rate-limited accounts (up to 3 rounds)')
