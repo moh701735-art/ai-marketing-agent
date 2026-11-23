@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """فحص حي (قراءة فقط) لمجموعة إعلانية تيك توك عبر الـBroker (tiktok.read_adgroups): يطبع كل حقولها، ويبرز الحقول المرشّحة (ميزانية/سرعة/مزايدة/قواعد).
 الهدف: نعرف أي حقل بالـAPI يمثّل الزر الأخضر بالميزانية. أنشئ حملتين متطابقتين بتيك توك (وحدة بالزر وحدة بدونه) وقارنهم:
-  SA_SLUG=mohm SA_ACCT=<advertiser_id> SA_CAMP=<campaign_id بالزر> SA_CAMP2=<campaign_id بدون الزر> python3 ops/tt-adgroup-probe.py
-(SA_CAMP2 اختياري؛ لا يكتب أي شي ولا يغيّر أي حملة)"""
+  SA_SLUG=mohm SA_CAMP=<campaign_id بالزر> SA_CAMP2=<campaign_id بدون الزر> python3 ops/tt-adgroup-probe.py
+(SA_ACCT=<advertiser_id> اختياري: بدونه يدوّر بكل حسابات تيك توك المفعّلة للعميل. SA_CAMP2 اختياري. لا يكتب أي شي ولا يغيّر أي حملة)"""
 import json, os, re, subprocess, sys
 
 CAND = re.compile(r"budget|pac|bid|rule|optim|auto|safe|dynamic|scal|boost|extra|increase|cost|smart|deliver", re.I)
@@ -53,12 +53,25 @@ def report(a, b=None):
     return out
 
 
+def pick(attempts):
+    """من محاولات كل الحسابات لحملة وحدة: (الحساب، المجموعة الإعلانية الأولى) أو (None، سبب)."""
+    last = "no accounts"
+    for t in attempts:
+        if t.get("ok"):
+            lst = find_list(t.get("data")) or []
+            if lst: return t["acct"], lst[0]
+            last = "حساب %s: ما فيه مجموعة بهذي الحملة" % t["acct"]
+        else:
+            last = "حساب %s: %s" % (t["acct"], json.dumps(t.get("error"), ensure_ascii=False)[:160])
+    return None, last
+
+
 PY = r'''
 import base64, hmac, hashlib, json, secrets, sys, time, urllib.request, urllib.error
 job = json.loads(sys.stdin.read())
 S = json.load(open("/s.json")); key = base64.b64decode(S["hmac_keys"]["n8n-runtime"]["key"])
-def call(camp):
-    body = json.dumps({"ctx": job["ctx"], "platform": "tiktok", "op": "tiktok.read_adgroups", "ad_account": job["acct"], "params": {"campaign_ids": [camp], "page_size": 5}, "idempotency_key": "probe-" + secrets.token_hex(12)}).encode()
+def call(camp, acct):
+    body = json.dumps({"ctx": job["ctx"], "platform": "tiktok", "op": "tiktok.read_adgroups", "ad_account": acct, "params": {"campaign_ids": [camp], "page_size": 5}, "idempotency_key": "probe-" + secrets.token_hex(12)}).encode()
     ts, n = int(time.time()), secrets.token_hex(12)
     sig = hmac.new(key, ("%d.%s." % (ts, n)).encode() + body, hashlib.sha256).hexdigest()
     req = urllib.request.Request("http://%s:8080/v1/call" % job["host"], data=body, method="POST", headers={"content-type": "application/json", "x-key-id": "n8n-runtime", "x-timestamp": str(ts), "x-nonce": n, "x-signature": sig})
@@ -67,14 +80,21 @@ def call(camp):
         try: return json.loads(e.read() or b"{}")
         except Exception: return {"ok": False, "error": {"message": "http %s" % e.code}}
     except Exception as e: return {"ok": False, "error": {"message": str(e)[:160]}}
-print(json.dumps([call(c) for c in job["camps"]], ensure_ascii=False))
+out = []
+for c in job["camps"]:
+    tries = []
+    for a in job["accts"]:
+        r = call(c, a); tries.append({"acct": a, "ok": bool(r.get("ok")), "data": r.get("data"), "error": r.get("error")})
+        if r.get("ok") and (r.get("data") or {}).get("list"): break
+    out.append(tries)
+print(json.dumps(out, ensure_ascii=False))
 '''
 
 
 def main():
     slug, acct, c1, c2 = (os.environ.get(k, "").strip() for k in ("SA_SLUG", "SA_ACCT", "SA_CAMP", "SA_CAMP2"))
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", slug) or not re.fullmatch(r"[0-9]{6,25}", acct) or not re.fullmatch(r"[0-9]{6,25}", c1) or (c2 and not re.fullmatch(r"[0-9]{6,25}", c2)):
-        sys.exit("set SA_SLUG=<slug> SA_ACCT=<advertiser_id> SA_CAMP=<campaign_id> [SA_CAMP2=<campaign_id>]")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", slug) or (acct and not re.fullmatch(r"[0-9]{6,25}", acct)) or not re.fullmatch(r"[0-9]{6,25}", c1) or (c2 and not re.fullmatch(r"[0-9]{6,25}", c2)):
+        sys.exit("set SA_SLUG=<slug> SA_CAMP=<campaign_id> [SA_CAMP2=<campaign_id>] [SA_ACCT=<advertiser_id>]")
     pg = os.environ.get("PG_CONTAINER", "central-stg-pg"); net = os.environ.get("BROKER_NETWORK", "central-stg_backend"); img = os.environ.get("BROKER_IMAGE", "central-broker:prod")
     secrets_path = os.environ.get("SA_SECRETS", os.path.abspath("deploy/.secrets/broker_secrets.json"))
 
@@ -86,15 +106,16 @@ def main():
     if not tid: sys.exit("tenant not found")
     ctx = psql("select ctx from api.job_contexts_for_status(ARRAY['TESTING','NEEDS_REVIEW','READY'],100) where tenant_id='%s'" % tid[0])
     if not ctx: sys.exit("no context for this tenant")
-    job = json.dumps({"host": os.environ.get("BROKER_HOST", "central-stg-broker"), "ctx": ctx[0], "acct": acct, "camps": [c for c in (c1, c2) if c]})
+    accts = [acct] if acct else [l.strip() for l in psql("select external_id from api.list_ad_accounts('%s') where platform::text='tiktok' and enabled order by external_id" % ctx[0]) if l.strip()]
+    if not accts: sys.exit("no enabled tiktok ad accounts for this tenant")
+    job = json.dumps({"host": os.environ.get("BROKER_HOST", "central-stg-broker"), "ctx": ctx[0], "accts": accts, "camps": [c for c in (c1, c2) if c]})
     r = subprocess.run(["docker", "run", "--rm", "-i", "--network", net, "-v", secrets_path + ":/s.json:ro", "--entrypoint", "python", img, "-c", PY], input=job, capture_output=True, text=True)
     if r.returncode or not r.stdout.strip(): sys.exit("call failed: " + (r.stderr or r.stdout)[-300:])
     res = json.loads(r.stdout.strip().splitlines()[-1]); groups = []
-    for x in res:
-        if not x.get("ok"): sys.exit("Broker error: " + json.dumps(x.get("error"), ensure_ascii=False)[:300])
-        lst = find_list(x.get("data")) or []
-        if not lst: sys.exit("no ad group returned for that campaign")
-        groups.append(lst[0])
+    for camp, tries in zip([c for c in (c1, c2) if c], res):
+        a, g = pick(tries)
+        if a is None: sys.exit("الحملة %s ما انلقت: %s (جرّبت %d حساب)" % (camp, g, len(tries)))
+        print("الحملة %s ← الحساب %s" % (camp, a)); groups.append(g)
     print("\n".join(report(groups[0], groups[1] if len(groups) > 1 else None)))
 
 

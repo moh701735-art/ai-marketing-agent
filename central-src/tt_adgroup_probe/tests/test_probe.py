@@ -20,6 +20,17 @@ class T(unittest.TestCase):
         self.assertIn("(لا فروقات بالقيم)", "\n".join(m.report(A, {**A, "adgroup_id": "9"})))
     def test_06_script_is_read_only(self):
         src = open(P, encoding="utf-8").read(); self.assertNotIn('"POST"', src.split("PY = r'''")[0]); self.assertIn("tiktok.read_adgroups", src); self.assertNotIn("tiktok.create", src); self.assertNotIn("update", src.replace("# update", ""))
+    def test_08_pick_finds_the_owning_account_and_explains_misses(self):
+        ok_empty = {"acct": "111", "ok": True, "data": {"list": []}}; ok_hit = {"acct": "222", "ok": True, "data": {"list": [{"adgroup_id": "5"}]}}; bad = {"acct": "333", "ok": False, "error": {"message": "no permission"}}
+        self.assertEqual(m.pick([ok_empty, ok_hit, bad]), ("222", {"adgroup_id": "5"}))
+        a, why = m.pick([ok_empty, bad]); self.assertIsNone(a); self.assertIn("333", why); self.assertIn("no permission", why)
+        a, why = m.pick([ok_empty]); self.assertIsNone(a); self.assertIn("111", why); self.assertEqual(m.pick([])[0], None)
+    def test_09_account_is_optional_but_validated(self):
+        os.environ.update({"SA_SLUG": "mohm", "SA_CAMP": "1882666808770625", "SA_ACCT": "abc"})
+        try:
+            with self.assertRaises(SystemExit): m.main()
+        finally:
+            for k in ("SA_SLUG", "SA_CAMP", "SA_ACCT"): os.environ.pop(k, None)
     def test_07_env_validation_exits(self):
         os.environ.pop("SA_SLUG", None)
         with self.assertRaises(SystemExit): m.main()
