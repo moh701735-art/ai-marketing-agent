@@ -43,7 +43,7 @@ METHOD = r'''    async def _pause_by_name(self, ctx: str, params: dict, idem) ->
             async with sem:
                 while page <= 10:
                     try:
-                        st, env = await self._rc(ctx, "tiktok", "tiktok.read_campaigns", acct, {"page": page, "page_size": 100})
+                        st, env = await self._rc(ctx, "tiktok", "tiktok.read_campaigns", acct, {"page": page, "page_size": 100}, None)
                     except Exception as ex:
                         accounts_failed[acct] = type(ex).__name__ + ": " + str(ex)[:70]
                         return None

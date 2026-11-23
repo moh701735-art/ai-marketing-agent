@@ -1,0 +1,27 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P240C_BASE', '/opt/central/')
+SV = 'broker/app/service.py'; IN = 'n8n/wf_ingress.py'
+sv = open(BASE + SV, encoding='utf-8').read(); ing = open(BASE + IN, encoding='utf-8').read()
+if 'p240c' in sv: print('APPLY240C_OK changed=0 (already applied)'); sys.exit(0)
+if 'p240a' not in sv or 'p240b' not in ing: sys.exit('PATCH FAIL (nothing written): p240a and p240b must be applied first')
+i0 = sv.find('async def _pause_by_name('); i1 = sv.find('async def _find_campaign(', i0)
+if i0 < 0 or i1 < 0: sys.exit('PATCH FAIL (nothing written): _pause_by_name not found')
+body = sv[i0:i1]; A = '{"page": page, "page_size": 100})'; fails = []
+if body.count(A) != 1: fails.append('read_campaigns call anchor count=%d' % body.count(A))
+OLD_F = "const fnote = fk.length ? '\\n⚠️ ما كدرت أقرأ ' + fk.length + ' حساب (' + fk.slice(0, 3).map(k => ac(k) + ': ' + String(f[k]).slice(0, 60)).join('، ') + ')' : '';"
+NEW_F = ("const fr = {}; fk.forEach(k => { const w = String(f[k]).slice(0, 80); (fr[w] = fr[w] || []).push(k); }); "
+         "const fnote = fk.length ? '\\n⚠️ ما كدرت أقرأ ' + fk.length + ' حساب: ' + Object.keys(fr).slice(0, 2).map(w => w + (fr[w].length > 1 ? ' (×' + fr[w].length + ')' : ' [' + ac(fr[w][0]) + ']')).join('، ') : ''; /* p240c */")
+if ing.count(OLD_F) != 1: fails.append('ingress fnote anchor count=%d' % ing.count(OLD_F))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+new_sv = sv[:i0] + body.replace(A, '{"page": page, "page_size": 100}, None)   # p240c: idem مطلوب بتوقيع call') + sv[i1:]
+new_ing = ing.replace(OLD_F, NEW_F)
+try: compile(new_sv, SV, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+for f in (SV, IN): shutil.copy(BASE + f, BASE + f + '.pre240c')
+open(BASE + SV, 'w', encoding='utf-8').write(new_sv); open(BASE + IN, 'w', encoding='utf-8').write(new_ing)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        for f in (SV, IN): shutil.copy(BASE + f + '.pre240c', BASE + f)
+        sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY240C_OK pause_by_name: read calls now pass idem (live call signature) + grouped failure note')

@@ -41,14 +41,14 @@ class World:
         w = s
 
         class S(cls):
-            async def _rc(self, ctx, platform, op, acct, prm):
+            async def _rc(self, ctx, platform, op, acct, prm, idem):   # توقيع حي: idem إلزامي
                 w.reads.append((acct, dict(prm)))
                 if acct in w.rf: return 200, {"ok": False, "error": {"class": "auth_expired", "message": "token dead"}}
                 lst = w.d[acct]; pg = prm["page"]; n = max(1, -(-len(lst) // w.pp))
                 return 200, {"ok": True, "data": {"data": {"list": [{"campaign_id": c[0], "campaign_name": c[1], "operation_status": c[2]} for c in lst[(pg - 1) * w.pp: pg * w.pp]], "page_info": {"total_page": n}}}}
 
             async def call(self, ctx, platform, op, acct, prm, key, internal=False):
-                if op == "tiktok.read_campaigns": return await self._rc(ctx, platform, op, acct, prm)
+                if op == "tiktok.read_campaigns": return await self._rc(ctx, platform, op, acct, prm, key)
                 w.writes.append((acct, op, dict(prm), key)); cid = prm["campaign_ids"][0]
                 if cid in w.wr: raise RuntimeError("boom")
                 if cid in w.wf: return 200, {"ok": False, "error": {"class": "bad_request", "message": "no permission"}}
