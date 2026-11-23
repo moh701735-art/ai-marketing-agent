@@ -3,7 +3,7 @@
 بالحقل budget_auto_adjust_strategy=AUTO_BUDGET_INCREASE ثم يقرأها ويطبع القيمة المخزّنة (وhex لها). بعدها افتح الحملة بتيك توك Ads Manager
 وصوّر قسم الميزانية (نسبة الزيادة وأقصى عدد مرات)، ثم احذفها. من /opt/central:
   SA_SLUG=mohm SA_ACCT=<advertiser_id> python3 ops/tt-smart-toggle-test.py        (SA_BUDGET اختياري؛ الافتراضي 10000 دينار أو 10 دولار. SA_MODE=DYNAMIC_DAILY_BUDGET (الافتراضي) أو TOTAL)"""
-import json, os, re, secrets, subprocess, sys
+import json, os, re, secrets, subprocess, sys, time
 
 NAME = "PROBE-SMART-TOGGLE-DELETE-ME"
 TOGGLE = "AUTO_BUDGET_INCREASE"
@@ -14,8 +14,19 @@ def default_budget(currency):
     return 10000 if str(currency or "").upper() == "IQD" else 10
 
 
-def build_params(budget, mode="DYNAMIC_DAILY_BUDGET"):
-    return {"campaign_name": NAME, "budget": budget, "budget_mode": MODES[mode], "budget_auto_adjust_strategy": TOGGLE}
+def new_request_id():
+    """معرّف طلب رقمي (Smart+ يطلب request_id): 13 رقم وقت + 6 أرقام عشوائية."""
+    return str(int(time.time() * 1000)) + "%06d" % secrets.randbelow(1000000)
+
+
+def build_params(budget, mode="DYNAMIC_DAILY_BUDGET", request_id=None):
+    return {"campaign_name": NAME, "budget": budget, "budget_mode": MODES[mode], "budget_auto_adjust_strategy": TOGGLE, "request_id": request_id or new_request_id()}
+
+
+def err_lines(err):
+    """وصف الخطأ بدون ترجمة: class/platform_code + نص الرسالة كـhex (ترجمة المتصفح تخفي النص الحقيقي) + نسخة ASCII فقط."""
+    e = err or {}; msg = str(e.get("message", ""))
+    return ["  class=%s platform_code=%s" % (e.get("class"), e.get("platform_code")), "  MSG(ascii)=%s" % re.sub(r"[^ -~]", "?", msg)[:300], "  MSGHEX=%s" % msg.encode()[:200].hex()]
 
 
 def hexs(v):
@@ -86,7 +97,7 @@ def main():
     res = json.loads(r.stdout.strip().splitlines()[-1]); cr = res["create"]
     print("حساب %s (%s) | ميزانية الاختبار %s | وضع الميزانية %s" % (acct, row[0], budget, params["budget_mode"]))
     if not cr.get("ok"):
-        print("❌ تيك توك/الـBroker رفض الإنشاء:", json.dumps(cr.get("error"), ensure_ascii=False)[:500]); return
+        print("❌ تيك توك/الـBroker رفض الإنشاء:"); print("\n".join(err_lines(cr.get("error")))); return
     print("✅ انخلقت حملة Smart+ متوقفة: ", json.dumps(cr.get("data"), ensure_ascii=False)[:300])
     lst = find_list((res.get("read") or {}).get("data")) or []
     if lst: print("قراءة الحملة بعد الإنشاء:"); print("\n".join(summarize(lst[0])))

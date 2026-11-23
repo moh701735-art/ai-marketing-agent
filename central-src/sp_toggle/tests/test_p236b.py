@@ -28,14 +28,14 @@ class T(unittest.TestCase):
         cat = os.path.join(self.d, "broker/app/catalog.py"); txt = rd(cat).replace('"BUDGET_MODE_DYNAMIC_DAILY")', '"X")'); open(cat, "w", encoding="utf-8").write(txt)
         r = apply_b(self.d); self.assertNotEqual(r.returncode, 0); self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr); self.assertEqual(rd(cat), txt); self.assertFalse(os.path.exists(cat + ".pre236b"))
     def test_04_script_v2_modes_and_scope(self):
-        apply_b(self.d); path = os.path.join(self.d, "ops/tt-smart-toggle-test.py"); self.assertEqual(rd(path), rd(os.path.join(ROOT, "ops", "tt-smart-toggle-test.py")))
+        apply_b(self.d); path = os.path.join(self.d, "ops/tt-smart-toggle-test.py"); self.assertEqual(rd(path), rd(os.path.join(H, "script_v2.py")))
         spec2 = importlib.util.spec_from_file_location("tst2", path); m = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(m); compile(m.PY, "PY", "exec")
         self.assertEqual(m.build_params(10000)["budget_mode"], "BUDGET_MODE_DYNAMIC_DAILY_BUDGET"); self.assertEqual(m.build_params(10000, "TOTAL")["budget_mode"], "BUDGET_MODE_TOTAL")
         self.assertEqual(set(m.MODES.values()), {"BUDGET_MODE_DYNAMIC_DAILY_BUDGET", "BUDGET_MODE_TOTAL"}); self.assertEqual(m.build_params(5)["budget_auto_adjust_strategy"], "AUTO_BUDGET_INCREASE")
         src = rd(path)
         for bad in ("set_campaign_status", "sp_create_adgroup", "sp_create_ad", "BUDGET_MODE_DYNAMIC_DAILY\""): self.assertNotIn(bad, src)
     def test_05_embedded_script_matches_repo_file(self):
-        self.assertIn(repr(rd(os.path.join(ROOT, "ops", "tt-smart-toggle-test.py"))), rd(PB))
+        self.assertIn(repr(rd(os.path.join(H, "script_v2.py"))), rd(PB))
 
 
 if __name__ == "__main__":
