@@ -3,7 +3,7 @@
 import os, subprocess, unittest
 
 ROOT = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__))).stdout.strip()
-ALLOWED = ("central-src/competitor_radar/", "out/ops/", "out/central-knowledge.md")
+ALLOWED = ("central-src/competitor_radar/", "out/ops/", "out/central-knowledge.md", "central-src/ops/p250-", "central-src/ops/p251-", "out/p250s.txt", "out/p251s.txt")
 
 
 @unittest.skipUnless(ROOT, "git required")

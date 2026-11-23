@@ -130,6 +130,12 @@ class RadarDB(unittest.TestCase):
     def test_06_privileges(self):
         for f in FUNCS: self.assertEqual(self.sql("SELECT has_function_privilege('radar_rt','competitor_radar.%s','EXECUTE')" % f), "t", f)
         self.assertEqual(self.sql("SELECT has_function_privilege('app_runtime','competitor_radar.config(text)','EXECUTE')"), "t")
+        self.assertEqual(self.sql("SELECT has_function_privilege('app_runtime','competitor_radar.service_key()','EXECUTE')"), "t")
+        for f in ("radar_rt", "app_jobs"): self.assertEqual(self.sql("SELECT has_function_privilege('%s','competitor_radar.service_key()','EXECUTE')" % f), "f", f)
+        self.assertEqual(self.sql("SELECT coalesce(competitor_radar.service_key(),'null')"), "null")   # بدون تهيئة = null (الواجهة تقول غير مهيأ)
+        self.sql("UPDATE competitor_radar.settings SET value=to_jsonb('k'||repeat('x',63)) WHERE false; INSERT INTO competitor_radar.settings VALUES ('service_key', to_jsonb(repeat('a',64)), now()) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value")
+        self.assertEqual(self.sql("SELECT length(competitor_radar.service_key())", role="app_runtime"), "64"); self.raises("SELECT 1 FROM competitor_radar.settings", "permission denied", role="app_runtime")
+        self.sql("DELETE FROM competitor_radar.settings WHERE key='service_key'")
         for f in FUNCS[1:]: self.assertEqual(self.sql("SELECT has_function_privilege('app_runtime','competitor_radar.%s','EXECUTE')" % f), "f", f)
         for f in FUNCS: self.assertEqual(self.sql("SELECT has_function_privilege('app_jobs','competitor_radar.%s','EXECUTE')" % f), "f", f)
         self.assertEqual(self.sql("SELECT has_function_privilege('radar_rt','competitor_radar._enabled()','EXECUTE')"), "f")

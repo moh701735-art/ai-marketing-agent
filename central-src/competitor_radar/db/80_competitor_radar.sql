@@ -61,6 +61,10 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $$
   SELECT coalesce((SELECT s.value = 'true'::jsonb FROM competitor_radar.settings s WHERE s.key = 'enabled'), false)
      AND coalesce((SELECT t.features->>'competitor_radar' FROM core.tenants t WHERE t.tenant_id = private.cur_tenant()), 'true') <> 'false' $$;
 
+-- مفتاح توقيع الطلبات بين n8n والخدمة (يُكتب مرة وحدة بسكربت التثبيت؛ ما يُخزَّن بالمستودع ولا بمتغيرات n8n القديمة). يقرأه n8n بدور app_runtime، والخدمة تأخذه من بيئتها.
+CREATE OR REPLACE FUNCTION competitor_radar.service_key() RETURNS text
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog AS $$ SELECT nullif(s.value #>> '{}', '') FROM competitor_radar.settings s WHERE s.key = 'service_key' $$;
+
 CREATE OR REPLACE FUNCTION competitor_radar.config(p_ctx text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $$
 BEGIN
@@ -221,6 +225,7 @@ END $$;
 
 ALTER FUNCTION competitor_radar._enabled() OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.config(text) OWNER TO app_owner;
+ALTER FUNCTION competitor_radar.service_key() OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.competitor_add(text, text, text, text) OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.competitor_list(text) OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.competitor_get(text, uuid) OWNER TO app_owner;
@@ -233,7 +238,7 @@ ALTER FUNCTION competitor_radar.plan_save(text, uuid, jsonb) OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.plan_get(text, uuid) OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.cache_get(text, text) OWNER TO app_owner;
 ALTER FUNCTION competitor_radar.cache_set(text, text, jsonb, int) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION competitor_radar._enabled(), competitor_radar.config(text), competitor_radar.competitor_add(text, text, text, text), competitor_radar.competitor_list(text),
+REVOKE ALL ON FUNCTION competitor_radar._enabled(), competitor_radar.service_key(), competitor_radar.config(text), competitor_radar.competitor_add(text, text, text, text), competitor_radar.competitor_list(text),
   competitor_radar.competitor_get(text, uuid), competitor_radar.competitor_delete(text, uuid), competitor_radar.samples_add(text, uuid, jsonb), competitor_radar.samples_list(text, uuid),
   competitor_radar.report_save(text, uuid, jsonb, text, text), competitor_radar.report_get(text, uuid), competitor_radar.plan_save(text, uuid, jsonb), competitor_radar.plan_get(text, uuid),
   competitor_radar.cache_get(text, text), competitor_radar.cache_set(text, text, jsonb, int) FROM PUBLIC;
@@ -244,4 +249,4 @@ GRANT EXECUTE ON FUNCTION competitor_radar.config(text), competitor_radar.compet
   competitor_radar.competitor_get(text, uuid), competitor_radar.competitor_delete(text, uuid), competitor_radar.samples_add(text, uuid, jsonb), competitor_radar.samples_list(text, uuid),
   competitor_radar.report_save(text, uuid, jsonb, text, text), competitor_radar.report_get(text, uuid), competitor_radar.plan_save(text, uuid, jsonb), competitor_radar.plan_get(text, uuid),
   competitor_radar.cache_get(text, text), competitor_radar.cache_set(text, text, jsonb, int) TO radar_rt;
-GRANT EXECUTE ON FUNCTION competitor_radar.config(text) TO app_runtime;
+GRANT EXECUTE ON FUNCTION competitor_radar.config(text), competitor_radar.service_key() TO app_runtime;
