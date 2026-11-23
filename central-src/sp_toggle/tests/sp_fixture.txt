@@ -13,3 +13,7 @@
                "targeting_spec": {"location_ids": ["99237"], "spc_audience_age": "OVER_EIGHTEEN"}, "operation_status": "ENABLE"}),
     Op("tiktok.create_cta_portfolio", "tiktok", "POST", "/creative/portfolio/create/", write=True, bearer=False, advertiser_param="advertiser_id",
        forced={"creative_portfolio_type": "CTA", "portfolio_content": [{"asset_content": "إرسال رسالة", "asset_ids": ["203711", "203712"]}]}),
+    Op("tiktok.sp_create_ad", "tiktok", "POST", "/smart_plus/ad/create/", write=True, bearer=False, advertiser_param="advertiser_id",
+       params={"adgroup_id": P("id", required=True), "ad_name": P("text", required=True, max_len=512), "ad_text": P("text", required=True, max_len=100),
+               "cta_portfolio_id": P("id", required=True), "creatives": P("creatives", required=True)},
+       forced={"operation_status": "ENABLE"}),

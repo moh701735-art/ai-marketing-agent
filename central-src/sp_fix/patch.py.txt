@@ -1,0 +1,50 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P237_BASE', '/opt/central/')
+CT = 'broker/app/catalog.py'; SV = 'broker/app/service.py'
+ct = open(BASE + CT, encoding='utf-8').read(); sv = open(BASE + SV, encoding='utf-8').read()
+if 'p237' in ct and 'p237' in sv: print('APPLY237_OK changed=0 (already applied)'); sys.exit(0)
+if 'p237' in ct or 'p237' in sv: sys.exit('PATCH FAIL (nothing written): half-applied state')
+if 'p236c' not in ct: sys.exit('PATCH FAIL (nothing written): p236c must be applied first')
+fails = []
+def block(txt, name):
+    i = txt.find('Op("%s"' % name)
+    if i < 0: fails.append('catalog Op %s not found' % name); return None
+    j = txt.find('\n    Op(', i + 5); k = txt.find('\n    #', i + 5); ends = [x for x in (j, k) if x > 0]
+    return i, (min(ends) if ends else len(txt))
+RID = ', "request_id": P("id")'
+edits = []
+adg = block(ct, 'tiktok.sp_create_adgroup')
+if adg:
+    b = ct[adg[0]:adg[1]]; m = list(re.finditer(r'"budget_auto_adjust_strategy": P\("enum", values=\("AUTO_BUDGET_INCREASE", "UNSET"\)\)', b))
+    if len(m) != 1: fails.append('sp_create_adgroup toggle param anchor count=%d' % len(m))
+    elif '"request_id"' in b: fails.append('sp_create_adgroup already has request_id')
+    else: edits.append((adg[0] + m[0].end(), RID))
+ad = block(ct, 'tiktok.sp_create_ad')
+if ad:
+    b = ct[ad[0]:ad[1]]; m = list(re.finditer(r'"creatives": P\("creatives", required=True\)\}', b))
+    if len(m) != 1: fails.append('sp_create_ad creatives param anchor count=%d' % len(m))
+    elif '"request_id"' in b: fails.append('sp_create_ad already has request_id')
+    else: edits.append((ad[0] + m[0].end() - 1, RID))
+# service.py: _launch_smart.go() gets a deterministic numeric request_id; daily mode uses the valid TikTok value
+ls = sv.find('async def _launch_smart(')
+if ls < 0: fails.append('_launch_smart not found')
+else:
+    nxt = sv.find('\n    async def ', ls + 10); lend = nxt if nxt > 0 else len(sv); blk = sv[ls:lend]
+    r_call = re.compile(r'(?m)^([ \t]+)(\w+), (\w+) = await self\.call\(ctx, "tiktok", op, ad_account, prm, key\)[ \t]*$'); mc = list(r_call.finditer(blk))
+    if len(mc) != 1: fails.append('go() call anchor count=%d; lines: %s' % (len(mc), ' | '.join(ascii(l.strip()[:170]) for l in blk.split('\n') if 'self.call(' in l)[:400]))
+    if blk.count('"BUDGET_MODE_DYNAMIC_DAILY" if') != 1: fails.append('daily budget_mode anchor count=%d' % blk.count('"BUDGET_MODE_DYNAMIC_DAILY" if'))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+new_ct = ct
+for pos, txt in sorted(edits, reverse=True): new_ct = new_ct[:pos] + txt + new_ct[pos:]
+new_ct = new_ct.rstrip('\n') + '\n# p237: request_id رقمي اختياري على sp_create_adgroup/sp_create_ad (مثل الحملة)\n'
+I = mc[0].group(1)
+inject = I + 'prm = {**prm, "request_id": str(int(__import__("hashlib").sha256(str(key).encode()).hexdigest()[:15], 16))}   # p237: Smart+ يطلب request_id (ثابت لنفس المفتاح)\n'
+nb = blk[:mc[0].start()] + inject + blk[mc[0].start():]
+nb = nb.replace('"BUDGET_MODE_DYNAMIC_DAILY" if', '"BUDGET_MODE_DYNAMIC_DAILY_BUDGET" if')   # p237: القيمة الصحيحة عند تيك توك
+new_sv = sv[:ls] + nb + sv[lend:]
+for name, txt in ((CT, new_ct), (SV, new_sv)):
+    try: compile(txt, name, 'exec')
+    except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s: %s' % (name, e))
+for f in (CT, SV): shutil.copy(BASE + f, BASE + f + '.pre237')
+for f, t in ((CT, new_ct), (SV, new_sv)): open(BASE + f, 'w', encoding='utf-8').write(t)
+print('APPLY237_OK Smart+ central fix: request_id on all three creates (from the idempotency key) + valid daily budget_mode')
