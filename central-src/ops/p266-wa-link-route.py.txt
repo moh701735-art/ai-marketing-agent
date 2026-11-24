@@ -1,0 +1,36 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P266_BASE', '/opt/central/')
+IN = 'n8n/wf_ingress.py'
+ing = open(BASE + IN, encoding='utf-8').read()
+if 'p266' in ing: print('APPLY266_OK changed=0 (already applied)'); sys.exit(0)
+# تعبير بدون أي backslash (آمن بأي نمط سلسلة بايثون): رابط واتساب (wa.me/<num> أو api.whatsapp.com/send?phone=<num>) من النص الخام، رقم عراقي 7XXXXXXXXX فقط
+EXPR = ("String(d.text || '').match(/wa[.]me[/](?:[+]|%2B)?(?:964|00964|0)?(7[0-9]{9})(?![0-9])/i)"
+        " || String(d.text || '').match(/whatsapp[.]com[/]send[/]?[?](?:[^ #]*&)?phone=(?:[+]|%2B)?(?:964|00964|0)?(7[0-9]{9})(?![0-9])/i)")
+assert '\\' not in EXPR
+def lines_with(sub, src=None, n=8): return ' | '.join(ascii(l.strip()[:200]) for l in (src or ing).split('\n') if sub in l)[:900] if True else ''
+# نطاق البحث: كود عقدة "AI: plan" لو وُجد، وإلا الملف كله (لازم تطابق واحد فقط)
+lo, hi = 0, len(ing)
+ms = list(re.finditer(r'["\']AI: plan["\']\s*,\s*r"""', ing))
+if len(ms) == 1:
+    e = ing.find('"""', ms[0].end())
+    if e > 0: lo, hi = ms[0].end(), e
+seg = ing[lo:hi]
+mw = list(re.finditer(r'(?m)^([ \t]*)const wam = ntx\.match\(([^\n]*?)\);([^\n]*)$', seg))
+fails = []
+if len(mw) != 1: fails.append('wam anchor count=%d (scope %s); lines: %s' % (len(mw), 'AI: plan' if hi - lo < len(ing) else 'file', lines_with('wam =')))
+else:
+    pre = seg[max(0, mw[0].start() - 900):mw[0].start()]
+    if 'const ntx = String(d.text' not in pre: fails.append('ntx definition not found just before wam; lines: ' + lines_with('const ntx'))
+    if '|| wam' not in seg and 'wam)' not in seg and '!wam' not in seg: fails.append('wam usage not found in node (mode logic changed?): ' + lines_with('wam'))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+m = mw[0]; a, b = lo + m.start(), lo + m.end()
+new_line = "%sconst wam = ntx.match(%s) || /*p266*/ (%s);%s" % (m.group(1), m.group(2), EXPR, m.group(3))
+new_ing = ing[:a] + new_line + ing[b:]
+shutil.copy(BASE + IN, BASE + IN + '.pre266')
+open(BASE + IN, 'w', encoding='utf-8').write(new_ing)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + IN + '.pre266', BASE + IN)
+        sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY266_OK text launches: WhatsApp link (wa.me/<num> or api.whatsapp.com/send?phone=) is now detected as the WhatsApp number -> native WhatsApp conversation path (p266). Only n8n/wf_ingress.py (AI: plan wam line); .pre266 backup')
