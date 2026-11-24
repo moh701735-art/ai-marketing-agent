@@ -136,8 +136,8 @@ def sh(cmd, inp=None):
     return subprocess.run(cmd, input=inp, capture_output=True, text=True)
 
 
-def psql(env, sql):
-    r = sh(["docker", "exec", env.pg, "psql", "-U", "postgres", "-d", "central", "-At", "-c", sql])
+def psql(env, sql, db="central"):
+    r = sh(["docker", "exec", env.pg, "psql", "-U", "postgres", "-d", db, "-At", "-c", sql])
     if r.returncode: raise SystemExit("psql failed: " + r.stderr.strip()[-200:])
     return [l for l in r.stdout.splitlines() if l]
 
@@ -243,8 +243,11 @@ def main():
     else:
         print("\n[5] النتائج: N/A (read_report غير موجودة بالكتالوج أو لا حملات)")
     # [6] تاريخ المحاولات من api_call_log (بدون payload)
-    rows = psql(env, "select endpoint||'|'||coalesce(error_code,'ok')||'|'||count(*) from vault.api_call_log where tenant_id='%s' and platform::text='tiktok' and at > now() - interval '%d days' and (endpoint ilike '%%adgroup%%' or endpoint ilike '%%campaign%%' or endpoint ilike '%%message%%' or endpoint ilike '%%event%%') group by 1 order by 1" % (tid[0], days))
-    print("\n[6] سجل استدعاءات الـBroker (endpoint|error_code|count آخر %d يوم؛ بدون محتوى):" % days)
+    try:
+        rows = psql(env, "select endpoint||'|'||coalesce(error_code,'ok')||'|'||count(*) from vault.api_call_log where tenant_id='%s' and platform::text='tiktok' and at > now() - interval '%d days' and (endpoint ilike '%%adgroup%%' or endpoint ilike '%%campaign%%' or endpoint ilike '%%message%%' or endpoint ilike '%%event%%') group by 1 order by 1" % (tid[0], days), db="vault")
+    except SystemExit as e:
+        rows = []; print("\n[6] سجل الاستدعاءات: N/A (%s)" % str(e)[:120])
+    if rows: print("\n[6] سجل استدعاءات الـBroker (endpoint|error_code|count آخر %d يوم؛ بدون محتوى):" % days)
     native_ok = 0; fails = []
     for r in rows[:40]:
         print("  " + r)

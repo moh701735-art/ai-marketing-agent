@@ -55,7 +55,7 @@ class Main(unittest.TestCase):
                 out.append({"label": c["label"], "op": c["op"], "ok": ("error" not in d), **d})
             return out
         W.broker, W.introspect = fake_broker, lambda env: specs
-        W.psql = lambda env, sql: (["t-1"] if "core.tenants" in sql else ["CTX-SECRET-xyz"] if "job_contexts" in sql else ["tiktok/adgroup/create|ok|3", "tiktok/adgroup/create|bad_request|1"] if "api_call_log" in sql else [])
+        W.psql = lambda env, sql, db="central": (["t-1"] if "core.tenants" in sql else ["CTX-SECRET-xyz"] if "job_contexts" in sql else ["tiktok/adgroup/create|ok|3", "tiktok/adgroup/create|bad_request|1"] if "api_call_log" in sql else [])
         out = io.StringIO()
         with contextlib.redirect_stdout(out): W.main()
         return out.getvalue(), calls
