@@ -10,6 +10,7 @@ NA = "N/A"
 ADG_KEYS = re.compile(r"^(adgroup_id|adgroup_name|campaign_id|operation_status|secondary_status|promotion_type|promotion_target_type|optimization_goal|optimization_event|optimize_goal|billing_event|bid_type|bid_price|conversion_bid_price|"
                       r"messaging_app_type|messaging_app_account_id|message_event_set_id|messaging_app_id|phone_region_code|phone_region_calling_code|phone_number|pixel_id|optimization_event|deep_bid_type|schedule_type|budget_mode|budget|placement_type|"
                       r"shopping_ads_type|identity_type|app_download_url|landing_page_url|promotion_website_type|dsa_.*|conversion_window|click_attribution_window|view_attribution_window|campaign_automation_type)$")
+ADG_BRIEF = re.compile(r"^(adgroup_id|operation_status|promotion_type|messaging_app_type|optimization_goal|optimization_event|billing_event|bid_type|budget|budget_mode|message_event_set_id|messaging_app_account_id|phone_region_calling_code|landing_page_url|pixel_id|promotion_target_type)$")
 AD_KEYS = re.compile(r"^(ad_id|ad_name|adgroup_id|operation_status|secondary_status|call_to_action|call_to_action_id|landing_page_url|ad_format|identity_type|tiktok_item_id|creative_type|display_name|ad_text|deeplink|fallback_type|page_id|promotion_type)$", re.I)
 REP_BASE = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm", "conversion", "cost_per_conversion"]
 REP_EXTRA = ["result", "cost_per_result", "result_rate"]   # قد ترفضها بعض الحسابات: تُطلب منفصلة حتى ما تُسقط الأساس
@@ -33,7 +34,7 @@ def mask_url(u):
 
 def safe(k, v):
     k = str(k).lower()
-    if "phone" in k and "region" not in k: return mask_phone(v)
+    if ("phone" in k and "region" not in k) or k.endswith("app_account_id"): return mask_phone(v)
     if "url" in k or "link" in k: return mask_url(v)
     if isinstance(v, (dict, list)): return json.dumps(v, ensure_ascii=False)[:200]
     return v
@@ -173,13 +174,13 @@ def main():
     ctx = ctx[0]
     print("== تشخيص واتساب (قراءة فقط) | العميل %s | الحساب %s | ctx %s ==" % (slug, acct, mask_ctx(ctx)))
     specs = introspect(env)
-    print("\n[0] عمليات الـBroker المتاحة للقراءة (من الكتالوج الحي):")
-    for n, s in sorted(specs.items()):
-        if n != "error": print("  %s %s params=%s" % ("W" if s["write"] else "r", n, ",".join(sorted(s["params"])) or "-"))
+    if os.environ.get("SA_CATALOG"):
+        print("\n[0] عمليات الـBroker (من الكتالوج الحي):")
+        for n, s in sorted(specs.items()):
+            if n != "error": print("  %s %s params=%s" % ("W" if s["write"] else "r", n, ",".join(sorted(s["params"])) or "-"))
     if "error" in specs: print("  (%s)" % specs["error"])
     rd = lambda n: specs.get(n)
     calls = [{"label": "advertiser", "op": "tiktok.read_advertiser", "params": {}}]
-    if rd("tiktok.read_message_event_set") or "error" in specs: calls.append({"label": "event_sets", "op": "tiktok.read_message_event_set", "params": build_params(rd("tiktok.read_message_event_set"), {"page_size": 50, "page": 1})})
     calls.append({"label": "campaigns", "op": "tiktok.read_campaigns", "params": {"page": 1, "page_size": 100}})
     res = {t["label"]: t for t in broker(env, ctx, acct, calls)}
     # [1] المعلنة
@@ -188,9 +189,6 @@ def main():
     for k in ("name", "status", "currency", "country", "timezone", "role", "company", "industry", "description"): 
         if k in adv: print("  %s = %s" % (k, adv[k] if k != "description" else str(adv[k])[:60]))
     # [2] event sets
-    t = res.get("event_sets", {"ok": False, "error": "op not in catalog"}); sets = (find_list(t.get("data")) or []) if t.get("ok") else []
-    print("\n[2] Message Event Sets (read_message_event_set): " + ("OK n=%d" % len(sets) if t.get("ok") else "FAIL " + errtxt(t.get("error"))))
-    for s in sets[:10]: print("  " + json.dumps({k: safe(k, v) for k, v in s.items() if not re.search(r"token|secret|key", k, re.I)}, ensure_ascii=False)[:420])
     # [3] campaigns + adgroups
     t = res["campaigns"]; camps = (find_list(t.get("data")) or []) if t["ok"] else []
     print("\n[3] الحملات (read_campaigns): " + ("OK n=%d" % len(camps) if t["ok"] else "FAIL " + errtxt(t.get("error"))))
@@ -210,9 +208,19 @@ def main():
         for g in ag.get(cid, [])[:3]:
             path, notes = classify_adgroup(g, c); summary[path] = summary.get(path, 0) + 1
             print("    مجموعة → PATH=%s %s" % (path, ("(" + "; ".join(notes) + ")") if notes else ""))
-            print("    " + json.dumps(pick(g, ADG_KEYS), ensure_ascii=False)[:900])
+            print("    " + json.dumps(pick(g, ADG_KEYS if os.environ.get("SA_FULL") else ADG_BRIEF), ensure_ascii=False)[:900])
         if not ag.get(cid): print("    (ما انقرأت مجموعات: N/A)")
     print("\n  ملخص المسارات: " + (json.dumps(summary, ensure_ascii=False) if summary else NA))
+    accts_msg = sorted({str(g.get("messaging_app_account_id")) for gl in ag.values() for g in gl if g.get("messaging_app_type") == "WHATSAPP" and g.get("messaging_app_account_id")})[:3]
+    sets, sets_ok = [], False
+    print("\n[2] Message Event Sets (read_message_event_set لكل رقم واتساب مستعمل بالحملات؛ المعاملات إلزامية messaging_app_type + messaging_app_account_id):")
+    if not accts_msg: print("  N/A (ما في مجموعات واتساب أصلية بين الحملات المقروءة)")
+    for ma in accts_msg:
+        r5 = broker(env, ctx, acct, [{"label": "event_sets", "op": "tiktok.read_message_event_set", "params": build_params(rd("tiktok.read_message_event_set"), {"messaging_app_type": "WHATSAPP", "messaging_app_account_id": ma})}])[0]
+        got = (find_list(r5.get("data")) or []) if r5["ok"] else []
+        print("  رقم %s: %s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error"))))
+        sets_ok = sets_ok or r5["ok"]; sets += got
+        for x in got[:5]: print("    " + json.dumps({k: safe(k, v) for k, v in x.items() if not re.search(r"token|secret|key", k, re.I)}, ensure_ascii=False)[:420])
     # [4] إعلانات + نتائج
     if sel and (rd("tiktok.read_ads") or rd("tiktok.read_ad")):
         op = "tiktok.read_ads" if rd("tiktok.read_ads") else "tiktok.read_ad"
@@ -244,7 +252,7 @@ def main():
         if "create_adgroup" in ep and ec == "ok": native_ok += int(cnt or 0)
         if ec != "ok": fails.append(ec)
     # [7] التقييم
-    level, why = eligibility(res.get("event_sets", {}).get("ok", False), sets, summary.get("NATIVE_WHATSAPP", 0) + native_ok, fails)
+    level, why = eligibility(sets_ok, sets, summary.get("NATIVE_WHATSAPP", 0) + native_ok, fails)
     print("\n[7] تقييم الأهلية من الأدلة: %s — %s" % (level, why))
     print("    التوصيف الرسمي المطلوب: LEAD_GENERATION + promotion_type=LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE + messaging_app_type=WHATSAPP + optimization_goal=CONVERSATION (+event MESSAGE) + message_event_set_id")
     print("    Messaging Partner / Message Events / Conversations بـEvents Manager: " + ("N/A (لا توجد عملية قراءة لهذي بالكتالوج)" if not any("event" in n and n != "tiktok.read_message_event_set" for n in specs) else "انظر العمليات بقسم [0]"))
