@@ -6,8 +6,8 @@ PLAN = r'''const d = $('Route').first().json; const it = { objective: 'المب�
 const ntx = String(d.text || '').replace(/[#A-Za-z0-9+\/\\=_\-]{16,250}/g, ' ');
 const wam = ntx.match(/(?<!\d)(?:\+?964|00964|0)?(7[0-9]{9})(?!\d)/) || /*p266*/ (String(d.text || '').match(/wa[.]me[/](?:[+]|%2B)?(?:964|00964|0)?(7[0-9]{9})(?![0-9])/i) || String(d.text || '').match(/whatsapp[.]com[/]send[/]?[?](?:[^ #]*&)?phone=(?:[+]|%2B)?(?:964|00964|0)?(7[0-9]{9})(?![0-9])/i));
 const dmReq = false;
-const mode = (/واتس|whats/i.test(ntx) || wam) ? 'واتساب' : dmReq ? 'tiktok_dm' : ({ 'المبيعات': 'المبيعات' }[it.objective]);
-if (mode === 'واتساب' && !wam) return [{ json: { halt: 'need_number' } }];
+const mode = (/واتس|whats/i.test(ntx) || wam) ? 'whatsapp' : dmReq ? 'tiktok_dm' : ({ 'المبيعات': 'المبيعات' }[it.objective]);
+if (mode === 'whatsapp' && !wam) return [{ json: { halt: 'need_number' } }];
 return [{ json: { mode, num: wam ? wam[1] : null } }];
 '''
 ING = 'x = 1 # p266\nplan = code(w, "AI: plan", r"""\n' + PLAN + '""")\nother = code(w, "Other", r"""\nconst mode = (/واتس|whats/i.test(ntx) || wam) ? 1 : 2;\n""")\n'
@@ -39,7 +39,7 @@ class T(unittest.TestCase):
 
     def test_number_still_proceeds(self):
         for t in ("مبيعات https://wa.me/9647701234567", "مبيعات https://wa.me/07701234567", "مبيعات واتساب 07701234567", "مبيعات https://api.whatsapp.com/send?phone=9647701234567"):
-            r = run(self.b, t); self.assertEqual((r.get("mode"), r.get("num")), ("واتساب", "7701234567"), t)
+            r = run(self.b, t); self.assertEqual((r.get("mode"), r.get("num")), ("whatsapp", "7701234567"), t)
 
     def test_unrelated_unchanged(self):
         for t in ("ارفع حملة مبيعات https://example.com/shop", "مبيعات https://swa.me/x", "ارفع حملة مبيعات 5 دولار", "مبيعات https://twa.example.com/p"):
@@ -54,7 +54,7 @@ class T(unittest.TestCase):
         self.assertIn("changed=0", apply(self.d).stdout); self.assertEqual(rd(self.d + "/n8n/wf_ingress.py").count("p269a"), 1)
 
     def test_fail_closed(self):
-        for src in ("x = 1 # p266\n", ING.replace(PLAN, PLAN + PLAN), ING.replace("const mode = (", "const modee = ("), ING.replace("if (mode === 'واتساب' && !wam)", "if (false)"), ING.replace("# p266", "").replace("/*p266*/", "")):
+        for src in ("x = 1 # p266\n", ING.replace(PLAN, PLAN + PLAN), ING.replace("const mode = (", "const modee = ("), ING.replace("if (mode === 'whatsapp' && !wam)", "if (false)"), ING.replace("# p266", "").replace("/*p266*/", "")):
             d = mk(src); before = rd(d + "/n8n/wf_ingress.py"); r = apply(d)
             self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr); self.assertEqual(rd(d + "/n8n/wf_ingress.py"), before); self.assertFalse(os.path.exists(d + "/n8n/wf_ingress.py.pre269a"))
 

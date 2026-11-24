@@ -17,7 +17,7 @@ seg = ing[lo:hi]
 rx = re.compile(r'(?m)^([ \t]*const mode = \(' + re.escape('/واتس|whats/i.test(ntx)') + r'\s*\|\|\s*wam)\)')
 mm = list(rx.finditer(seg))
 if len(mm) != 1: sys.exit('PATCH FAIL (nothing written): mode anchor count=%d (scope %s); lines: %s' % (len(mm), 'AI: plan' if hi - lo < len(ing) else 'file', lines_with('const mode')))
-if not re.search(r"mode\s*===\s*'واتساب'\s*&&\s*!wam", seg): sys.exit('PATCH FAIL (nothing written): existing halt (mode===whatsapp && !wam) not found; lines: ' + lines_with('!wam'))
+if not re.search(r"mode\s*===\s*'(?:whatsapp|واتساب)'\s*&&\s*!wam", seg): sys.exit('PATCH FAIL (nothing written): existing halt (mode===whatsapp && !wam) not found; lines: ' + lines_with('!wam'))
 m = mm[0]; a, b = lo + m.start(), lo + m.end()
 new = m.group(1) + ' || /*p269a*/ ' + EXPR + ')'
 shutil.copy(BASE + IN, BASE + IN + '.pre269a')
