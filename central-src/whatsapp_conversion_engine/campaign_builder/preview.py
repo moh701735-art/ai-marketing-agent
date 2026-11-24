@@ -121,3 +121,49 @@ def render_compare(name, rows, src):
     out = ["مقارنة [%s]  (الحالي من: %s)" % (name, src), "  %-27s %-34s %-46s %s" % ("field", "CURRENT", "WHATSAPP CONVERSATIONS", "verdict")]
     out += ["  %-27s %-34s %-46s %s" % (r["field"], str(r["current"])[:34], str(r["whatsapp"])[:46], r["verdict"]) for r in rows]
     return "\n".join(out)
+
+
+# ---------- محاكاة «Sales + WhatsApp» + تحقق payload (عرض فقط، لا استدعاء لأي شي) ----------
+SALES_RX = re.compile(r"sales|مبيعات|بيع", re.I)
+TRAFFIC_RX = re.compile(r"traffic|visits?|زيارات|زيارة", re.I)
+WA_RX = re.compile(r"whats\s*app|whatsapp|wa\.me|واتس|وتس", re.I)
+CHAIN_PROPOSED = ("LEAD_GENERATION", "LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE", "WHATSAPP", "CONVERSATION", "MESSAGE", "message_event_set_id", "OCPM")
+
+
+def simulate_request(text):
+    """نص مثل «Sales + WhatsApp» → (objective, destination) كما يفهمها المستخدم. لا يلمس ingress."""
+    t = str(text or "")
+    obj = "sales" if SALES_RX.search(t) else ("traffic" if TRAFFIC_RX.search(t) else NA)
+    return {"objective": obj, "destination": "whatsapp" if WA_RX.search(t) else NA}
+
+
+def current_chain(objective, cur=None):
+    c = cur or RECORDED_CURRENT.get(objective, {})
+    dest = c.get("landing_page_url") or c.get("promotion_target_type") or NA
+    return [c.get("objective_type", NA), c.get("promotion_type", NA), c.get("optimization_goal", NA), "URL / " + str(dest) if objective == "traffic" else "WEBSITE page / " + str(dest)]
+
+
+def validate_payload(pv):
+    """PASS فقط لو كل الحقول الـ12 مقروءة فعلاً (live read-back). المشتق/المسجّل = غير مؤكد = يُعامل N/A (ما نخترع). → dict"""
+    miss, unconf, ok = [], [], []
+    for k in FIELDS:
+        f = pv["fields"][k]
+        if f["value"] == NA: miss.append(k)
+        elif str(f["source"]).startswith("live read-back"): ok.append(k)
+        else: unconf.append(k)
+    status = "PASS" if not miss and not unconf else "FAIL"
+    return {"status": status, "confirmed": ok, "unconfirmed": unconf, "missing": miss}
+
+
+def verdict(sim, pv, val, cur_objective="sales", cur=None, cur_src="recorded"):
+    ch = current_chain(cur_objective, cur)
+    na_list = val["missing"] + val["unconfirmed"]
+    return {
+        "request": "%s + %s" % (sim["objective"].upper(), sim["destination"].upper()),
+        "current_path": " -> ".join(str(x) for x in ch) + "   [source: %s]" % cur_src,
+        "proposed_path": " -> ".join(CHAIN_PROPOSED),
+        "payload_validation": val["status"],
+        "confirmed_live": val["confirmed"], "unconfirmed_as_NA": val["unconfirmed"], "missing_NA": val["missing"],
+        "event_delivery_status": "NOT VERIFIED",
+        "na_summary": ", ".join(na_list) if na_list else "none",
+    }

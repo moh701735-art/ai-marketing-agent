@@ -165,6 +165,27 @@ def current_payloads(insp):
     return cur, src
 
 
+def final_block(ref, pv, cur, src):
+    """كتلة نهائية ASCII فقط (ما تتخرب بترجمة المتصفح): محاكاة Sales + WhatsApp + تحقق payload + الحكم"""
+    sim = pvm.simulate_request(os.environ.get("SA_SIMULATE", "sales+whatsapp"))
+    obj = sim["objective"] if sim["objective"] in cur else "sales"
+    val = pvm.validate_payload(pv); v = pvm.verdict(sim, pv, val, obj, cur.get(obj), src.get(obj, "recorded"))
+    L = ["", "======== FINAL BLOCK (ASCII, read-only, nothing created, no spend) ========",
+         "SIMULATED REQUEST : %s (preview only; ingress/Broker/DB untouched)" % v["request"],
+         "LIVE REFERENCE    : %s" % ("yes (read-only TikTok reads, newest native WhatsApp adgroup)" if ref["adgroup"] else "NO (recorded values only)"),
+         "CURRENT PATH      : " + v["current_path"],
+         "PROPOSED PATH     : " + v["proposed_path"], "PROPOSED PAYLOAD (phone masked):"]
+    for k in pvm.FIELDS:
+        f = pv["fields"][k]; L.append("  %-27s = %-45s [%s]" % (k, ascii_fold(str(f["value"])), ascii_fold(f["source"])))
+    L += ["PAYLOAD VALIDATION : " + v["payload_validation"],
+          "  confirmed live   : " + (", ".join(v["confirmed_live"]) or "none"),
+          "  UNCONFIRMED (=N/A, not invented): " + (", ".join(v["unconfirmed_as_NA"]) or "none"),
+          "  MISSING (N/A)    : " + (", ".join(v["missing_NA"]) or "none"),
+          "EVENT DELIVERY STATUS: " + v["event_delivery_status"] + "  (message_event_set_id and the `conversion` metric = indirect evidence only; conversion metric for the reference campaign, 30d = %s)" % ref["conversion"],
+          "NO CAMPAIGN CREATED. Broker ops used: read-only tiktok.read_* (code-enforced)."]
+    print("\n".join(L))
+
+
 def main():
     slug = os.environ.get("SA_SLUG", "mohm").strip(); acct = os.environ.get("SA_ACCT", "7593807340588253185").strip()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", slug) or not re.fullmatch(r"[0-9]{6,25}", acct): sys.exit("bad SA_SLUG / SA_ACCT")
@@ -200,8 +221,7 @@ def main():
     print("\n[E] " + pvm.EVENT_DELIVERY)
     print("   مؤشر غير مباشر فقط (مو إثبات): metric conversion للحملة المرجعية آخر 30 يوم = %s" % ref["conversion"])
     print("   ما في عملية قراءة لأحداث المحادثات/أنواعها بالكتالوج → التحقق يدوي: Events Manager > Data sources > Messaging.")
-    print("\n======== ملخص نهائي ========")
-    print("لم يُنشأ شي. عمليات Broker المستخدمة: قراءة فقط. المرجع الحي: %s" % ("نعم" if ref["adgroup"] else "لا"))
+    final_block(ref, pv, cur, src)
 
 
 if __name__ == "__main__":

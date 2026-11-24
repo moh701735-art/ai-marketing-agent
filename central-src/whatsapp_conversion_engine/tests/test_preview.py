@@ -177,5 +177,42 @@ class Live(unittest.TestCase):
         self.assertEqual(r["adgroup"]["message_event_set_id"], "CTM123"); self.assertEqual(r["conversion"], "3"); self.assertEqual(len(r["event_sets"]), 1)
 
 
+class Simulate(unittest.TestCase):
+    def test_request_parse(self):
+        self.assertEqual(pv.simulate_request("Sales + WhatsApp"), {"objective": "sales", "destination": "whatsapp"})
+        self.assertEqual(pv.simulate_request("مبيعات واتساب"), {"objective": "sales", "destination": "whatsapp"})
+        self.assertEqual(pv.simulate_request("زيارات https://wa.me/964770")["objective"], "traffic")
+        self.assertEqual(pv.simulate_request("hello"), {"objective": "N/A", "destination": "N/A"})
+
+    def test_validation_pass_only_when_all_live(self):
+        ref = dict(REF, phone_region_code="IQ")
+        val = pv.validate_payload(pv.WhatsAppConversationPreview(ref).build())
+        self.assertEqual(val["status"], "PASS"); self.assertEqual(val["missing"] + val["unconfirmed"], [])
+
+    def test_validation_fail_lists_exact_fields(self):
+        val = pv.validate_payload(pv.WhatsAppConversationPreview(REF).build())      # REF بلا phone_region_code
+        self.assertEqual(val["status"], "FAIL"); self.assertEqual(val["unconfirmed"], ["phone_region_code"]); self.assertEqual(val["missing"], [])
+        val = pv.validate_payload(pv.WhatsAppConversationPreview().build())         # بلا مرجع حي
+        self.assertEqual(val["status"], "FAIL"); self.assertIn("message_event_set_id", val["missing"]); self.assertIn("optimization_goal", val["unconfirmed"])
+
+    def test_verdict_block(self):
+        b = pv.WhatsAppConversationPreview(REF).build(); v = pv.verdict(pv.simulate_request("sales+whatsapp"), b, pv.validate_payload(b))
+        self.assertEqual(v["event_delivery_status"], "NOT VERIFIED"); self.assertIn("WEB_CONVERSIONS", v["current_path"]); self.assertIn("CONVERT", v["current_path"])
+        self.assertTrue(v["proposed_path"].startswith("LEAD_GENERATION -> LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE -> WHATSAPP -> CONVERSATION -> MESSAGE -> message_event_set_id -> OCPM"))
+        self.assertEqual(v["request"], "SALES + WHATSAPP")
+
+    def test_final_block_ascii_masked(self):
+        import io, contextlib
+        ref = {"adgroup": dict(REF), "event_sets": [], "conversion": "3", "errors": [], "campaign": None, "sets_shape": "N/A"}
+        os.environ.pop("SA_SIMULATE", None)
+        cur, src = tool.current_payloads({})
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf): tool.final_block(ref, pv.WhatsAppConversationPreview(ref["adgroup"]).build(), cur, src)
+        o = buf.getvalue()
+        self.assertTrue(all(ord(c) < 128 for c in o)); self.assertIn("PAYLOAD VALIDATION : FAIL", o); self.assertIn("EVENT DELIVERY STATUS: NOT VERIFIED", o)
+        self.assertNotIn("07701234567", o); self.assertNotIn("9647701234567", o); self.assertIn("NO CAMPAIGN CREATED", o)
+        self.assertIsNone(re.search(r"tiktok\.(create|set_|update|launch)", o))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
