@@ -1,0 +1,17 @@
+import os, re, shutil, sys
+BASE = os.environ.get('P268_BASE', '/opt/central/')
+F = 'broker/app/spark.py'
+s = open(BASE + F, encoding='utf-8').read()
+if 'p268' in s: print('APPLY268_OK changed=0 (already applied)'); sys.exit(0)
+ms = list(re.finditer(r'(?m)^([ \t]*)params\s*=\s*\{\*\*params,\s*["\']smart["\']\s*:\s*False\s*\}([^\n]*)$', s))
+if len(ms) != 1:
+    sys.exit('PATCH FAIL (nothing written): p207 smart-lock anchor count=%d; smart lines: %s' % (len(ms), ' | '.join('%d: %s' % (i + 1, ascii(l.strip()[:160])) for i, l in enumerate(s.split('\n')) if 'smart' in l.lower())[:900]))
+m = ms[0]
+new = ('%sparams = {**params, "smart": params.get("smart") is True and params.get("objective") == "whatsapp"}  '
+       '# p268: smart only when explicitly requested (typed word / button) and only for WhatsApp; default stays manual (replaces the p207 blanket lock)') % m.group(1)
+out = s[:m.start()] + new + s[m.end():]
+try: compile(out, F, 'exec')
+except SyntaxError as e: sys.exit('PATCH FAIL (nothing written): syntax %s' % e)
+shutil.copy(BASE + F, BASE + F + '.pre268')
+open(BASE + F, 'w', encoding='utf-8').write(out)
+print('APPLY268_OK spark.validate: smart honored again ONLY when explicitly requested (WhatsApp only; Smart+ limits for countries/provinces/age/gender stay); default manual; .pre268')
