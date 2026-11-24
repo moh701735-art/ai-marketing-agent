@@ -45,12 +45,23 @@ def pick(row, rx):
 
 
 def find_list(d):
+    """أول قائمة (يفضَّل غير الفارغة) بأي مفتاح: 'list' أولاً ثم أي قائمة عناصر (مثل event_sets)"""
     if isinstance(d, dict):
         if isinstance(d.get("list"), list): return d["list"]
+        best = None
         for v in d.values():
             r = find_list(v)
-            if r is not None: return r
+            if r is not None and (best is None or (r and not best)): best = r
+        return best
+    if isinstance(d, list) and (not d or isinstance(d[0], dict)): return d
     return None
+
+
+def shape(d, depth=3):
+    """بنية الرد فقط (مفاتيح/أنواع/أطوال) بدون قيم — لتشخيص ردود غير معروفة"""
+    if isinstance(d, dict): return {k: (shape(v, depth - 1) if depth > 0 else "…") for k, v in list(d.items())[:15]}
+    if isinstance(d, list): return "list[%d]" % len(d) + (("<" + json.dumps(shape(d[0], depth - 1), ensure_ascii=False)[:120] + ">") if d and depth > 0 else "")
+    return type(d).__name__
 
 
 def classify_adgroup(g, camp=None):
@@ -220,7 +231,7 @@ def main():
         got = (find_list(r5.get("data")) or []) if r5["ok"] else []
         print("  رقم %s: %s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error"))))
         sets_ok = sets_ok or r5["ok"]; sets += got
-        es_lines.append("رقم %s: %s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error"))))
+        es_lines.append("رقم %s: %s | shape=%s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error")), json.dumps(shape(r5.get("data")), ensure_ascii=False)[:220]))
         for x in got[:5]: print("    " + json.dumps({k: safe(k, v) for k, v in x.items() if not re.search(r"token|secret|key", k, re.I)}, ensure_ascii=False)[:420])
     # [4] إعلانات + نتائج
     if sel and (rd("tiktok.read_ads") or rd("tiktok.read_ad")):
@@ -256,7 +267,8 @@ def main():
         if "create_adgroup" in ep and ec == "ok": native_ok += int(cnt or 0)
         if ec != "ok": fails.append(ec)
     # [7] التقييم
-    level, why = eligibility(sets_ok, sets, summary.get("NATIVE_WHATSAPP", 0) + native_ok, fails)
+    es_ids = sorted({str(g.get("message_event_set_id")) for gl in ag.values() for g in gl if g.get("message_event_set_id")})
+    level, why = eligibility(sets_ok or bool(es_ids), sets or es_ids, summary.get("NATIVE_WHATSAPP", 0) + native_ok, fails)
     print("\n[7] تقييم الأهلية من الأدلة: %s — %s" % (level, why))
     print("\n======== ملخص نهائي (آخر الشاشة) ========")
     print("حساب=%s | حملات مقروءة=%d | مسارات=%s" % (adv.get("name", NA), len(sel), json.dumps(summary, ensure_ascii=False) if summary else NA))

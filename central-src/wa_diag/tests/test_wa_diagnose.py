@@ -9,6 +9,11 @@ TRAF = {"adgroup_id": "33", "campaign_id": "3", "promotion_type": "WEBSITE", "op
 
 
 class Pure(unittest.TestCase):
+    def test_find_list_any_key_and_shape(self):
+        self.assertEqual(W.find_list({"data": {"event_sets": [{"a": 1}]}}), [{"a": 1}]); self.assertEqual(W.find_list({"list": [{"x": 1}]}), [{"x": 1}]); self.assertEqual(W.find_list({"a": [], "b": [{"k": 1}]}), [{"k": 1}])
+        self.assertIsNone(W.find_list({"a": "x"})); self.assertIsNone(W.find_list(None))
+        sh = W.shape({"event_sets": [{"event_set_id": "SECRET-ID", "n": 1}], "page_info": {"total": 3}}); self.assertNotIn("SECRET-ID", json.dumps(sh)); self.assertIn("event_set_id", json.dumps(sh)); self.assertIn("list[1]", json.dumps(sh))
+
     def test_mask(self):
         self.assertNotIn("7701234567", W.mask_phone("9647701234567")); self.assertTrue(W.mask_phone("9647701234567").endswith("567"))
         u = W.mask_url("https://wa.me/9647701234567?text=secret+words"); self.assertIn("WHATSAPP_LINK", u); self.assertNotIn("7701234567", u); self.assertNotIn("secret", u)
@@ -74,7 +79,7 @@ class Main(unittest.TestCase):
 
     def test_sections_paths_and_eligibility(self):
         o, _ = self.run_main([])
-        self.assertIn("ملخص نهائي", o); self.assertIn("الأهلية: WHATSAPP_CONVERSATION_READY", o); self.assertIn("adgroups مع message_event_set_id: 1 من 2", o); self.assertIn("event sets: رقم 9647", o)
+        self.assertIn("ملخص نهائي", o); self.assertIn("الأهلية: WHATSAPP_CONVERSATION_READY", o); self.assertIn("adgroups مع message_event_set_id: 1 من 2", o); self.assertIn("event sets: رقم 9647", o); self.assertIn("shape=", o)
         for frag in ("PATH=NATIVE_WHATSAPP", "PATH=SALES_WEB_CONVERSIONS_WA_LINK", "WHATSAPP_CONVERSATION_READY", "[5b]", "FAIL", "رابط واتساب كوجهة موقع", "التوصيف الرسمي المطلوب", "N/A", "OK n=1"):
             self.assertIn(frag, o)
         self.assertIn('"NATIVE_WHATSAPP": 1', o)
