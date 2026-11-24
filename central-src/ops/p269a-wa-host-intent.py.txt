@@ -1,0 +1,30 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P269A_BASE', '/opt/central/')
+IN = 'n8n/wf_ingress.py'
+ing = open(BASE + IN, encoding='utf-8').read()
+if 'p269a' in ing: print('APPLY269A_OK changed=0 (already applied)'); sys.exit(0)
+if 'p266' not in ing: sys.exit('PATCH FAIL (nothing written): p266 must be applied first')
+# نية واتساب من مضيف الرابط (بدون أي backslash): wa.me / api.whatsapp.com / whatsapp.com / أي wa.<domain> (صفحات الوسيط)
+EXPR = "/(?:^|[^a-z0-9])(?:wa[.]me|api[.]whatsapp[.]com|whatsapp[.]com|wa[.][a-z0-9-]+[.][a-z]{2,})(?:[/]|$|[^a-z0-9])/i.test(String(d.text || ''))"
+assert '\\' not in EXPR
+def lines_with(sub): return ' | '.join('%d: %s' % (i + 1, ascii(l.strip()[:200])) for i, l in enumerate(ing.split('\n')) if sub in l)[:900]
+lo, hi = 0, len(ing)
+ms = list(re.finditer(r'["\']AI: plan["\']\s*,\s*r"""', ing))
+if len(ms) == 1:
+    e = ing.find('"""', ms[0].end())
+    if e > 0: lo, hi = ms[0].end(), e
+seg = ing[lo:hi]
+rx = re.compile(r'(?m)^([ \t]*const mode = \(' + re.escape('/واتس|whats/i.test(ntx)') + r'\s*\|\|\s*wam)\)')
+mm = list(rx.finditer(seg))
+if len(mm) != 1: sys.exit('PATCH FAIL (nothing written): mode anchor count=%d (scope %s); lines: %s' % (len(mm), 'AI: plan' if hi - lo < len(ing) else 'file', lines_with('const mode')))
+if not re.search(r"mode\s*===\s*'واتساب'\s*&&\s*!wam", seg): sys.exit('PATCH FAIL (nothing written): existing halt (mode===whatsapp && !wam) not found; lines: ' + lines_with('!wam'))
+m = mm[0]; a, b = lo + m.start(), lo + m.end()
+new = m.group(1) + ' || /*p269a*/ ' + EXPR + ')'
+shutil.copy(BASE + IN, BASE + IN + '.pre269a')
+open(BASE + IN, 'w', encoding='utf-8').write(ing[:a] + new + ing[b:])
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + IN + '.pre269a', BASE + IN)
+        sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY269A_OK WhatsApp host in text (wa.me / whatsapp.com / wa.<domain> pages) = WhatsApp intent -> existing halt asks for the Iraqi number when none was extracted; never falls back to sales/traffic (p269a)')
