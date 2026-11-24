@@ -212,7 +212,7 @@ def main():
         if not ag.get(cid): print("    (ما انقرأت مجموعات: N/A)")
     print("\n  ملخص المسارات: " + (json.dumps(summary, ensure_ascii=False) if summary else NA))
     accts_msg = sorted({str(g.get("messaging_app_account_id")) for gl in ag.values() for g in gl if g.get("messaging_app_type") == "WHATSAPP" and g.get("messaging_app_account_id")})[:3]
-    sets, sets_ok = [], False
+    sets, sets_ok, es_lines = [], False, []
     print("\n[2] Message Event Sets (read_message_event_set لكل رقم واتساب مستعمل بالحملات؛ المعاملات إلزامية messaging_app_type + messaging_app_account_id):")
     if not accts_msg: print("  N/A (ما في مجموعات واتساب أصلية بين الحملات المقروءة)")
     for ma in accts_msg:
@@ -220,6 +220,7 @@ def main():
         got = (find_list(r5.get("data")) or []) if r5["ok"] else []
         print("  رقم %s: %s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error"))))
         sets_ok = sets_ok or r5["ok"]; sets += got
+        es_lines.append("رقم %s: %s" % (mask_phone(ma), ("OK n=%d" % len(got)) if r5["ok"] else "FAIL " + errtxt(r5.get("error"))))
         for x in got[:5]: print("    " + json.dumps({k: safe(k, v) for k, v in x.items() if not re.search(r"token|secret|key", k, re.I)}, ensure_ascii=False)[:420])
     # [4] إعلانات + نتائج
     if sel and (rd("tiktok.read_ads") or rd("tiktok.read_ad")):
@@ -244,7 +245,7 @@ def main():
         print("\n[5] النتائج: N/A (read_report غير موجودة بالكتالوج أو لا حملات)")
     # [6] تاريخ المحاولات من api_call_log (بدون payload)
     try:
-        rows = psql(env, "select endpoint||'|'||coalesce(error_code,'ok')||'|'||count(*) from vault.api_call_log where tenant_id='%s' and platform::text='tiktok' and at > now() - interval '%d days' and (endpoint ilike '%%adgroup%%' or endpoint ilike '%%campaign%%' or endpoint ilike '%%message%%' or endpoint ilike '%%event%%') group by 1 order by 1" % (tid[0], days), db="vault")
+        rows = psql(env, "select endpoint||'|'||ec||'|'||c from (select endpoint, coalesce(error_code,'ok') as ec, count(*) as c from vault.api_call_log where tenant_id='%s' and platform::text='tiktok' and at > now() - interval '%d days' and (endpoint ilike '%%adgroup%%' or endpoint ilike '%%campaign%%' or endpoint ilike '%%message%%' or endpoint ilike '%%event%%') group by endpoint, coalesce(error_code,'ok')) t order by 1" % (tid[0], days), db="vault")
     except SystemExit as e:
         rows = []; print("\n[6] سجل الاستدعاءات: N/A (%s)" % str(e)[:120])
     if rows: print("\n[6] سجل استدعاءات الـBroker (endpoint|error_code|count آخر %d يوم؛ بدون محتوى):" % days)
@@ -257,6 +258,13 @@ def main():
     # [7] التقييم
     level, why = eligibility(sets_ok, sets, summary.get("NATIVE_WHATSAPP", 0) + native_ok, fails)
     print("\n[7] تقييم الأهلية من الأدلة: %s — %s" % (level, why))
+    print("\n======== ملخص نهائي (آخر الشاشة) ========")
+    print("حساب=%s | حملات مقروءة=%d | مسارات=%s" % (adv.get("name", NA), len(sel), json.dumps(summary, ensure_ascii=False) if summary else NA))
+    print("event sets: " + (" || ".join(es_lines) if es_lines else "N/A (لا أرقام واتساب بالمجموعات)"))
+    for x in sets[:3]: print("  set: " + json.dumps({k: safe(k, v) for k, v in x.items() if not re.search(r"token|secret|key", k, re.I)}, ensure_ascii=False)[:300])
+    print("adgroups مع message_event_set_id: %d من %d" % (sum(1 for gl in ag.values() for g in gl if g.get("message_event_set_id")), sum(len(gl) for gl in ag.values())))
+    print("api_call_log: " + ("; ".join(rows[:12]) if rows else "N/A"))
+    print("الأهلية: %s" % level)
     print("    التوصيف الرسمي المطلوب: LEAD_GENERATION + promotion_type=LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE + messaging_app_type=WHATSAPP + optimization_goal=CONVERSATION (+event MESSAGE) + message_event_set_id")
     print("    Messaging Partner / Message Events / Conversations بـEvents Manager: " + ("N/A (لا توجد عملية قراءة لهذي بالكتالوج)" if not any("event" in n and n != "tiktok.read_message_event_set" for n in specs) else "انظر العمليات بقسم [0]"))
 

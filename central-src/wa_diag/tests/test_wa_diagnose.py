@@ -55,9 +55,14 @@ class Main(unittest.TestCase):
                 out.append({"label": c["label"], "op": c["op"], "ok": ("error" not in d), **d})
             return out
         W.broker, W.introspect = fake_broker, lambda env: specs
-        W.psql = lambda env, sql, db="central": (["t-1"] if "core.tenants" in sql else ["CTX-SECRET-xyz"] if "job_contexts" in sql else ["tiktok/adgroup/create|ok|3", "tiktok/adgroup/create|bad_request|1"] if "api_call_log" in sql else [])
+        SQLS = []
+        def fake_psql(env, sql, db="central"):
+            SQLS.append((db, sql)); return (["t-1"] if "core.tenants" in sql else ["CTX-SECRET-xyz"] if "job_contexts" in sql else ["tiktok/adgroup/create|ok|3", "tiktok/adgroup/create|bad_request|1"] if "api_call_log" in sql else [])
+        self.sqls = SQLS
+        W.psql = fake_psql; _unused = lambda env, sql, db="central": (["t-1"] if "core.tenants" in sql else ["CTX-SECRET-xyz"] if "job_contexts" in sql else ["tiktok/adgroup/create|ok|3", "tiktok/adgroup/create|bad_request|1"] if "api_call_log" in sql else [])
         out = io.StringIO()
         with contextlib.redirect_stdout(out): W.main()
+        log = [q for d, q in self.sqls if "api_call_log" in q]; assert log and log[0].lower().count("group by endpoint") == 1 and "group by 1" not in log[0].lower() and self.sqls[-1][0] == "vault"
         return out.getvalue(), calls
 
     def test_read_only_single_account_no_leaks(self):
@@ -69,6 +74,7 @@ class Main(unittest.TestCase):
 
     def test_sections_paths_and_eligibility(self):
         o, _ = self.run_main([])
+        self.assertIn("ملخص نهائي", o); self.assertIn("الأهلية: WHATSAPP_CONVERSATION_READY", o); self.assertIn("adgroups مع message_event_set_id: 1 من 2", o); self.assertIn("event sets: رقم 9647", o)
         for frag in ("PATH=NATIVE_WHATSAPP", "PATH=SALES_WEB_CONVERSIONS_WA_LINK", "WHATSAPP_CONVERSATION_READY", "[5b]", "FAIL", "رابط واتساب كوجهة موقع", "التوصيف الرسمي المطلوب", "N/A", "OK n=1"):
             self.assertIn(frag, o)
         self.assertIn('"NATIVE_WHATSAPP": 1', o)
