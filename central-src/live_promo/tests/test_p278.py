@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import importlib.util, os, subprocess, sys, tempfile, unittest, re
-H = os.path.dirname(os.path.abspath(__file__)); MOD = os.path.dirname(H); P = os.path.join(os.path.dirname(MOD), "ops", "p278-live-create-probe-v2.py.txt")
+H = os.path.dirname(os.path.abspath(__file__)); MOD = os.path.dirname(H); P = os.path.join(os.path.dirname(MOD), "ops", "p279-live-create-probe-v3.py.txt")
 def load(name, p):
     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 tool = load("cprobe2", os.path.join(MOD, "ops", "tt_live_create_probe.py"))
@@ -25,7 +25,7 @@ class Parse(unittest.TestCase):
 
     def test_no_allowed_word_falls_back_to_all_tokens(self):
         r = tool.parse(res("bad value, expected one of TRAFFIC, REACH")); self.assertEqual(r["allowed"], [])
-        out = tool.report(r); self.assertIn("ALL UPPER-CASE TOKENS FOUND ANYWHERE IN THE MESSAGE (2): TRAFFIC, REACH", out)
+        out = tool.report(r); self.assertIn("ALL UPPER-CASE TOKENS FOUND ANYWHERE IN THE MESSAGE (2): TRAFFIC, REACH", out); self.assertIn("T01 T R A F F I C", out)
 
     def test_report_one_per_line_and_spaced(self):
         out = tool.report(tool.parse(res("allowed: ENGAGEMENT, TRAFFIC")))
@@ -45,7 +45,7 @@ class Parse(unittest.TestCase):
             with self.assertRaises(SystemExit): tool.build_call(bad)
         src = rd(os.path.join(MOD, "ops", "tt_live_create_probe.py"))
         for bad in ("access_token", "getpass", "INSERT", "ad_group", "tiktok.create_"): self.assertNotIn(bad, src)
-        self.assertIn("v2 / p278", src)
+        self.assertIn("v3 / p279", src)
 
 
 class Patch(unittest.TestCase):
@@ -54,25 +54,35 @@ class Patch(unittest.TestCase):
         if wad: open(d + "/ops/wa-diagnose.py", "w").write("x=1\n")
         if tool_present: open(d + "/ops/tt-live-create-probe.py", "w").write(old)
         return d
-    def run_p(self, d): return subprocess.run([sys.executable, P], env={**os.environ, "P278_BASE": d + "/"}, capture_output=True, text=True)
+    def run_p(self, d): return subprocess.run([sys.executable, P], env={**os.environ, "P279_BASE": d + "/"}, capture_output=True, text=True)
 
     def test_apply_backup_idempotent(self):
-        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY278_OK", r.stdout, r.stdout + r.stderr)
-        self.assertEqual(rd(d + "/ops/tt-live-create-probe.py"), rd(os.path.join(MOD, "ops", "tt_live_create_probe.py"))); self.assertEqual(rd(d + "/ops/tt-live-create-probe.py.pre278"), "OLD\n")
+        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY279_OK", r.stdout, r.stdout + r.stderr)
+        self.assertEqual(rd(d + "/ops/tt-live-create-probe.py"), rd(os.path.join(MOD, "ops", "tt_live_create_probe.py"))); self.assertEqual(rd(d + "/ops/tt-live-create-probe.py.pre279"), "OLD\n")
         self.assertIn("changed=0", self.run_p(d).stdout)
 
     def test_fail_closed(self):
         for kw in ({"wad": False}, {"tool_present": False}):
             d = self.mk(**kw); r = self.run_p(d); self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr)
-            self.assertFalse(os.path.exists(d + "/ops/tt-live-create-probe.py.pre278"))
+            self.assertFalse(os.path.exists(d + "/ops/tt-live-create-probe.py.pre279"))
 
     def test_installed_tool_parses(self):
         d = self.mk(); self.run_p(d); m = load("inst", d + "/ops/tt-live-create-probe.py"); self.assertEqual(m.parse(res("allowed: A_B, CCC"))["allowed"], ["A_B", "CCC"])
 
     def test_oneliner_file(self):
-        s = rd(os.path.join(os.path.dirname(os.path.dirname(MOD)), "out", "p278s.txt")); self.assertEqual(s.count("\n"), 1); self.assertTrue(s.startswith("echo '")); self.assertIn("| base64 -d | xz -d | python3 &&", s)
+        s = rd(os.path.join(os.path.dirname(os.path.dirname(MOD)), "out", "p279s.txt")); self.assertEqual(s.count("\n"), 1); self.assertTrue(s.startswith("echo '")); self.assertIn("| base64 -d | xz -d | python3 &&", s)
         self.assertNotIn("update.sh", s)
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
+
+
+class V3(unittest.TestCase):
+    def test_cut_message_flag_and_spaced_lines(self):
+        msg = ("x" * 280) + " allowed: ENGAGEMENT, PROBE_IN"; msg = msg[:300].ljust(300, "y")
+        out = tool.report(tool.parse(res(msg))); self.assertIn("EXACTLY 300", out); self.assertIn("M01 x x x", out); self.assertIn("M08", out)
+        self.assertNotIn("PROBE_IN,", out); self.assertTrue(all(ord(c) < 128 for c in out))
+    def test_probe_prefix_tokens_dropped(self):
+        r = tool.parse(res("Invalid PROBE_IN list: TRAFFIC, REACH")); self.assertEqual(r["all_tokens"], ["TRAFFIC", "REACH"])
+    def test_short_message_no_cut_flag(self): self.assertNotIn("EXACTLY 300", tool.report(tool.parse(res("allowed: A_B"))))

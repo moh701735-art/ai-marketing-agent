@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""المرحلة B1 لـ«ترويج البث المباشر» (v2 / p278): يقرأ من تيك توك نفسه قائمة `objective_type` المسموحة — **بدون إنشاء أي حملة**: يرسل قيمة هدف غير صالحة عمداً (PROBE_INVALID_*)،
+"""المرحلة B1 لـ«ترويج البث المباشر» (v3 / p279): يقرأ من تيك توك نفسه قائمة `objective_type` المسموحة — **بدون إنشاء أي حملة**: يرسل قيمة هدف غير صالحة عمداً (PROBE_INVALID_*)،
 فيرفضها تيك توك برسالة 40002 فيها «allowed: …». الكود يرفض أي قيمة هدف غير هذا البادئة (حتى لا تنشأ حملة بالغلط). لا مجموعة، لا إعلان، لا صرف.
-v2: محلّل مرن (أي تنسيق: أقواس/اقتباسات/أسطر) + يطبع كل قيمة بسطر مستقل وبحروف مفرّقة (E N G A G E M E N T) حتى لا تغيّرها ترجمة المتصفح.
+v3: يطبع رسالة تيك توك كاملة بحروف مفرّقة أسطراً (تفادياً لترجمة المتصفح) ويفحص هل الرسالة مقطوعة عند 300 حرف. v2: محلّل مرن (أي تنسيق: أقواس/اقتباسات/أسطر) + يطبع كل قيمة بسطر مستقل وبحروف مفرّقة (E N G A G E M E N T) حتى لا تغيّرها ترجمة المتصفح.
 يتطلب p277 (عملية Broker معزولة tiktok.probe_campaign). غير المعروف = N/A.
   SA_SLUG=mohm SA_ACCT=7593807340588253185 python3 ops/tt-live-create-probe.py"""
 import importlib.util, json, os, re, sys
@@ -39,7 +39,7 @@ def tokens_after_allowed(msg):
     tail = s[m.end():] if m else ""
     out, seen = [], set()
     for t in TOKEN.findall(tail):
-        if t.startswith("PROBE_INVALID") or t in seen: continue
+        if t.startswith("PROBE_") or "PROBE_INVALID_OBJECTIVE".startswith(t) or t in seen: continue
         seen.add(t); out.append(t)
     return out
 
@@ -51,20 +51,23 @@ def parse(res):
     allowed = tokens_after_allowed(msg)
     allmsg = []
     for t in TOKEN.findall(msg):
-        if not t.startswith("PROBE_INVALID") and t not in allmsg: allmsg.append(t)
+        if not (t.startswith("PROBE_") or "PROBE_INVALID_OBJECTIVE".startswith(t)) and t not in allmsg: allmsg.append(t)
     return {"created": bool(res.get("ok")), "allowed": allowed, "all_tokens": allmsg, "message": msg, "cls": str(err.get("class") or NA), "code": str(err.get("platform_code") or NA)}
 
 
 def report(r):
     L = ["== TikTok LIVE probe B1 v2 (objective list from TikTok itself; invalid value on purpose; NO campaign is created) =="]
     if r["created"]: L.append("WARNING: TikTok ACCEPTED the probe value and a campaign may exist (name PROBE-INVALID-DELETE-ME); check Ads Manager and delete it.")
-    L += ["TikTok answer class=%s platform_code=%s" % (r["cls"], r["code"]), "TikTok message length=%d" % len(r["message"]), "TikTok message (verbatim, ASCII): " + fold(r["message"])[:3000], "",
+    L += ["TikTok answer class=%s platform_code=%s" % (r["cls"], r["code"]), "TikTok message length=%d%s" % (len(r["message"]), " (EXACTLY 300 = probably CUT by the Broker; the list may be incomplete)" if len(r["message"]) == 300 else ""), "TikTok message (verbatim, ASCII): " + fold(r["message"])[:3000], "MESSAGE LETTER-SPACED (40 chars per line):"]
+    m = fold(r["message"])
+    for i in range(0, min(len(m), 600), 40): L.append("M%02d %s" % (i // 40 + 1, spaced(m[i:i + 40])))
+    L += ["",
           "======== FINAL BLOCK (ASCII) ========", "OBJECTIVE VALUES ALLOWED BY TIKTOK (%d), one per line, plain | letter-spaced:" % len(r["allowed"])]
     for i, a in enumerate(r["allowed"], 1): L.append("%02d %s | %s" % (i, a, spaced(a)))
-    if not r["allowed"]:
-        L.append(NA)
-        L.append("ALL UPPER-CASE TOKENS FOUND ANYWHERE IN THE MESSAGE (%d): %s" % (len(r.get("all_tokens", [])), ", ".join(r.get("all_tokens", [])) or NA))
-    live = [a for a in r["allowed"] if re.search(r"live|stream|communit|engag|interact", a, re.I)]
+    if not r["allowed"]: L.append(NA)
+    L.append("ALL UPPER-CASE TOKENS FOUND ANYWHERE IN THE MESSAGE (%d): %s" % (len(r.get("all_tokens", [])), ", ".join(r.get("all_tokens", [])) or NA))
+    for i, a in enumerate(r.get("all_tokens", []), 1): L.append("T%02d %s" % (i, spaced(a)))
+    live = [a for a in (r["allowed"] or r.get("all_tokens", [])) if re.search(r"live|stream|communit|engag|interact", a, re.I)]
     L += ["LIVE/ENGAGEMENT-LIKE OBJECTIVES: " + (", ".join(live) or "NONE FOUND"), "LIVE/ENGAGEMENT-LIKE letter-spaced: " + (" ; ".join(spaced(a) for a in live) or NA),
           "NO CAMPAIGN CREATED (unless the WARNING line above appears). No ad group, no ad, no spend."]
     return "\n".join(L)
