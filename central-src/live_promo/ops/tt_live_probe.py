@@ -114,10 +114,16 @@ def report(R, specs):
     for i in R["identities"][:12]: L.append("  " + fold(json.dumps(i, ensure_ascii=False))[:300])
     for e in R["id_errors"][:4]: L.append("  identity read error: " + e)
     live = sorted(k for k in R["id_keys"] if re.search(r"live|stream", k, re.I))
+    uniq = {}
+    for i in R["identities"]: uniq.setdefault(str(i.get("identity_id", "")), i)
+    yn = lambda v: "Y" if v is True else ("N" if v is False else "?")
+    summ = ["  #%d id=...%s live=%s msg=%s push=%s type=%s" % (n + 1, str(k)[-8:], yn(v.get("can_use_live_ads")), yn(v.get("can_manage_message")), yn(v.get("can_push_video")), fold(v.get("identity_type", NA))) for n, (k, v) in enumerate(uniq.items())]
     L += ["", "======== FINAL BLOCK (ASCII) ========",
           "IDENTITY OP USED: %s (%s); rows read: %d" % (R["id_op"] or "NO (no identity read op in catalog)", R.get("id_src", NA), len(R["identities"])),
           "IDENTITY FIELD NAMES (all, non-secret): %s" % (", ".join(sorted(R["id_keys"])) or NA),
           "LIVE-RELATED IDENTITY FIELDS: %s" % (", ".join(live) or "NONE FOUND (field names only; absence does not prove LIVE ads are unavailable)"),
+          "LIVE-CAPABLE IDENTITIES (Y/N letters; unique ids: %d, live=Y: %d):" % (len(uniq), sum(1 for v in uniq.values() if v.get("can_use_live_ads") is True)),
+          *summ,
           "OBJECTIVE NAMES SEEN: %s" % (", ".join(sorted(R["objectives"])) or NA),
           "LIVE-RELATED CATALOG OPS: %s" % (", ".join(n for n in sorted(specs) if n != "error" and re.search(r"live|communit|boost", n)) or "NONE (a LIVE promotion op does not exist yet)"),
           "IRAQ AVAILABILITY OF LIVE ADS: UNKNOWN (no read endpoint says so; needs phase B: one PAUSED probe campaign, zero spend, owner approval)",

@@ -27,6 +27,12 @@ class T(unittest.TestCase):
         self.assertIn("LIVE-RELATED IDENTITY FIELDS: can_use_live_ads", out); self.assertIn("LEAD_GENERATION", out); self.assertNotIn("SECRET", out); self.assertNotIn("access_token", out)
         self.assertIn("IRAQ AVAILABILITY OF LIVE ADS: UNKNOWN", out); self.assertIn("NO CAMPAIGN CREATED", out); self.assertTrue(all(o in ("tiktok.read_advertiser", "tiktok.read_campaigns", "tiktok.read_identities", "tiktok.read_tt_accounts") for o, _ in calls))
 
+    def test_identity_summary_uses_yn_letters_and_dedupes(self):
+        rows = [{"identity_id": "aaaa1111bbbb2222", "identity_type": "TT_USER", "can_use_live_ads": True, "can_manage_message": False, "can_push_video": True},
+                {"identity_id": "cccc3333dddd4444", "identity_type": "BC_AUTH_TT", "can_use_live_ads": False, "can_manage_message": True, "can_push_video": True}]
+        bk, _ = self.fake(rows); out = tool.report(tool.gather(wad, bk, SPECS), SPECS)
+        self.assertIn("unique ids: 2, live=Y: 1", out); self.assertIn("id=...bbbb2222 live=Y msg=N push=Y type=TT_USER", out); self.assertIn("id=...dddd4444 live=N msg=Y push=Y type=BC_AUTH_TT", out)
+
     def test_no_live_fields_is_not_a_verdict(self):
         bk, _ = self.fake([{"identity_id": "I1", "identity_type": "AUTH_CODE"}]); out = tool.report(tool.gather(wad, bk, SPECS), SPECS)
         self.assertIn("NONE FOUND", out); self.assertIn("does not prove", out); self.assertIn("a LIVE promotion op does not exist yet", out)
