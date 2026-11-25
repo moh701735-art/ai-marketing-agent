@@ -52,6 +52,13 @@ class T(unittest.TestCase):
         self.ext = True; specs2 = {k: v for k, v in specs.items() if "tt_account" not in k}; bk2, _ = self.fake([]); R2 = tool.gather(wad, bk2, specs2)
         self.assertTrue(any("unknown_op" in e for e in R2["id_errors"])); self.assertIn("identity read error", tool.report(R2, specs2))
 
+    def test_catalog_enums_reported_and_live_like_values_detected(self):
+        specs = dict(SPECS); specs["tiktok.create_campaign"] = {"write": True, "path": "/c", "params": {"objective_type": "enum*"}, "enums": {"objective_type": ["TRAFFIC", "LEAD_GENERATION", "LIVE_SHOPPING"], "budget_mode": ["BUDGET_MODE_TOTAL"]}}
+        out = tool.report(tool.gather(wad, self.fake([])[0], specs), specs)
+        self.assertIn("create_campaign.objective_type = TRAFFIC, LEAD_GENERATION, LIVE_SHOPPING", out); self.assertIn("create_campaign.objective_type=LIVE_SHOPPING", out)
+        specs["tiktok.create_campaign"]["enums"]["objective_type"] = ["TRAFFIC"]; out2 = tool.report(tool.gather(wad, self.fake([])[0], specs), specs)
+        self.assertIn("NONE (the catalog enums do not list any LIVE value", out2)
+
     def test_catalog_dump_option(self):
         def fake(cmd, inp=None): return subprocess.CompletedProcess(cmd, 0, stdout='{"tiktok.read_x": {"write": false, "path": "/", "params": {}}, "tiktok.create_y": {"write": true, "path": "/", "params": {}}}\n', stderr="")
         self.assertIn("tiktok.read_x", tool.catalog_dump("img", fake)[0])

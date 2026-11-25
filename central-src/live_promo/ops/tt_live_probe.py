@@ -7,7 +7,7 @@ import importlib.util, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NA = "N/A"
-RX_OPS = r"identit|live|communit|promot|video_info|item|creative|boost|spark|tt_account|tiktok_account|business_acc"
+RX_OPS = r"identit|live|communit|promot|video_info|item|creative|boost|spark|tt_account|tiktok_account|business_acc|create_campaign|create_adgroup|create_ad$|sp_create"
 CAP_KEY = re.compile(r"^(can_.*|is_.*|identity_type|identity_id|status|identity_authorized.*|.*live.*|.*stream.*|.*ads.*|.*promot.*)$", re.I)
 INTRO = r'''
 import json, sys, re, os
@@ -20,7 +20,14 @@ rx = re.compile(os.environ.get("TL_RX"), re.I); out = {}
 for n, o in sorted(catalog.OPS.items()):
     if n.startswith("tiktok.") and rx.search(n):
         ps = getattr(o, "params", {}) or {}
-        out[n] = {"write": bool(getattr(o, "write", False)), "path": getattr(o, "path", None), "params": {k: (getattr(v, "kind", str(v)) + ("*" if getattr(v, "required", False) else "")) for k, v in ps.items()}}
+        en = {}
+        for k, v in ps.items():
+            vals = None
+            for a in ("values", "enum", "choices", "allowed", "options"):
+                x = getattr(v, a, None)
+                if x: vals = [str(i) for i in list(x)[:40]]; break
+            if vals: en[k] = vals
+        out[n] = {"write": bool(getattr(o, "write", False)), "path": getattr(o, "path", None), "enums": en, "params": {k: (getattr(v, "kind", str(v)) + ("*" if getattr(v, "required", False) else "")) for k, v in ps.items()}}
 print(json.dumps(out))
 '''
 
@@ -108,12 +115,17 @@ def report(R, specs):
     L.append("\nCATALOG OPS related to identity/live/community/promote (%d):" % len([n for n in specs if n != "error"]))
     if "error" in specs: L.append("  " + fold(specs["error"]))
     for n, s in sorted((k, v) for k, v in specs.items() if k != "error"): L.append("  %s %s params=%s" % ("W" if s["write"] else "r", n, ",".join(sorted(s["params"])) or "-"))
+    L.append("\nCREATE-OP ENUMS the Broker catalog allows (write ops are only DESCRIBED here, never called):")
+    for n, sp in sorted((k, v) for k, v in specs.items() if k != "error" and re.search(r"create_campaign|create_adgroup|create_ad$|sp_create", k)):
+        for k, vals in sorted((sp.get("enums") or {}).items()):
+            if re.search(r"objective|promotion|optimiz|format|identity|billing|bid_type|placement|type|goal|event", k): L.append("  %s.%s = %s" % (n.replace("tiktok.", ""), k, fold(", ".join(vals))[:260]))
     L.append("\nOBJECTIVES this account already uses (objective_type / campaign_type: count):")
     for k, n in sorted(R["objectives"].items()): L.append("  %s: %d" % (fold(k), n))
     L.append("\nIDENTITIES via %s [%s] (%d rows):" % (R["id_op"] or NA, R.get("id_src", NA), len(R["identities"])))
     for i in R["identities"][:12]: L.append("  " + fold(json.dumps(i, ensure_ascii=False))[:300])
     for e in R["id_errors"][:4]: L.append("  identity read error: " + e)
     live = sorted(k for k in R["id_keys"] if re.search(r"live|stream", k, re.I))
+    liveish = fold(", ".join(sorted({"%s.%s=%s" % (n.replace("tiktok.", ""), k, v) for n, sp in specs.items() if n != "error" for k, vals in (sp.get("enums") or {}).items() for v in vals if re.search(r"live|stream|communit|engag", v, re.I)}))) or "NONE (the catalog enums do not list any LIVE value; phase C must extend the catalog)"
     uniq = {}
     for i in R["identities"]: uniq.setdefault(str(i.get("identity_id", "")), i)
     yn = lambda v: "Y" if v is True else ("N" if v is False else "?")
@@ -124,6 +136,7 @@ def report(R, specs):
           "LIVE-RELATED IDENTITY FIELDS: %s" % (", ".join(live) or "NONE FOUND (field names only; absence does not prove LIVE ads are unavailable)"),
           "LIVE-CAPABLE IDENTITIES (Y/N letters; unique ids: %d, live=Y: %d):" % (len(uniq), sum(1 for v in uniq.values() if v.get("can_use_live_ads") is True)),
           *summ,
+          "LIVE-LIKE VALUES IN CATALOG ENUMS: " + liveish,
           "OBJECTIVE NAMES SEEN: %s" % (", ".join(sorted(R["objectives"])) or NA),
           "LIVE-RELATED CATALOG OPS: %s" % (", ".join(n for n in sorted(specs) if n != "error" and re.search(r"live|communit|boost", n)) or "NONE (a LIVE promotion op does not exist yet)"),
           "IRAQ AVAILABILITY OF LIVE ADS: UNKNOWN (no read endpoint says so; needs phase B: one PAUSED probe campaign, zero spend, owner approval)",
