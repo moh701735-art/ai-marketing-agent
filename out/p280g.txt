@@ -1,0 +1,1 @@
+cd /opt/central && (grep -n "300\|\[:2[0-9][0-9]\]\|\[:4[0-9][0-9]\]\|\[:500\]" broker/app/classify.py broker/app/service.py broker/app/redact.py 2>/dev/null; echo ---; grep -n "def _tiktok" -A22 broker/app/classify.py | grep -n "message\|msg" ) 2>&1 | cut -c1-200 | head -40 | LC_ALL=C sed -E 's/[^ -~]/?/g'
