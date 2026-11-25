@@ -1,0 +1,1 @@
+cd /opt/central && python3 ops/tt-live-b2.py 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
