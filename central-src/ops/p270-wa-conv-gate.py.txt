@@ -1,0 +1,35 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P270_BASE', '/opt/central/')
+IN = 'n8n/wf_ingress.py'
+ing = open(BASE + IN, encoding='utf-8').read()
+if 'p270' in ing: print('APPLY270_OK changed=0 (already applied)'); sys.exit(0)
+if 'p266' not in ing or 'p269a' not in ing: sys.exit('PATCH FAIL (nothing written): p266 and p269a must be applied first')
+# بوابة: p266/p269a يشتغلان فقط لو النص فيه «محادثات» أو «رسائل واتساب» (بدون backslashes)
+CONVW = "/(?:محادث|(?:رسائل|رسايل)[ ]*واتس|conversation)/i.test(String(d.text || ''))"
+assert '\\' not in CONVW
+HOST = "/(?:^|[^a-z0-9])(?:wa[.]me|api[.]whatsapp[.]com|whatsapp[.]com|wa[.][a-z0-9-]+[.][a-z]{2,})(?:[/]|$|[^a-z0-9])/i.test(String(d.text || ''))"
+def lines_with(sub): return ' | '.join('%d: %s' % (i + 1, ascii(l.strip()[:200])) for i, l in enumerate(ing.split('\n')) if sub in l)[:900]
+lo, hi = 0, len(ing)
+ms = list(re.finditer(r'["\']AI: plan["\']\s*,\s*r"""', ing))
+if len(ms) == 1:
+    e = ing.find('"""', ms[0].end())
+    if e > 0: lo, hi = ms[0].end(), e
+seg = ing[lo:hi]
+fails = []
+r66 = list(re.finditer(r'(?m)^([^\n]*?/\*p266\*/ \()([^\n]*)\);([^\n]*)$', seg))
+if len(r66) != 1: fails.append('p266 line anchor count=%d; lines: %s' % (len(r66), lines_with('p266')))
+old269 = '/*p269a*/ ' + HOST
+if seg.count(old269) != 1: fails.append('p269a expression count=%d (modified?); lines: %s' % (seg.count(old269), lines_with('p269a')))
+if fails: sys.exit('PATCH FAIL (nothing written): ' + ' || '.join(fails))
+m = r66[0]
+new66 = m.group(1) + CONVW + ' && (' + m.group(2) + '));' + m.group(3)
+seg2 = seg[:m.start()] + new66 + seg[m.end():]
+seg2 = seg2.replace(old269, '/*p269a*/ (' + CONVW + ' && ' + HOST + ') /*p270*/', 1)
+shutil.copy(BASE + IN, BASE + IN + '.pre270')
+open(BASE + IN, 'w', encoding='utf-8').write(ing[:lo] + seg2 + ing[hi:])
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + IN + '.pre270', BASE + IN)
+        sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY270_OK p266 (wa.me number) and p269a (WhatsApp host halt) now apply ONLY when the text says conversations («محادثات» / «رسائل واتساب»); sales/traffic with any landing page go their normal path (p270)')
