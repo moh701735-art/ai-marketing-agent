@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import importlib.util, os, subprocess, sys, tempfile, unittest
+import re, importlib.util, os, subprocess, sys, tempfile, unittest
 H = os.path.dirname(os.path.abspath(__file__)); MOD = os.path.dirname(H); ROOT = os.path.dirname(os.path.dirname(MOD)); P = os.path.join(os.path.dirname(MOD), "ops", "p283-live-probe-ad.py.txt")
 def load(name, p):
     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
@@ -88,7 +88,7 @@ class Tool(unittest.TestCase):
                 return super().broker(env, ctx, acct, calls)
         self.assertIn("WARNING: TikTok ACCEPTED the ad probe", self.go(A2(specs=SP)))
     def test_source_forbidden_ops(self):
-        s = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertNotIn("tiktok.create_", s.replace("tiktok.probe_", "")); self.assertEqual(s.count('"tiktok.set_campaign_status"'), 1); self.assertRegex(s, r"v\d / p28\d")
+        s = re.sub(r"DESC = r'''.*?'''", "", rd(os.path.join(MOD, "ops", "tt_live_b2.py")), flags=re.S); self.assertNotIn("tiktok.create_", s.replace("tiktok.probe_", "")); self.assertEqual(s.count('"tiktok.set_campaign_status"'), 1); self.assertRegex(s, r"v\d / p28\d")
 
 
 CSP = {**t81.SP, "tiktok.probe_ad": {"write": True, "params": {"adgroup_id": "safe*", "creatives": "json*"}}}

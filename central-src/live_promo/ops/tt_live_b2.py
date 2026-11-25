@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""المرحلة B2 لـ«ترويج البث المباشر» (v5 / p284؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
+"""المرحلة B2 لـ«ترويج البث المباشر» (v6 / p285؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
 ثم مجموعات إعلانية **بقيمة غلط عمداً** (PRB_BAD) حتى يرجّع تيك توك قوائم allowed لـpromotion_type/optimization_goal/... — لا تُنشأ مجموعة ولا إعلان.
 الحراسات بالكود: الهدف فقط ENGAGEMENT أو RF_ENGAGEMENT؛ كل نداء مجموعة لازم يحمل PRB_BAD؛ العملية الوحيدة غير القراءة الأخرى = set_campaign_status DISABLE.
 الإخراج ASCII (القيم مكتوبة عادية + بحروف مفرّقة حتى لا تغيّرها ترجمة المتصفح). يتطلب p277 + p263. غير المعروف = N/A.
@@ -22,10 +22,10 @@ def dummies():
     t0 = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(days=1); t1 = t0 + datetime.timedelta(days=1); f = "%Y-%m-%d %H:%M:%S"
     return {"location_ids": ["99237"], "budget": 50, "budget_mode": "BUDGET_MODE_TOTAL", "schedule_type": "SCHEDULE_START_END", "schedule_start_time": t0.strftime(f), "schedule_end_time": t1.strftime(f),
             "gender": "GENDER_UNLIMITED", "age_groups": ["AGE_18_24"], "placement_type": "PLACEMENT_TYPE_NORMAL", "placements": ["PLACEMENT_TIKTOK"], "pacing": "PACING_MODE_SMOOTH", "operation_status": "DISABLE", "languages": ["ar"],
-            "adgroup_id": FAKE_AG, "ad_name": NAME, "ad_text": "probe", "identity_id": "1800000000000000002", "identity_type": "AUTH_CODE", "tiktok_item_id": "1800000000000000003", "video_id": "v1800000000000000004", "call_to_action": "LEARN_MORE", "landing_page_url": "https://example.com/"}
+            "optimization_goal": "PROFILE_VIEWS", "billing_event": "OCPM", "bid_type": "BID_TYPE_NO_BID", "promotion_type": "WEBSITE_OR_DISPLAY", "promotion_target_type": "UNSET", "adgroup_id": FAKE_AG, "ad_name": NAME, "ad_text": "probe", "identity_id": "1800000000000000002", "identity_type": "AUTH_CODE", "tiktok_item_id": "1800000000000000003", "video_id": "v1800000000000000004", "call_to_action": "LEARN_MORE", "landing_page_url": "https://example.com/"}
 
 
-MISS = re.compile(r"missing param:? ([a-z_]+)|([a-z_]{3,}) (?:is )?(?:required|missing)", re.I)
+MISS = re.compile(r"missing param:? ([a-z_]+)|([a-z_]{3,}) (?:is )?(?:required|missing)|^([a-z_]+): Missing data for required field", re.I)
 LIVE_RX = re.compile(r"live|stream|room|follow|view|engag|interact|communit", re.I)
 
 
@@ -49,6 +49,33 @@ def introspect_more(wad, env):
     except Exception: return {}
 
 
+DESC = r'''
+import json, sys
+for root in ("/app", "/srv", "/opt", "/"): sys.path.insert(0, root)
+try: from app import catalog
+except Exception:
+    from broker.app import catalog
+out = {}
+for opn in ("tiktok.probe_ad", "tiktok.create_ad"):
+    o = catalog.OPS.get(opn)
+    if o is None: continue
+    for k, v in (getattr(o, "params", {}) or {}).items():
+        if k in ("creatives", "ad_format", "adgroup_id"):
+            try: attrs = {a: repr(b)[:300] for a, b in vars(v).items()}
+            except Exception: attrs = {"repr": repr(v)[:300]}
+            out[opn + "." + k] = {"type": type(v).__name__, "attrs": attrs}
+print(json.dumps(out))
+'''
+
+
+def describe(wad, env):
+    """يطبع مواصفة معاملات الإعلان كما يعرّفها الكتالوج الحي (مثلاً قيم ad_format المسموحة محلياً)؛ قراءة فقط داخل صورة الـBroker بلا شبكة"""
+    try:
+        r = wad.sh(["docker", "run", "--rm", "--network", "none", "--entrypoint", "python", env.img, "-c", DESC])
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except Exception as e: return {"error": type(e).__name__}
+
+
 def keep(spec, want):
     p = (spec or {}).get("params")
     return {k: v for k, v in want.items() if p is None or k in p}
@@ -64,6 +91,9 @@ def adgroup_call(cid, fields, spec=None):
     if not re.fullmatch(r"[0-9]{6,25}", str(cid)): raise SystemExit("REFUSED: bad campaign id")
     fields = [f for f in fields if f in FIELDS]
     want = {"campaign_id": str(cid), "adgroup_name": NAME}
+    D = dummies()
+    for k in ("schedule_type", "schedule_start_time", "schedule_end_time", "location_ids", "budget_mode", "budget"):
+        if k not in fields: want[k] = D[k]                     # قاعدة صالحة: تيك توك يرفض «الجدولة ناقصة» قبل ما يفحص الحقل المقصود
     for f in fields: want[f] = SENT
     params = keep(spec, want)
     if not any(params.get(f) == SENT for f in FIELDS): raise SystemExit("REFUSED: adgroup probe without an invalid value")
@@ -117,7 +147,7 @@ def probe(wad, env, ctx, acct, call, spec, L, maxfill=14):
     for _ in range(maxfill + 1):
         r = wad.broker(env, ctx, acct, [call])[0]
         e = err_of(r); m = MISS.search(str(e.get("message") or ""))
-        name = (m.group(1) or m.group(2)) if m and str(e.get("class")) == "invalid_params" else None
+        name = (m.group(1) or m.group(2) or m.group(3)) if m and (str(e.get("class")) == "invalid_params" or m.group(3)) else None
         if not name or name in call["params"] or name not in D or name not in (spec or {}).get("params", {}): break
         call = {**call, "params": {**call["params"], name: D[name]}}; filled.append(name)
         if not has_sentinel(call["params"]): raise SystemExit("REFUSED: probe lost its invalid value")
@@ -190,6 +220,8 @@ def _run(L, wad, env, ctx, acct, obj, cid, only):
         if r.get("ok"): L.append("WARNING: TikTok ACCEPTED %s (an ad group may exist inside the paused campaign - delete it in Ads Manager)" % call["label"])
         tk = show_err(L, call["label"], r); res[call["label"]] = tk
     if sp("tiktok.probe_ad") and (not only or "ad_format" in only):
+        if hasattr(wad, "sh"):
+            for k, v in describe(wad, env).items(): L.append("AD PARAM SPEC %s: %s" % (k, fold(json.dumps(v, ensure_ascii=False))[:700]))
         call = ad_call(sp("tiktok.probe_ad"))
         if call is None: L.append("AD PROBE SKIPPED: tiktok.probe_ad has no ad_format/creatives param in the live catalog: " + ",".join(sorted((sp("tiktok.probe_ad") or {}).get("params", {}))))
         else:

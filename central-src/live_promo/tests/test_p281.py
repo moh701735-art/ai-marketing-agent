@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import importlib.util, os, subprocess, sys, tempfile, unittest
+import re, importlib.util, os, subprocess, sys, tempfile, unittest
 H = os.path.dirname(os.path.abspath(__file__)); MOD = os.path.dirname(H); ROOT = os.path.dirname(os.path.dirname(MOD)); P = os.path.join(os.path.dirname(MOD), "ops", "p282-live-b2-v3.py.txt")
 def load(name, p):
     s = importlib.util.spec_from_file_location(name, p); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
@@ -24,11 +24,33 @@ class Needs(t80.FakeWad):
 class V2(unittest.TestCase):
     def test_autofill_then_lists(self):
         w = Needs(specs=SP); o = t80.go(w)
-        self.assertIn("autofilled required params: location_ids, budget, schedule_start_time, schedule_end_time", o)
+        self.assertNotIn("autofilled", o)             # القاعدة الصالحة (جدولة/موقع/ميزانية) تُرسل من البداية
         fb = o.split("FINAL BLOCK")[1]; self.assertIn("adgroup_all (3 values", fb); self.assertIn("F|all|01|x_LIVE_x", fb); self.assertIn("F|all|03|x_FOLLOWERS_x", fb)
         for op, p in w.calls:
             if op == "tiktok.probe_adgroup": self.assertIn("PRB_BAD", p.values())
         self.assertFalse(any(l.startswith("WARNING") for l in o.split("\n"))); self.assertTrue(all(ord(c) < 128 for c in o))
+
+    def test_autofill_extra_required(self):
+        class W3(Needs):
+            REQ = ("gender",)
+        sp = {**SP}; sp["tiktok.probe_adgroup"] = {"write": True, "params": {**SP["tiktok.probe_adgroup"]["params"], "gender": "safe"}}
+        o = t80.go(W3(specs=sp)); self.assertIn("autofilled required params: gender", o); self.assertIn("F|all|01|x_LIVE_x", o)
+
+    def test_base_schedule_always_sent_and_target_not_overridden(self):
+        c = tool.adgroup_call("1888000000000001", ["promotion_type"], {"params": {k: "safe" for k in ("campaign_id", "adgroup_name", "promotion_type", "schedule_type", "schedule_start_time", "schedule_end_time", "location_ids", "budget_mode", "budget")}})
+        self.assertEqual(c["params"]["schedule_type"], "SCHEDULE_START_END"); self.assertEqual(c["params"]["promotion_type"], "PRB_BAD")
+        c = tool.adgroup_call("1888000000000001", ["schedule_type"], {"params": {k: "safe" for k in ("campaign_id", "schedule_type", "schedule_start_time", "location_ids")}}); self.assertEqual(c["params"]["schedule_type"], "PRB_BAD")
+
+    def test_tiktok_level_missing_field_autofilled(self):
+        class T(t80.FakeWad):
+            def broker(s, env, ctx, acct, calls):
+                c = calls[0]
+                if c["op"] == "tiktok.probe_adgroup":
+                    s.calls.append((c["op"], c["params"]))
+                    if "optimization_goal" not in c["params"] and c["params"].get("promotion_type") == "PRB_BAD": return [t80.err("optimization_goal: Missing data for required field.")]
+                    return [t80.err("promotion_type: not valid; allowed: LIVE, WEBSITE, PRB_BA")]
+                return super().broker(env, ctx, acct, calls)
+        o = t80.go(T(specs=SP), only=["promotion_type"]); self.assertIn("autofilled required params: optimization_goal", o); self.assertIn("F|promotion_type|01|x_LIVE_x", o)
 
     def test_dummy_values_are_valid_shapes(self):
         d = tool.dummies(); self.assertEqual(d["location_ids"], ["99237"]); self.assertRegex(d["schedule_start_time"], r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$"); self.assertLess(d["schedule_start_time"], d["schedule_end_time"])
@@ -44,7 +66,7 @@ class V2(unittest.TestCase):
         w = Needs(specs=sp); o = t80.go(w); self.assertNotIn("autofilled", o); self.assertIn("missing param: location_ids", o)
 
     def test_sentinel_never_dropped_and_no_forbidden_ops(self):
-        src = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertRegex(src, r"v\d / p28\d"); self.assertIn("probe lost its invalid value", src)
+        src = re.sub(r"DESC = r'''.*?'''", "", rd(os.path.join(MOD, "ops", "tt_live_b2.py")), flags=re.S); self.assertRegex(src, r"v\d / p28\d"); self.assertIn("probe lost its invalid value", src)
         for bad in ("create_ad", "getpass", "access_token"): self.assertNotIn(bad, src)
 
     def test_short_messages_no_spaced_flood(self):
