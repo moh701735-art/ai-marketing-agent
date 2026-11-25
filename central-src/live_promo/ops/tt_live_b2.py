@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""المرحلة B2 لـ«ترويج البث المباشر» (بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
+"""المرحلة B2 لـ«ترويج البث المباشر» (v2 / p281؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
 ثم مجموعات إعلانية **بقيمة غلط عمداً** (PRB_BAD) حتى يرجّع تيك توك قوائم allowed لـpromotion_type/optimization_goal/... — لا تُنشأ مجموعة ولا إعلان.
 الحراسات بالكود: الهدف فقط ENGAGEMENT أو RF_ENGAGEMENT؛ كل نداء مجموعة لازم يحمل PRB_BAD؛ العملية الوحيدة غير القراءة الأخرى = set_campaign_status DISABLE.
 الإخراج ASCII (القيم مكتوبة عادية + بحروف مفرّقة حتى لا تغيّرها ترجمة المتصفح). يتطلب p277 + p263. غير المعروف = N/A.
@@ -14,6 +14,15 @@ SENT = "PRB_BAD"
 OBJ_OK = ("ENGAGEMENT", "RF_ENGAGEMENT")
 FIELDS = ("promotion_type", "optimization_goal", "billing_event", "bid_type", "promotion_target_type", "optimization_event", "schedule_type", "messaging_app_type", "promotion_website_type")
 TOKEN = re.compile(r"[A-Z][A-Z0-9_]{2,}")
+def dummies():
+    """قيم تعبئة آمنة للمعاملات الإلزامية على جهة Broker (أي مجموعة بقيمة PRB_BAD ترفضها تيك توك دائماً فلا تنشأ مجموعة)"""
+    import datetime
+    t0 = datetime.datetime.utcnow() + datetime.timedelta(days=1); t1 = t0 + datetime.timedelta(days=1); f = "%Y-%m-%d %H:%M:%S"
+    return {"location_ids": ["99237"], "budget": 50, "budget_mode": "BUDGET_MODE_TOTAL", "schedule_type": "SCHEDULE_START_END", "schedule_start_time": t0.strftime(f), "schedule_end_time": t1.strftime(f),
+            "gender": "GENDER_UNLIMITED", "age_groups": ["AGE_18_24"], "placement_type": "PLACEMENT_TYPE_NORMAL", "placements": ["PLACEMENT_TIKTOK"], "pacing": "PACING_MODE_SMOOTH", "operation_status": "DISABLE", "languages": ["ar"]}
+
+
+MISS = re.compile(r"missing param:? ([a-z_]+)|([a-z_]{3,}) (?:is )?(?:required|missing)", re.I)
 LIVE_RX = re.compile(r"live|stream|room|follow|view|engag|interact|communit", re.I)
 
 
@@ -73,11 +82,25 @@ def find_list(d):
 def err_of(r): return (r or {}).get("error") or {}
 
 
+def probe(wad, env, ctx, acct, call, spec, L, maxfill=14):
+    """ينادي؛ إن رفض الـBroker بـ«missing param: X» وX بجدول التعبئة والكتالوج → يضيفه ويعيد (بحد أقصى). ما يلمس PRB_BAD: يبقى بالنداء دائماً."""
+    D = dummies(); filled = []
+    for _ in range(maxfill + 1):
+        r = wad.broker(env, ctx, acct, [call])[0]
+        e = err_of(r); m = MISS.search(str(e.get("message") or ""))
+        name = (m.group(1) or m.group(2)) if m and str(e.get("class")) == "invalid_params" else None
+        if not name or name in call["params"] or name not in D or name not in (spec or {}).get("params", {}): break
+        call = {**call, "params": {**call["params"], name: D[name]}}; filled.append(name)
+        if not any(call["params"].get(f) == SENT for f in FIELDS): raise SystemExit("REFUSED: probe lost its invalid value")
+    if filled: L.append("   autofilled required params: " + ", ".join(filled))
+    return r
+
+
 def show_err(L, label, r):
     e = err_of(r); m = str(e.get("message") or ""); tk = tokens(m)
     L.append("[%s] ok=%s class=%s code=%s len=%d%s" % (label, bool(r.get("ok")), e.get("class", NA), e.get("platform_code", NA), len(m), " CUT-AT-300(list may be incomplete)" if len(m) == 300 else ""))
     L.append("   msg: " + fold(m)[:300])
-    if not tk or len(m) == 300:
+    if len(m) >= 200 or (not tk and len(m) > 60):
         for i in range(0, min(len(m), 400), 40): L.append("   M%02d %s" % (i // 40 + 1, spaced(fold(m)[i:i + 40])))
     return tk
 
@@ -123,7 +146,8 @@ def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print):
     L.append("required params of the op (Broker side): " + (", ".join(need) or "none"))
     calls = ([adgroup_call(cid, cands, sp("tiktok.probe_adgroup"))] if len(cands) > 1 else []) + [adgroup_call(cid, [f], sp("tiktok.probe_adgroup")) for f in cands]
     for call in calls:
-        r = wad.broker(env, ctx, acct, [call])[0]
+        L.append("-- probe " + call["label"])
+        r = probe(wad, env, ctx, acct, call, sp("tiktok.probe_adgroup"), L)
         if r.get("ok"): L.append("WARNING: TikTok ACCEPTED %s (an ad group may exist inside the paused campaign - delete it in Ads Manager)" % call["label"])
         tk = show_err(L, call["label"], r); res[call["label"]] = tk
     L += ["", "======== FINAL BLOCK (ASCII) ========", "campaign=%s status=%s objective=%s" % (cid, ops, c.get("objective_type", obj))]

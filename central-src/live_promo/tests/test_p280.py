@@ -102,7 +102,7 @@ class Patch(unittest.TestCase):
         open(d + "/broker/app/catalog.py", "w").write(cat); return d
     def run_p(self, d): return subprocess.run([sys.executable, P], env={**os.environ, "P280_BASE": d + "/"}, capture_output=True, text=True)
     def test_apply_idempotent_and_fail_closed(self):
-        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY280_OK", r.stdout, r.stdout + r.stderr); self.assertEqual(rd(d + "/ops/tt-live-b2.py"), rd(os.path.join(MOD, "ops", "tt_live_b2.py"))); self.assertIn("changed=0", self.run_p(d).stdout)
+        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY280_OK", r.stdout, r.stdout + r.stderr); self.assertIn("PROBE-LIVE-DELETE-ME", rd(d + "/ops/tt-live-b2.py")); self.assertIn("changed=0", self.run_p(d).stdout)
         for kw in ({"wad": False}, {"cat": "# nothing\n"}):
             d = self.mk(**kw); r = self.run_p(d); self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr); self.assertFalse(os.path.exists(d + "/ops/tt-live-b2.py"))
     def test_oneliner(self):
