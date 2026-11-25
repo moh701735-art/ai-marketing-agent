@@ -80,7 +80,7 @@ class Tool(unittest.TestCase):
         o = self.go(Adv(specs=t81.SP)); self.assertIn("tiktok.probe_ad NOT IN CATALOG", o)
     def test_ad_probe_guards(self):
         c = tool.ad_call(SP["tiktok.probe_ad"]); self.assertEqual(c["params"]["ad_format"], "PRB_BAD"); self.assertEqual(c["params"]["adgroup_id"], tool.FAKE_AG)
-        with self.assertRaises(SystemExit): tool.ad_call({"params": {"adgroup_id": "x"}})                          # ad_format غير موجود بالكتالوج => رفض
+        self.assertIsNone(tool.ad_call({"params": {"adgroup_id": "x"}}))                                           # لا ad_format ولا creatives بالكتالوج => لا نداء (بدون استثناء)
     def test_ad_accepted_warns(self):
         class A2(Adv):
             def broker(s, env, ctx, acct, calls):
@@ -88,7 +88,37 @@ class Tool(unittest.TestCase):
                 return super().broker(env, ctx, acct, calls)
         self.assertIn("WARNING: TikTok ACCEPTED the ad probe", self.go(A2(specs=SP)))
     def test_source_forbidden_ops(self):
-        s = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertNotIn("tiktok.create_", s.replace("tiktok.probe_", "")); self.assertEqual(s.count('"tiktok.set_campaign_status"'), 1); self.assertIn("v4 / p283", s)
+        s = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertNotIn("tiktok.create_", s.replace("tiktok.probe_", "")); self.assertEqual(s.count('"tiktok.set_campaign_status"'), 1); self.assertRegex(s, r"v\d / p28\d")
+
+
+CSP = {**t81.SP, "tiktok.probe_ad": {"write": True, "params": {"adgroup_id": "safe*", "creatives": "json*"}}}
+
+
+class Creatives(Adv):
+    def broker(self, env, ctx, acct, calls):
+        c = calls[0]
+        if c["op"] == "tiktok.probe_ad":
+            self.calls.append((c["op"], c["params"])); return [t80.err("creatives[0].ad_format: not valid; allowed: SINGLE_VIDEO, LIVE_CONTENT, PRB_BA")]
+        return super().broker(env, ctx, acct, calls)
+
+
+class V5(unittest.TestCase):
+    def go(self, w, **kw):
+        out = []; tool.run(w, None, "c", "7593807340588253185", out=out.append, **kw); return "\n".join(out)
+    def test_creatives_shape(self):
+        c = tool.ad_call(CSP["tiktok.probe_ad"]); cr = c["params"]["creatives"][0]; self.assertEqual(cr["ad_format"], "PRB_BAD"); self.assertEqual(c["params"]["adgroup_id"], tool.FAKE_AG); self.assertTrue(tool.has_sentinel(c["params"]))
+        w = Creatives(specs=CSP); o = self.go(w); self.assertIn("shape: creatives[]", o); self.assertIn("F|ad_format|02|x_LIVE_CONTENT_x", o)
+        for op, p in w.calls:
+            if op == "tiktok.probe_ad": self.assertEqual(p["creatives"][0]["ad_format"], "PRB_BAD"); self.assertEqual(p["adgroup_id"], tool.FAKE_AG)
+    def test_no_usable_param_is_skipped_not_fatal(self):
+        sp = {**t81.SP, "tiktok.probe_ad": {"write": True, "params": {"adgroup_id": "safe*", "something": "x"}}}
+        o = self.go(Adv(specs=sp)); self.assertIn("AD PROBE SKIPPED", o); self.assertIn("FINAL BLOCK", o); self.assertIn("F|promotion_type|01|x_LIVE_SHOPPING_x", o)
+    def test_abort_still_prints_everything(self):
+        class Bad(Adv):
+            def broker(self, env, ctx, acct, calls):
+                if calls[0]["op"] == "tiktok.probe_adgroup": raise SystemExit("broker call failed: boom")
+                return super().broker(env, ctx, acct, calls)
+        o = self.go(Bad(specs=SP)); self.assertIn("ABORTED: broker call failed: boom", o); self.assertIn("tiktok.probe_adgroup: write=True", o)
 
 
 if __name__ == "__main__":

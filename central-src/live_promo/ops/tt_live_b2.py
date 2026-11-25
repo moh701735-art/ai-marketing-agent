@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""المرحلة B2 لـ«ترويج البث المباشر» (v4 / p283؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
+"""المرحلة B2 لـ«ترويج البث المباشر» (v5 / p284؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
 ثم مجموعات إعلانية **بقيمة غلط عمداً** (PRB_BAD) حتى يرجّع تيك توك قوائم allowed لـpromotion_type/optimization_goal/... — لا تُنشأ مجموعة ولا إعلان.
 الحراسات بالكود: الهدف فقط ENGAGEMENT أو RF_ENGAGEMENT؛ كل نداء مجموعة لازم يحمل PRB_BAD؛ العملية الوحيدة غير القراءة الأخرى = set_campaign_status DISABLE.
 الإخراج ASCII (القيم مكتوبة عادية + بحروف مفرّقة حتى لا تغيّرها ترجمة المتصفح). يتطلب p277 + p263. غير المعروف = N/A.
@@ -71,10 +71,19 @@ def adgroup_call(cid, fields, spec=None):
 
 
 def ad_call(spec=None):
-    """إعلان بقيمة ad_format غلط عمداً ومجموعة وهمية: الكود يرفض أي نداء بدون الاثنين (لا يمكن أن يُنشأ إعلان)"""
-    params = keep(spec, {"adgroup_id": FAKE_AG, "ad_name": NAME, "ad_format": SENT})
-    if params.get("ad_format") != SENT or params.get("adgroup_id") != FAKE_AG: raise SystemExit("REFUSED: ad probe needs the invalid ad_format and the fake ad group")
+    """إعلان بقيمة ad_format غلط عمداً ومجموعة وهمية (لا يمكن أن يُنشأ إعلان). شكلان حسب مواصفة العملية الحية: ad_format مباشر، أو creatives=[{...}] (الشكل الذي يستعمله _launch_spark). غير ممكن → None."""
+    ps = (spec or {}).get("params") or {}
+    if "ad_format" in ps: params = keep(spec, {"adgroup_id": FAKE_AG, "ad_name": NAME, "ad_format": SENT})
+    elif "creatives" in ps: params = keep(spec, {"adgroup_id": FAKE_AG, "creatives": [{"ad_name": NAME, "ad_format": SENT, "identity_id": "1800000000000000002", "identity_type": "AUTH_CODE", "tiktok_item_id": "1800000000000000003"}]})
+    else: return None
+    if not has_sentinel(params) or params.get("adgroup_id") != FAKE_AG: return None
     return {"label": "ad_format", "op": "tiktok.probe_ad", "params": params}
+
+
+def has_sentinel(params):
+    """يوجد PRB_BAD في حقل enum معروف: أعلى المعاملات أو داخل creatives[]"""
+    if any(params.get(f) == SENT for f in FIELDS + AD_FIELDS): return True
+    return any(isinstance(c, dict) and c.get("ad_format") == SENT for c in (params.get("creatives") or []) if isinstance(params.get("creatives"), list))
 
 
 def status_call(cid):
@@ -111,7 +120,7 @@ def probe(wad, env, ctx, acct, call, spec, L, maxfill=14):
         name = (m.group(1) or m.group(2)) if m and str(e.get("class")) == "invalid_params" else None
         if not name or name in call["params"] or name not in D or name not in (spec or {}).get("params", {}): break
         call = {**call, "params": {**call["params"], name: D[name]}}; filled.append(name)
-        if not any(call["params"].get(f) == SENT for f in FIELDS + AD_FIELDS): raise SystemExit("REFUSED: probe lost its invalid value")
+        if not has_sentinel(call["params"]): raise SystemExit("REFUSED: probe lost its invalid value")
         if call["op"] == "tiktok.probe_ad" and call["params"].get("adgroup_id") != FAKE_AG: raise SystemExit("REFUSED: ad probe lost the fake ad group")
     if filled: L.append("   autofilled required params: " + ", ".join(filled))
     return r
@@ -127,14 +136,21 @@ def show_err(L, label, r):
 
 
 def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print, only=None):
+    """يطبع كل ما جمعه حتى لو توقف مبكراً (SystemExit من الحراسات = سطر ABORTED بدل ضياع الإخراج)"""
     L = []
+    try: _run(L, wad, env, ctx, acct, obj, cid, only)
+    except SystemExit as e: L.append("ABORTED: %s" % e)
+    out("\n".join(L))
+
+
+def _run(L, wad, env, ctx, acct, obj, cid, only):
     specs = dict(wad.introspect(env))
     if "tiktok.probe_ad" not in specs and hasattr(wad, "sh"): specs.update({k: v for k, v in introspect_more(wad, env).items() if isinstance(v, dict)})
     sp = lambda n: specs.get(n)
     for n in ("tiktok.probe_campaign", "tiktok.probe_adgroup", "tiktok.probe_ad"):
         s = sp(n)
         L.append("%s: %s" % (n, ("write=%s params=%s" % (s.get("write"), ",".join(sorted(s["params"])))) if s else "NOT IN CATALOG (apply p277 + rebuild Broker)"))
-    if not sp("tiktok.probe_campaign") or not sp("tiktok.probe_adgroup"): out("\n".join(L)); return
+    if not sp("tiktok.probe_campaign") or not sp("tiktok.probe_adgroup"): return
     # 1) إيجاد/إنشاء الحملة
     st = "existing (LB_CID)" if cid else ""
     if not cid:
@@ -144,10 +160,10 @@ def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print, only=None):
     if not cid:
         r = wad.broker(env, ctx, acct, [campaign_call(obj, sp("tiktok.probe_campaign"))])[0]
         if not r.get("ok"):
-            L.append("CAMPAIGN NOT CREATED (TikTok/Broker refused):"); show_err(L, "create_campaign", r); L.append("NO CAMPAIGN CREATED."); out("\n".join(L)); return
+            L.append("CAMPAIGN NOT CREATED (TikTok/Broker refused):"); show_err(L, "create_campaign", r); L.append("NO CAMPAIGN CREATED."); return
         d = r.get("data") or {}; cid = str(d.get("campaign_id") or "")
         st = "CREATED just now (objective %s)" % obj
-        if not re.fullmatch(r"[0-9]{6,25}", cid): L.append("created but campaign_id not found in response: " + fold(json.dumps(d))[:200]); out("\n".join(L)); return
+        if not re.fullmatch(r"[0-9]{6,25}", cid): L.append("created but campaign_id not found in response: " + fold(json.dumps(d))[:200]); return
     L.append("campaign %s : %s" % (cid, st))
     # 2) قراءة الحالة + إيقاف إن لزم
     def status():
@@ -174,10 +190,13 @@ def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print, only=None):
         if r.get("ok"): L.append("WARNING: TikTok ACCEPTED %s (an ad group may exist inside the paused campaign - delete it in Ads Manager)" % call["label"])
         tk = show_err(L, call["label"], r); res[call["label"]] = tk
     if sp("tiktok.probe_ad") and (not only or "ad_format" in only):
-        call = ad_call(sp("tiktok.probe_ad")); L.append("-- probe ad_format (fake ad group %s)" % FAKE_AG)
-        r = probe(wad, env, ctx, acct, call, sp("tiktok.probe_ad"), L)
-        if r.get("ok"): L.append("WARNING: TikTok ACCEPTED the ad probe (unexpected) - check Ads Manager")
-        res["ad_format"] = show_err(L, "ad_format", r)
+        call = ad_call(sp("tiktok.probe_ad"))
+        if call is None: L.append("AD PROBE SKIPPED: tiktok.probe_ad has no ad_format/creatives param in the live catalog: " + ",".join(sorted((sp("tiktok.probe_ad") or {}).get("params", {}))))
+        else:
+            L.append("-- probe ad_format (fake ad group %s, shape: %s)" % (FAKE_AG, "creatives[]" if "creatives" in call["params"] else "direct"))
+            r = probe(wad, env, ctx, acct, call, sp("tiktok.probe_ad"), L)
+            if r.get("ok"): L.append("WARNING: TikTok ACCEPTED the ad probe (unexpected) - check Ads Manager")
+            res["ad_format"] = show_err(L, "ad_format", r)
     elif not only or "ad_format" in only: L.append("tiktok.probe_ad NOT IN CATALOG (apply p283 + rebuild Broker)")
     L += ["", "======== FINAL BLOCK (ASCII) ========", "campaign=%s status=%s objective=%s" % (cid, ops, c.get("objective_type", obj))]
     for k, tk in res.items():
@@ -187,7 +206,6 @@ def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print, only=None):
     named = sorted({t for tk in res.values() for t in tk if re.search(r"live|stream", t, re.I)})
     L += ["VALUES WITH LIVE OR STREAM IN THE NAME: " + (", ".join(wrap(t) for t in named) or "NONE FOUND"), "LIVE/VIEWER-LIKE VALUES: " + (", ".join(wrap(t) for t in live) or "NONE FOUND"),
           "No ad group and no ad were created (unless a line starting with WARNING: appears). The probe campaign stays PAUSED; delete it later in Ads Manager (name %s)." % NAME]
-    out("\n".join(L))
 
 
 def main():
