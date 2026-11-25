@@ -99,3 +99,5 @@
 - 25-11 omar-iyad: tenant CREATED (tenant_id 0aad150c-ec90-42e5-8fb6-ee5e546c5abe, webhook secret in .secrets/webhook-omar-iyad.txt, webhook NOT switched). Next: `out/fb-omar2.txt` (link-meta-web) → meta-perms → readiness ×2 → set-webhook (after bot new/old answer) → client tests → clients.md/CLAUDE.md (ends 2026-12-25).
 
 - 25-11 omar-iyad has 4–10 Business Portfolios (Admin in each): plan = hub portfolio + partner sharing + ONE System User token; test ONE pilot portfolio first (Standard-access risk for partner-shared assets is unverified). Step 0 read-only `out/fbc1.txt` (link-meta-web limits/2nd run behavior).
+
+- 25-11 omar-iyad: temp link page was started by mistake (Ctrl+C done by owner). link-meta-web facts recorded (5 accounts/run, new connection per run). Waiting: owner creates the Meta app in the HUB portfolio + System User + shares ONE pilot portfolio, then re-runs `out/fb-omar2.txt`; plus answer: bot oSr2828_bot new or on the old system?
