@@ -61,7 +61,7 @@ class Flow(unittest.TestCase):
         w = FakeWad(); o = go(w)
         ops = [c[0] for c in w.calls]; self.assertEqual(ops.count("tiktok.probe_campaign"), 1); self.assertNotIn("tiktok.set_campaign_status", ops)
         self.assertIn("CREATED just now", o); self.assertIn("operation_status=DISABLE", o)
-        self.assertIn("LIVE", o.split("FINAL BLOCK")[1]); self.assertIn("L I V E", o); self.assertNotIn("PRB_BA)", o.split("FINAL BLOCK")[1].split("LIVE/VIEWER")[0].replace("PRB_BA", ""))
+        self.assertIn("F|promotion_type|01|x_LIVE_x", o.split("FINAL BLOCK")[1]); self.assertIn("VALUES WITH LIVE OR STREAM IN THE NAME: x_LIVE_x", o); self.assertNotIn("PRB_BA)", o.split("FINAL BLOCK")[1].split("LIVE/VIEWER")[0].replace("PRB_BA", ""))
         self.assertTrue(all(ord(c) < 128 for c in o)); self.assertFalse(any(l.startswith("WARNING") for l in o.split("\n")))
         for op, p in w.calls:
             if op == "tiktok.probe_adgroup": self.assertIn("PRB_BAD", p.values())

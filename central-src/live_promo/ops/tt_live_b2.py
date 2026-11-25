@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""المرحلة B2 لـ«ترويج البث المباشر» (v2 / p281؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
+"""المرحلة B2 لـ«ترويج البث المباشر» (v3 / p282؛ بموافقة المالك 25-11): حملة اختبار واحدة PROBE-LIVE-DELETE-ME بهدف ENGAGEMENT (متوقفة، ميزانية INFINITE = بلا مجموعة/إعلان لا صرف)،
 ثم مجموعات إعلانية **بقيمة غلط عمداً** (PRB_BAD) حتى يرجّع تيك توك قوائم allowed لـpromotion_type/optimization_goal/... — لا تُنشأ مجموعة ولا إعلان.
 الحراسات بالكود: الهدف فقط ENGAGEMENT أو RF_ENGAGEMENT؛ كل نداء مجموعة لازم يحمل PRB_BAD؛ العملية الوحيدة غير القراءة الأخرى = set_campaign_status DISABLE.
 الإخراج ASCII (القيم مكتوبة عادية + بحروف مفرّقة حتى لا تغيّرها ترجمة المتصفح). يتطلب p277 + p263. غير المعروف = N/A.
@@ -17,7 +17,7 @@ TOKEN = re.compile(r"[A-Z][A-Z0-9_]{2,}")
 def dummies():
     """قيم تعبئة آمنة للمعاملات الإلزامية على جهة Broker (أي مجموعة بقيمة PRB_BAD ترفضها تيك توك دائماً فلا تنشأ مجموعة)"""
     import datetime
-    t0 = datetime.datetime.utcnow() + datetime.timedelta(days=1); t1 = t0 + datetime.timedelta(days=1); f = "%Y-%m-%d %H:%M:%S"
+    t0 = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(days=1); t1 = t0 + datetime.timedelta(days=1); f = "%Y-%m-%d %H:%M:%S"
     return {"location_ids": ["99237"], "budget": 50, "budget_mode": "BUDGET_MODE_TOTAL", "schedule_type": "SCHEDULE_START_END", "schedule_start_time": t0.strftime(f), "schedule_end_time": t1.strftime(f),
             "gender": "GENDER_UNLIMITED", "age_groups": ["AGE_18_24"], "placement_type": "PLACEMENT_TYPE_NORMAL", "placements": ["PLACEMENT_TIKTOK"], "pacing": "PACING_MODE_SMOOTH", "operation_status": "DISABLE", "languages": ["ar"]}
 
@@ -28,6 +28,7 @@ LIVE_RX = re.compile(r"live|stream|room|follow|view|engag|interact|communit", re
 
 def fold(s): return re.sub(r"[^ -~]", "?", str(s))
 def spaced(s): return " ".join(str(s))
+def wrap(t): return "x_%s_x" % t          # كلمة واحدة بشرطات سفلية: ترجمة المتصفح ما تغيّرها (الأحرف المفرّقة كانت تتحول إلى «أنا»)
 
 
 def load_wad():
@@ -152,10 +153,11 @@ def run(wad, env, ctx, acct, obj="ENGAGEMENT", cid=None, out=print):
         tk = show_err(L, call["label"], r); res[call["label"]] = tk
     L += ["", "======== FINAL BLOCK (ASCII) ========", "campaign=%s status=%s objective=%s" % (cid, ops, c.get("objective_type", obj))]
     for k, tk in res.items():
-        L.append("%s (%d): %s" % (k, len(tk), ", ".join(tk) or NA))
-        L.append("  spaced: " + " / ".join(spaced(t) for t in tk) if tk else "  spaced: " + NA)
+        L.append("%s (%d values, one per line below as F|field|NN|x_TOKEN_x)" % (k, len(tk)))
+        for i, t in enumerate(tk, 1): L.append("F|%s|%02d|%s" % (k.replace("adgroup_", ""), i, wrap(t)))
     live = sorted({t for tk in res.values() for t in tk if LIVE_RX.search(t)})
-    L += ["LIVE/VIEWER-LIKE VALUES: " + (", ".join(live) or "NONE FOUND"), "  spaced: " + (" / ".join(spaced(t) for t in live) or NA),
+    named = sorted({t for tk in res.values() for t in tk if re.search(r"live|stream", t, re.I)})
+    L += ["VALUES WITH LIVE OR STREAM IN THE NAME: " + (", ".join(wrap(t) for t in named) or "NONE FOUND"), "LIVE/VIEWER-LIKE VALUES: " + (", ".join(wrap(t) for t in live) or "NONE FOUND"),
           "No ad group and no ad were created (unless a line starting with WARNING: appears). The probe campaign stays PAUSED; delete it later in Ads Manager (name %s)." % NAME]
     out("\n".join(L))
 
