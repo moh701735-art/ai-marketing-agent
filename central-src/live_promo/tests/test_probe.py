@@ -33,7 +33,14 @@ class T(unittest.TestCase):
 
     def test_identity_read_failure_and_missing_op(self):
         bk, _ = self.fake([], fail_id=True); R = tool.gather(wad, bk, SPECS); self.assertTrue(R["id_errors"]); self.assertIn("identity read error", tool.report(R, SPECS))
-        R = tool.gather(wad, self.fake([])[0], {k: v for k, v in SPECS.items() if "identit" not in k}); self.assertIsNone(R["id_op"]); self.assertIn("NO (no identity read op", tool.report(R, {}))
+        specs = {k: v for k, v in SPECS.items() if "identit" not in k}; bk, calls = self.fake([{"identity_id": "I9", "identity_type": "AUTH_CODE", "can_use_live_ads": False}])
+        R = tool.gather(wad, bk, specs); self.assertEqual(R["id_op"], "tiktok.read_identities"); self.assertIn("known live op", R["id_src"]); self.assertEqual(len(R["identities"]), 4)       # {} + 3 types
+        ids = [p for o, p in calls if o == "tiktok.read_identities"]; self.assertIn({"identity_type": "AUTH_CODE", "page_size": 100}, ids); self.assertTrue(all(set(p) <= {"identity_type", "page_size"} for p in ids))
+        out = tool.report(R, specs); self.assertIn("can_use_live_ads", out); self.assertIn("known live op", out)
+
+    def test_catalog_dump_option(self):
+        def fake(cmd, inp=None): return subprocess.CompletedProcess(cmd, 0, stdout='{"tiktok.read_x": {"write": false, "path": "/", "params": {}}, "tiktok.create_y": {"write": true, "path": "/", "params": {}}}\n', stderr="")
+        self.assertIn("tiktok.read_x", tool.catalog_dump("img", fake)[0])
 
     def test_guard_blocks_writes_and_unknown(self):
         for op in ("tiktok.create_identity", "tiktok.create_campaign", "tiktok.set_campaign_status", "tiktok.launch_spark"):

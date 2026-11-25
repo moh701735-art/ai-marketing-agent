@@ -31,9 +31,9 @@ def fold(s): return re.sub(r"[^ -~]", "?", str(s))
 def sh(cmd, inp=None): return subprocess.run(cmd, input=inp, capture_output=True, text=True)
 
 
-def introspect(img, runner=sh):
+def introspect(img, runner=sh, rx=None):
     """الكتالوج الحي داخل صورة الـBroker بلا شبكة. → {op: {write, path, params}} أو {'error':…}"""
-    try: r = runner(["docker", "run", "--rm", "--network", "none", "-e", "TL_RX=" + RX_OPS, "--entrypoint", "python", img, "-c", INTRO])
+    try: r = runner(["docker", "run", "--rm", "--network", "none", "-e", "TL_RX=" + (rx or RX_OPS), "--entrypoint", "python", img, "-c", INTRO])
     except OSError as e: return {"error": "docker unavailable (%s)" % type(e).__name__}
     try: return json.loads(r.stdout.strip().splitlines()[-1])
     except Exception: return {"error": "introspection failed: " + (r.stderr or r.stdout or "").strip()[-160:]}
@@ -80,11 +80,11 @@ def gather(wad, bk, specs):
             k = str(x.get("objective_type") or NA) + " / " + str(x.get("campaign_type") or NA); R["objectives"][k] = R["objectives"].get(k, 0) + 1
     else: R["errors"].append("read_campaigns: " + fold(wad.errtxt(c.get("error")))[:160])
     ops = identity_ops(specs)
-    R["id_op"] = ops[0] if ops else None
+    R["id_op"] = ops[0] if ops else "tiktok.read_identities"                       # p223 يقرأ الهويات بهذا الاسم حياً حتى لو ما ظهر بمطابقة الكتالوج
+    R["id_src"] = "catalog" if ops else "known live op (not listed by catalog introspection)"
     if R["id_op"]:
-        spec = specs[R["id_op"]]["params"]
-        variants = [{}]
-        if any(k.startswith("identity_type") for k in spec): variants += [{"identity_type": t} for t in ("AUTH_CODE", "TT_USER", "BC_AUTH_TT")]
+        spec = specs[R["id_op"]]["params"] if ops else {"identity_type": "enum", "page_size": "int"}
+        variants = [{}] + [{"identity_type": t, "page_size": 100} for t in ("AUTH_CODE", "TT_USER", "BC_AUTH_TT")]
         for v in variants:
             v = {k: x for k, x in v.items() if k in spec}
             r = bk([{"label": "id", "op": R["id_op"], "params": v}])[0]
@@ -104,12 +104,12 @@ def report(R, specs):
     for n, s in sorted((k, v) for k, v in specs.items() if k != "error"): L.append("  %s %s params=%s" % ("W" if s["write"] else "r", n, ",".join(sorted(s["params"])) or "-"))
     L.append("\nOBJECTIVES this account already uses (objective_type / campaign_type: count):")
     for k, n in sorted(R["objectives"].items()): L.append("  %s: %d" % (fold(k), n))
-    L.append("\nIDENTITIES via %s (%d rows):" % (R["id_op"] or NA, len(R["identities"])))
+    L.append("\nIDENTITIES via %s [%s] (%d rows):" % (R["id_op"] or NA, R.get("id_src", NA), len(R["identities"])))
     for i in R["identities"][:12]: L.append("  " + fold(json.dumps(i, ensure_ascii=False))[:300])
     for e in R["id_errors"][:4]: L.append("  identity read error: " + e)
     live = sorted(k for k in R["id_keys"] if re.search(r"live|stream", k, re.I))
     L += ["", "======== FINAL BLOCK (ASCII) ========",
-          "IDENTITY OP FOUND: %s" % (R["id_op"] or "NO (no identity read op in catalog)"),
+          "IDENTITY OP USED: %s (%s); rows read: %d" % (R["id_op"] or "NO (no identity read op in catalog)", R.get("id_src", NA), len(R["identities"])),
           "IDENTITY FIELD NAMES (all, non-secret): %s" % (", ".join(sorted(R["id_keys"])) or NA),
           "LIVE-RELATED IDENTITY FIELDS: %s" % (", ".join(live) or "NONE FOUND (field names only; absence does not prove LIVE ads are unavailable)"),
           "OBJECTIVE NAMES SEEN: %s" % (", ".join(sorted(R["objectives"])) or NA),
@@ -120,6 +120,11 @@ def report(R, specs):
     return "\n".join(L)
 
 
+def catalog_dump(img, runner=sh):
+    d = introspect(img, runner, rx=".")
+    return ["CATALOG tiktok.* OPS (first 60): " + ", ".join(sorted(n for n in d if n != "error")[:60])] if "error" not in d else ["CATALOG DUMP error: " + fold(d["error"])]
+
+
 def main():
     slug = os.environ.get("SA_SLUG", "mohm").strip(); acct = os.environ.get("SA_ACCT", "7593807340588253185").strip()
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,48}", slug) or not re.fullmatch(r"[0-9]{6,25}", acct): sys.exit("bad SA_SLUG / SA_ACCT")
@@ -128,7 +133,9 @@ def main():
     ctxs = wad.psql(env, "select ctx from api.job_contexts_for_status(ARRAY['TESTING','NEEDS_REVIEW','READY'],100) where tenant_id='%s'" % tid[0]) if tid else []
     if not ctxs: sys.exit("tenant/ctx not found")
     R = gather(wad, lambda calls: wad.broker(env, ctxs[0], acct, guard(specs, calls)), specs)
-    print(report(R, specs))
+    out = report(R, specs)
+    if os.environ.get("SA_CATALOG_DUMP"): out += "\n" + "\n".join(catalog_dump(env.img))
+    print(out)
 
 
 if __name__ == "__main__":
