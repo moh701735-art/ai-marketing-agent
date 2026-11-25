@@ -1,0 +1,1 @@
+cd /opt/central && grep -n "5\|MAX\|connection\|ON CONFLICT\|secret_ref" ops/link-meta-web.py | cut -c1-200 | head -40 | LC_ALL=C sed -E "s/[^ -~]/?/g"
