@@ -1,0 +1,1 @@
+cd /opt/central && (grep -n "features" ops/add-tenant.py | head -8; echo ---; docker exec -i central-stg-pg psql -U postgres -d central -At -c "select slug, features::text from core.tenants order by slug") 2>&1 | cut -c1-200 | LC_ALL=C sed -E 's/[^ -~]/?/g'
