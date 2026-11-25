@@ -384,3 +384,5 @@ p52–p80 (آخرها p81: زر ونص الإعلان بالطلب)، `client-on
 
 ## 25-11 LIVE promotion B1 (p277/p278)
 TikTok's 40002 for an invalid `objective_type` returns the allowed list (seen via translated screenshot: ENGAGEMENT, LEAD_GENERATION, REACH, VIDEO_VIEWS, TRAFFIC, PRODUCT_SALES, WEB_CONVERSIONS, APP_PROMOTION, SHOP_PURCHASES, RF_REACH, RF_ENGAGEMENT, RF_APP_INSTALL; no LIVE-named objective). p278 = parser v2 for `ops/tt-live-create-probe.py` (tokens after the word allowed; prints each value plain + letter-spaced). Phase B2 (paused probe campaign) needs fresh owner approval.
+
+B2 (p280): `ops/tt-live-b2.py` — objective whitelist ENGAGEMENT/RF_ENGAGEMENT only; ad-group probe calls must carry PRB_BAD; only other write = set_campaign_status DISABLE; Broker error text capped at 300 chars (`broker/app/classify.py:23` `_msg`).
