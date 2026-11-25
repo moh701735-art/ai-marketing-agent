@@ -7,7 +7,7 @@ import importlib.util, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NA = "N/A"
-RX_OPS = r"identit|live|communit|promot|video_info|item|creative|boost|spark|tiktok_account|business_acc"
+RX_OPS = r"identit|live|communit|promot|video_info|item|creative|boost|spark|tt_account|tiktok_account|business_acc"
 CAP_KEY = re.compile(r"^(can_.*|is_.*|identity_type|identity_id|status|identity_authorized.*|.*live.*|.*stream.*|.*ads.*|.*promot.*)$", re.I)
 INTRO = r'''
 import json, sys, re, os
@@ -79,19 +79,25 @@ def gather(wad, bk, specs):
         for x in wad.find_list(c.get("data")) or []:
             k = str(x.get("objective_type") or NA) + " / " + str(x.get("campaign_type") or NA); R["objectives"][k] = R["objectives"].get(k, 0) + 1
     else: R["errors"].append("read_campaigns: " + fold(wad.errtxt(c.get("error")))[:160])
-    ops = identity_ops(specs)
-    R["id_op"] = ops[0] if ops else "tiktok.read_identities"                       # p223 يقرأ الهويات بهذا الاسم حياً حتى لو ما ظهر بمطابقة الكتالوج
-    R["id_src"] = "catalog" if ops else "known live op (not listed by catalog introspection)"
-    if R["id_op"]:
-        spec = specs[R["id_op"]]["params"] if ops else {"identity_type": "enum", "page_size": "int"}
-        variants = [{}] + [{"identity_type": t, "page_size": 100} for t in ("AUTH_CODE", "TT_USER", "BC_AUTH_TT")]
+    cands = identity_ops(specs) + sorted(n for n in specs if re.search(r"tt_account", n) and not specs[n].get("write") and n not in identity_ops(specs))
+    fallback = not cands
+    if fallback: cands = ["tiktok.read_identities"]                                  # p223 يقرأها داخلياً؛ قد ترفضها الواجهة الخارجية (unknown_op)
+    R["id_op"] = ", ".join(cands); R["id_src"] = "catalog" if not fallback else "known internal op (not in the external catalog)"
+    for op in cands:
+        spec = specs[op]["params"] if op in specs else {"identity_type": "enum", "page_size": "int"}
+        variants = [{}]
+        if "page_size" in spec: variants.append({"page_size": 100})
+        if any(k.startswith("identity_type") for k in spec): variants += [{"identity_type": t, "page_size": 100} for t in ("AUTH_CODE", "TT_USER", "BC_AUTH_TT")]
+        seen = set()
         for v in variants:
             v = {k: x for k, x in v.items() if k in spec}
-            r = bk([{"label": "id", "op": R["id_op"], "params": v}])[0]
+            if json.dumps(v, sort_keys=True) in seen: continue
+            seen.add(json.dumps(v, sort_keys=True))
+            r = bk([{"label": "id", "op": op, "params": v}])[0]
             if r["ok"]:
                 for row in wad.find_list(r.get("data")) or []:
                     R["identities"].append(safe_identity(row)); R["id_keys"] |= {k for k in row if not re.search(r"token|secret|key|password", k, re.I)}
-            else: R["id_errors"].append("%s: %s" % (json.dumps(v), fold(wad.errtxt(r.get("error")))[:140]))
+            else: R["id_errors"].append("%s %s: %s" % (op, json.dumps(v), fold(wad.errtxt(r.get("error")))[:150]))
     return R
 
 
