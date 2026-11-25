@@ -85,3 +85,5 @@
 - 25-11 B2 run 1: probe campaign 1882847394015297 (ENGAGEMENT) CREATED and read back DISABLE (paused, no ad group/ad). Ad-group probes were refused locally by the Broker: `missing param: location_ids` (class invalid_params) → p281 (`out/p281s.txt`) autofills required Broker params (location_ids 99237 etc.) and keeps the invalid PRB_BAD value. TO DO after the run: delete campaign PROBE-LIVE-DELETE-ME in Ads Manager.
 
 - 25-11 p283 (owner approved probe_ad): `out/p283s.txt` (catalog p283 + tool v4 + update.sh) then `out/p283r.txt` (run with LB_ONLY=promotion_type,ad_format) → screenshot FINAL BLOCK. Then Phase C design for approval; delete campaign PROBE-LIVE-DELETE-ME afterwards.
+
+- 25-11 p283 applied (catalog p283=3) but the run printed only «REFUSED: ad probe needs invalid ad_format + fake ad group»: live `tiktok.create_ad` has NO `ad_format` param (ads go as `creatives=[{ad_name, ad_format, identity_id, tiktok_item_id…}]`). p284 (`out/p284s.txt`, tool only, no Broker): ad probe uses creatives[] shape with PRB_BAD, never aborts silently (ABORTED line + everything printed). Waiting: screenshot of FINAL BLOCK.
