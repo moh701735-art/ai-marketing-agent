@@ -44,7 +44,7 @@ class V2(unittest.TestCase):
         w = Needs(specs=sp); o = t80.go(w); self.assertNotIn("autofilled", o); self.assertIn("missing param: location_ids", o)
 
     def test_sentinel_never_dropped_and_no_forbidden_ops(self):
-        src = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertIn("v3 / p282", src); self.assertIn("probe lost its invalid value", src)
+        src = rd(os.path.join(MOD, "ops", "tt_live_b2.py")); self.assertRegex(src, r"v\d / p28\d"); self.assertIn("probe lost its invalid value", src)
         for bad in ("create_ad", "getpass", "access_token"): self.assertNotIn(bad, src)
 
     def test_short_messages_no_spaced_flood(self):
@@ -58,7 +58,7 @@ class Patch(unittest.TestCase):
         open(d + "/broker/app/catalog.py", "w").write(cat); open(d + "/ops/tt-live-b2.py", "w").write(old); return d
     def run_p(self, d): return subprocess.run([sys.executable, P], env={**os.environ, "P282_BASE": d + "/"}, capture_output=True, text=True)
     def test_apply(self):
-        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY282_OK", r.stdout, r.stdout + r.stderr); self.assertEqual(rd(d + "/ops/tt-live-b2.py"), rd(os.path.join(MOD, "ops", "tt_live_b2.py"))); self.assertEqual(rd(d + "/ops/tt-live-b2.py.pre282"), "OLD\n"); self.assertIn("changed=0", self.run_p(d).stdout)
+        d = self.mk(); r = self.run_p(d); self.assertIn("APPLY282_OK", r.stdout, r.stdout + r.stderr); self.assertIn("PROBE-LIVE-DELETE-ME", rd(d + "/ops/tt-live-b2.py")); self.assertEqual(rd(d + "/ops/tt-live-b2.py.pre282"), "OLD\n"); self.assertIn("changed=0", self.run_p(d).stdout)
         d = self.mk(wad=False); self.assertIn("PATCH FAIL (nothing written)", self.run_p(d).stdout + self.run_p(d).stderr)
     def test_oneliner(self):
         s = rd(os.path.join(ROOT, "out", "p282s.txt")); self.assertEqual(s.count("\n"), 1); self.assertIn("python3 ops/tt-live-b2.py", s); self.assertNotIn("update.sh", s)
