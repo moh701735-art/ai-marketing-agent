@@ -1,0 +1,1 @@
+cd /opt/central && export PG_CONTAINER=central-stg-pg BROKER_NETWORK=central-stg_backend BROKER_IMAGE=central-broker:prod ENV_FILE=deploy/.env TENANT_DB=central && python3 ops/add-tenant.py --slug omar-iyad --name "عمر اياد" --features schedule --owner 1491207067 --bot-username oSr2828_bot --plan standard --days 30 --tz Asia/Baghdad --currency USD
