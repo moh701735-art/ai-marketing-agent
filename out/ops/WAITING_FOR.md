@@ -121,3 +121,5 @@
 - 26-11 p288 delivered (`out/p288s.txt`, needs p287): objective list after Meta account choice. Next: report labels per objective for Meta — needs `out/fbr1.txt` output (loop code of hourly report + /fbreport).
 
 - 26-11 p289 delivered (`out/p289s.txt`): hourly Meta report labels per objective (independent of p287/p288; needs p173). Order for the owner: p288s then p289s. Still open: /fbreport labels, provinces/interests in the new wizard, leads/sales/app objectives, real Meta test (needs ACTIVE account), omar-iyad Meta link (hub app + token), bot new/old question.
+
+- 26-11 owner finished the whole legacy FB wizard (step 13/14 placements) and the objective list never appeared after choosing the account → p288 probably not applied (owner pasted p289 only) OR Meta external_id stored without `act_` (mohm's account noted as 1143673748321865). p288 rebuilt (accepts both id formats, upgrade path, `.pre288b`). Check: `out/fbchk.txt`. Owner also wants the list to include مبيعات / عميل محتمل / تفاعل / مشاهدات: views = OUTCOME_ENGAGEMENT+THRUPLAY (small), leads needs lead-form id (Broker read op), sales needs pixel (read op + honest block when none).

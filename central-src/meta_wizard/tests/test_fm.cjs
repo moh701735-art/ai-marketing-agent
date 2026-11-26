@@ -91,4 +91,12 @@ r = step(null, null); r = step('fm:o:awareness', r.S); ok('plain /fbobj with 2 a
 // الإطلاق من مسار wz يحمل الحساب الصحيح
 let w = step('wz:ac:act_555555555', null).S; w = step('fm:o:awareness', w).S; w = text(POST, w).S; w = step('fm:bu:25000', w).S; w = step('fm:du:3', w).S; w = step('fm:aa', w).S; w = step('fm:g:a', w).S; w = step('fm:nt', w).S;
 r = step('fm:go', w, null); ok('launch from wz path uses the chosen account + IQD→USD', r.plan[0].ad_account === 'act_555555555' && Math.abs(r.plan[0].params.budget_usd - 16.0772) < 0.001, r.plan[0]);
+// 14) p288b: حسابات ميتا المخزّنة كأرقام بدون act_ (مثل ما يخزّنها الربط أحياناً)
+ACCTS = [{ kind: 'acct', a: '1143673748321865', b: 'محمد جديد 1', c: 'USD' }];
+r = step('wz:ac:1143673748321865', null); checkKb('digits entry', r.out);
+ok('digits-only external id: list with legacy callback in the ORIGINAL form', r.S.via === 'wz' && r.S.acct === 'act_1143673748321865' && r.out.keyboard.flat().some(b => b.c === 'wz:ac:1143673748321865'), r.out.keyboard);
+let dq = step('fm:o:awareness', r.S).S; dq = text(POST, dq).S; dq = step('fm:bu:5', dq).S; dq = step('fm:du:1', dq).S; dq = step('fm:aa', dq).S; dq = step('fm:g:a', dq).S; dq = step('fm:nt', dq).S;
+r = step('fm:go', dq, null); ok('launch uses normalized act_ account for the Broker', r.plan[0].ad_account === 'act_1143673748321865', r.plan[0]);
+r = step(null, null); ok('plain /fbobj lists digits account (normalized)', r.S.st === 'obj' && r.plan[0].accts[0].id === 'act_1143673748321865', r.plan[0].accts);
+r = step('wz:ac:7593807340588253185', null); ok('19-digit TikTok id is not treated as a Meta wz entry', r.S.via === '', r.S);
 console.log('PASS', pass, 'FAIL', fail); process.exit(fail ? 1 : 0);

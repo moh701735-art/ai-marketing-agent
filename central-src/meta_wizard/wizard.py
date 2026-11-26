@@ -29,15 +29,15 @@ JS_PLAN = r"""
 const d = $('Route').first().json;
 const rows = $input.all().map(i => i.json).filter(r => r && r.kind);
 const accts = rows.filter(r => r.kind === 'acct');
-const ACCS = accts.map(r => ({ id: String(r.a), name: String(r.b || ''), cur: String(r.c || '').toUpperCase() })).filter(a => /^act_[0-9]{5,25}$/.test(a.id));
+const ACCS = accts.map(r => { const raw = String(r.a); const dg = raw.replace(/^act_/, ''); return { id: 'act_' + dg, raw, ok: /^(?:act_)?[0-9]{5,25}$/.test(raw), name: String(r.b || ''), cur: String(r.c || '').toUpperCase() }; }).filter(a => a.ok);
 let S0 = null; const sr = rows.find(r => r.kind === 'state'); if (sr) { try { S0 = JSON.parse(sr.a); } catch (e) {} }
 const isCb = !!d.cb;
 const base = { ctx: d.ctx, chatId: d.chatId, edit: isCb, linked: ACCS.length > 0, items: 0, accts: ACCS };
 const cmd = String(d.cmd || '');
 const isIn = !isCb && cmd === 'fmin';
-const viaWz = isCb && /^wz:ac:act_[0-9]{5,25}$/.test(String(d.cb));   // p288: المعالج القديم اختار حساب فيسبوك → نعرض قائمة الأهداف
+const viaWz = isCb && /^wz:ac:(?:act_[0-9]{5,25}|[0-9]{5,17})$/.test(String(d.cb));   // p288: المعالج القديم اختار حساب فيسبوك → نعرض قائمة الأهداف
 const p = viaWz ? ['fm', 'q', String(d.cb).slice(6)] : (isCb ? String(d.cb).split(':') : (isIn ? ['fm', 'ti'] : ['fm', 's'])); const op = p[1] || 's', arg = p.slice(2).join(':');
-const fresh = { st: 'obj', via: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
+const fresh = { st: 'obj', via: '', raw: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
 let S = (S0 && typeof S0 === 'object' && !Array.isArray(S0)) ? { ...fresh, ...S0 } : { ...fresh };
 const num = s => /^\d{1,7}$/.test(String(s)) ? parseInt(s, 10) : 0;
 const adv = () => {
@@ -45,7 +45,7 @@ const adv = () => {
   if (S.st === 'acct' && (S.acct || ACCS.length === 1)) { if (!S.acct) S.acct = ACCS[0].id; S.st = q[q.indexOf('acct') + 1]; }
 };
 if (op === 's') S = { ...fresh };
-else if (op === 'q') { S = { ...fresh }; if (ACCS.some(x => x.id === arg)) { S.acct = arg; S.via = 'wz'; } S.st = 'obj'; }
+else if (op === 'q') { S = { ...fresh }; const qa = ACCS.find(x => x.raw === arg); if (qa) { S.acct = qa.id; S.raw = qa.raw; S.via = 'wz'; } S.st = 'obj'; }
 else if (op === 'o') { if (OBJ[arg]) { S.obj = arg; S.st = 'obj'; adv(); } }
 else if (op === 'ac') { const full = 'act_' + arg; if (ACCS.some(x => x.id === full)) { S.acct = full; S.st = 'acct'; adv(); } }
 else if (op === 'af') { if (AGE_FROM.indexOf(num(arg)) >= 0) { S.amin = num(arg); S.amax = 0; S.aset = false; S.st = 'age'; } }
@@ -101,7 +101,7 @@ const prevOf = () => { const q = SQ; let i = q.indexOf(S.st) - 1; if (q[i] === '
 const back = () => ({ t: '⬅️ رجوع', c: 'fm:b:' + prevOf() });
 const chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
 const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
-const FR = { st: 'obj', via: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
+const FR = { st: 'obj', via: '', raw: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
 const STG = { account: 'قراءة الحساب', post: 'قراءة المنشور', campaign: 'إنشاء الحملة', adset: 'إنشاء المجموعة الإعلانية', creative: 'إنشاء الكريتيف', ad: 'إنشاء الإعلان' };
 if (P.go) {
   if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع للملخص', c: 'fm:b:sum' }]]);
@@ -125,7 +125,7 @@ if (P.go) {
 }
 if (S.st === 'obj') {
   const wz = S.via === 'wz' && S.acct; const a0 = accOf();
-  const kb = []; if (wz) kb.push([{ t: '💬 رسائل واتساب', c: 'wz:ac:' + S.acct }]);
+  const kb = []; if (wz) kb.push([{ t: '💬 رسائل واتساب', c: ('wz:ac:' + (S.raw || S.acct)).slice(0, 48) }]);
   chunk(Object.keys(OBJ).map(k => ({ t: OBJ[k][0] + ' ' + OBJ[k][1], c: 'fm:o:' + k })), 1).forEach(r => kb.push(r));
   kb.push(wz ? [{ t: '⬅️ رجوع', c: 'wz:r:acct' }, { t: '🏠 الرئيسية', c: 'h' }] : [{ t: '🏠 الرئيسية', c: 'h' }]);
   return done(head(wz ? 'اختر هدف الحملة' : 'اختر هدف الحملة') + (wz && a0 ? '🏢 الحساب: ' + sh(a0.name || a0.id, 30) + (a0.cur ? ' (' + a0.cur + ')' : '') + '\n' : '') + (wz ? '💬 رسائل واتساب: المعالج المعتاد بكل خياراته (محافظات، اهتمامات، أماكن الظهور).\n📣🔗💬 وعي / زيارات / تفاعل: معالج الأهداف الجديد.\n' : 'الأهداف المتاحة الآن: وعي، زيارات، تفاعل.\n') + 'قريباً: ' + SOON.join('، ') + '.' + (wz ? '' : '\nلحملة رسائل واتساب استخدم المعالج المعتاد (/fbwa).'), kb);
