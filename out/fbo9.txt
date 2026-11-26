@@ -1,0 +1,1 @@
+cd /opt/central && (echo ---BUILD; sed -n '138,205p' broker/app/service.py | cut -c1-175; echo ---WIZ; sed -n '60,125p' n8n/wizard_pages.py | cut -c1-170) > /tmp/fbo9.out 2>&1; LC_ALL=C sed -E 's/[^ -~]/?/g' /tmp/fbo9.out | sed -n '1,70p'; echo "== part 2: sed -n 71,140p /tmp/fbo9.out | LC_ALL=C sed -E 's/[^ -~]/?/g'"
