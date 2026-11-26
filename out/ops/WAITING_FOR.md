@@ -115,3 +115,5 @@
 - 26-11 p287 rebuilt (same file `out/p287s.txt`): output index now computed from the live `numberOutputs` (38 live → new module at 38, outputs 39); mount anchor = last module build (radar `_crm` at 37); map anchor `snapwiz: 35`. Fail-closed; prints anchor lines on failure.
 
 - 26-11 owner wants the objective list to appear INSIDE the main creation wizard right after choosing the Facebook ad account (screenshot: «إنشاء حملة — الخطوة 2/14 اختر الحساب الإعلاني»). Plan: legacy wizard gets one new Meta step `aw_obj` after account choice: buttons [💬 رسائل واتساب → legacy flow continues] [📣 وعي / 🔗 زيارات / 💬 تفاعل → hand over to `meta_wizard` via `fm:q:<key>:<act digits>` (new quick-start callback, account preselected)]. Needs exact legacy lines: `out/fbw1.txt` (read-only grep of wizard_pages.py).
+
+- 26-11 owner: «كمل كلشي… ورسله الي مره وحده». Needs ONE combined read (`out/fball.txt`: legacy wizard account step + launch item + Meta report result code) because the code exists only on the VPS; then ONE final patch p288: objective list after account choice (legacy wizard) + `fm:q` quick-start + per-objective report labels for Meta.
