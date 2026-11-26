@@ -1,0 +1,1 @@
+cd /opt/central && (sed -n '226,233p' broker/app/catalog.py | cut -c1-420; echo ---WHERE; grep -n "create_adset\|create_adcreative\|destination_type\|optimization_goal\|object_story_spec\|video_data\|promoted_object\|CONVERSATIONS\|WHATSAPP_MESSAGE" broker/app/*.py | grep -v "metaflow.py" | cut -c1-200 | head -40) 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
