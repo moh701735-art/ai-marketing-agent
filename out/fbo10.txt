@@ -1,0 +1,1 @@
+sed -n 71,140p /tmp/fbo9.out | LC_ALL=C sed -E 's/[^ -~]/?/g'
