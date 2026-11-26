@@ -109,3 +109,5 @@
 - 26-11 p286 APPLIED (markers ≥1 each; test tool installed and answers its usage line). Next: batch 2 needs `out/fbo10.txt` (wizard flow lines of /tmp/fbo9.out) from the owner; live test of the objectives waits for an ACTIVE Meta ad account (omar-iyad link).
 
 - 26-11 p287 (Facebook objectives wizard `/fbobj`) delivered: `out/p287s.txt` (update.sh). Needs a linked ACTIVE Meta ad account to complete a launch (omar-iyad after link). Next: live paused test via the bot or `out/p286t.txt`; then report labels per objective, provinces/interests/placements, home button, leads/sales/app.
+
+- 26-11 p287 run: PATCH FAIL (nothing written) — live ingress has `numberOutputs` 38 (another module already uses index 37 after p209), so the p287 anchors (37/36) don't match. Step: `out/fbi1.txt` (read-only grep of outputs/anchors) → p287b with the next free index + tolerant anchors.

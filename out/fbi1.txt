@@ -1,0 +1,1 @@
+cd /opt/central && (grep -n 'numberOutputs\|guide: 36\|\.build(b, w, sw, [0-9]\+\|ck === \|const SNV\|SNV || SNT\|sn_. ||' n8n/wf_ingress.py | cut -c1-230) 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
