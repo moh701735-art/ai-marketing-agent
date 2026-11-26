@@ -35,15 +35,17 @@ const isCb = !!d.cb;
 const base = { ctx: d.ctx, chatId: d.chatId, edit: isCb, linked: ACCS.length > 0, items: 0, accts: ACCS };
 const cmd = String(d.cmd || '');
 const isIn = !isCb && cmd === 'fmin';
-const p = isCb ? String(d.cb).split(':') : (isIn ? ['fm', 'ti'] : ['fm', 's']); const op = p[1] || 's', arg = p.slice(2).join(':');
-const fresh = { st: 'obj', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
+const viaWz = isCb && /^wz:ac:act_[0-9]{5,25}$/.test(String(d.cb));   // p288: المعالج القديم اختار حساب فيسبوك → نعرض قائمة الأهداف
+const p = viaWz ? ['fm', 'q', String(d.cb).slice(6)] : (isCb ? String(d.cb).split(':') : (isIn ? ['fm', 'ti'] : ['fm', 's'])); const op = p[1] || 's', arg = p.slice(2).join(':');
+const fresh = { st: 'obj', via: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
 let S = (S0 && typeof S0 === 'object' && !Array.isArray(S0)) ? { ...fresh, ...S0 } : { ...fresh };
 const num = s => /^\d{1,7}$/.test(String(s)) ? parseInt(s, 10) : 0;
 const adv = () => {
   const q = SEQ(S.obj); const i = q.indexOf(S.st); S.st = q[Math.min(i < 0 ? 0 : i + 1, q.length - 1)];
-  if (S.st === 'acct' && ACCS.length === 1) { S.acct = ACCS[0].id; S.st = q[q.indexOf('acct') + 1]; }
+  if (S.st === 'acct' && (S.acct || ACCS.length === 1)) { if (!S.acct) S.acct = ACCS[0].id; S.st = q[q.indexOf('acct') + 1]; }
 };
 if (op === 's') S = { ...fresh };
+else if (op === 'q') { S = { ...fresh }; if (ACCS.some(x => x.id === arg)) { S.acct = arg; S.via = 'wz'; } S.st = 'obj'; }
 else if (op === 'o') { if (OBJ[arg]) { S.obj = arg; S.st = 'obj'; adv(); } }
 else if (op === 'ac') { const full = 'act_' + arg; if (ACCS.some(x => x.id === full)) { S.acct = full; S.st = 'acct'; adv(); } }
 else if (op === 'af') { if (AGE_FROM.indexOf(num(arg)) >= 0) { S.amin = num(arg); S.amax = 0; S.aset = false; S.st = 'age'; } }
@@ -95,11 +97,11 @@ if (!P.linked) return [{ json: { ctx: P.ctx, chatId: P.chatId, text: '🔵 حس�
 const SQ = SEQ(S.obj || 'awareness');
 const stepNo = () => (Math.max(0, SQ.indexOf(S.st)) + 1) + '/' + SQ.length;
 const head = t => '🔵 حملة فيسبوك بالأهداف\n' + LINE + '\n' + t + '  [' + stepNo() + ']\n';
-const prevOf = () => { const q = SQ; let i = q.indexOf(S.st) - 1; if (q[i] === 'acct' && (P.accts || []).length === 1) i--; return q[Math.max(0, i)]; };
+const prevOf = () => { const q = SQ; let i = q.indexOf(S.st) - 1; if (q[i] === 'acct' && ((P.accts || []).length === 1 || S.via === 'wz')) i--; return q[Math.max(0, i)]; };
 const back = () => ({ t: '⬅️ رجوع', c: 'fm:b:' + prevOf() });
 const chunk = (arr, n) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
 const accOf = () => (P.accts || []).find(x => x.id === S.acct) || null;
-const FR = { st: 'obj', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
+const FR = { st: 'obj', via: '', obj: '', acct: '', post: '', url: '', bud: 0, days: 0, amin: 0, amax: 0, aset: false, gen: 'a', nm: '' };
 const STG = { account: 'قراءة الحساب', post: 'قراءة المنشور', campaign: 'إنشاء الحملة', adset: 'إنشاء المجموعة الإعلانية', creative: 'إنشاء الكريتيف', ad: 'إنشاء الإعلان' };
 if (P.go) {
   if (P.goErr) return done('⚠️ ' + P.goErr, [[{ t: '⬅️ رجوع للملخص', c: 'fm:b:sum' }]]);
@@ -122,8 +124,11 @@ if (P.go) {
   return done(L.join('\n'), [[{ t: '⬅️ رجوع للملخص', c: 'fm:b:sum' }, { t: '🏠 الرئيسية', c: 'h' }]]);
 }
 if (S.st === 'obj') {
-  const kb = chunk(Object.keys(OBJ).map(k => ({ t: OBJ[k][0] + ' ' + OBJ[k][1], c: 'fm:o:' + k })), 1); kb.push([{ t: '🏠 الرئيسية', c: 'h' }]);
-  return done(head('اختر هدف الحملة') + 'الأهداف المتاحة الآن: وعي، زيارات، تفاعل.\nقريباً: ' + SOON.join('، ') + '.\nلحملة رسائل واتساب استخدم المعالج المعتاد (/fbwa).', kb);
+  const wz = S.via === 'wz' && S.acct; const a0 = accOf();
+  const kb = []; if (wz) kb.push([{ t: '💬 رسائل واتساب', c: 'wz:ac:' + S.acct }]);
+  chunk(Object.keys(OBJ).map(k => ({ t: OBJ[k][0] + ' ' + OBJ[k][1], c: 'fm:o:' + k })), 1).forEach(r => kb.push(r));
+  kb.push(wz ? [{ t: '⬅️ رجوع', c: 'wz:r:acct' }, { t: '🏠 الرئيسية', c: 'h' }] : [{ t: '🏠 الرئيسية', c: 'h' }]);
+  return done(head(wz ? 'اختر هدف الحملة' : 'اختر هدف الحملة') + (wz && a0 ? '🏢 الحساب: ' + sh(a0.name || a0.id, 30) + (a0.cur ? ' (' + a0.cur + ')' : '') + '\n' : '') + (wz ? '💬 رسائل واتساب: المعالج المعتاد بكل خياراته (محافظات، اهتمامات، أماكن الظهور).\n📣🔗💬 وعي / زيارات / تفاعل: معالج الأهداف الجديد.\n' : 'الأهداف المتاحة الآن: وعي، زيارات، تفاعل.\n') + 'قريباً: ' + SOON.join('، ') + '.' + (wz ? '' : '\nلحملة رسائل واتساب استخدم المعالج المعتاد (/fbwa).'), kb);
 }
 if (S.st === 'acct') {
   const A = P.accts || []; const kb = A.slice(0, 6).map(x => [{ t: sh(x.name || x.id, 26) + (x.cur ? ' (' + x.cur + ')' : ''), c: 'fm:ac:' + x.id.slice(4) }]); kb.push([back()]);

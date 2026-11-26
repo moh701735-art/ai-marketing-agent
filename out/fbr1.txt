@@ -1,0 +1,1 @@
+cd /opt/central && (echo ---JOB; sed -n '20,34p;50,95p' n8n/wf_job_report.py | cut -c1-185; echo ---FBREPORT; sed -n '1300,1350p' n8n/wf_ingress.py | cut -c1-185) > /tmp/fbr1.out 2>&1; LC_ALL=C sed -E 's/[^ -~]/?/g' /tmp/fbr1.out | head -70; echo "== total $(wc -l < /tmp/fbr1.out); next: sed -n 71,140p /tmp/fbr1.out | LC_ALL=C sed -E 's/[^ -~]/?/g'"

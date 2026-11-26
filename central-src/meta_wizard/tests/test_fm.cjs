@@ -77,4 +77,18 @@ r = step(null, null, null, {}, false); ok('not linked message', /غير مربو
 ACCTS = [{ kind: 'acct', a: 'act_123456789', b: 'عمر', c: 'USD' }];
 r = step('fm:b:post', S); ok('back to post step', r.S.st === 'post', r.S);
 r = step('fm:b:nonsense', S); ok('invalid back step ignored', r.S.st === 'sum', r.S);
+// 13) p288: دخول من المعالج القديم بعد اختيار حساب فيسبوك
+ACCTS = [{ kind: 'acct', a: 'act_123456789', b: 'حساب عمر', c: 'USD' }, { kind: 'acct', a: 'act_555555555', b: 'حساب ثاني', c: 'IQD' }];
+r = step('wz:ac:act_123456789', { st: 'post', obj: 'traffic', acct: 'act_555555555' }); checkKb('wz entry', r.out);
+ok('wz entry: objective list with WhatsApp legacy button + 3 new + back to legacy', r.S.st === 'obj' && r.S.via === 'wz' && r.S.acct === 'act_123456789' && r.out.keyboard.flat().some(b => b.c === 'wz:ac:act_123456789' && /واتساب/.test(b.t)) && ['awareness', 'traffic', 'engagement'].every(k => r.out.keyboard.flat().some(b => b.c === 'fm:o:' + k)) && r.out.keyboard.flat().some(b => b.c === 'wz:r:acct'), r.out);
+ok('wz entry resets previous state and shows the account', r.S.obj === '' && r.S.post === '' && /حساب عمر/.test(r.out.text) && !r.plan[0].need, r.out.text);
+r = step('fm:o:traffic', r.S); ok('after objective: account skipped → post', r.S.st === 'post' && r.S.acct === 'act_123456789' && r.S.via === 'wz', r.S);
+r = step('fm:b:obj', r.S); ok('back from post → objective list again (account kept)', r.S.st === 'obj' && r.S.acct === 'act_123456789', r.S); ok('and still has the legacy WhatsApp button', r.out.keyboard.flat().some(b => b.c === 'wz:ac:act_123456789'));
+r = step('wz:ac:act_999999999', null); ok('unknown account in wz callback: list without preset account/WhatsApp button', r.S.acct === '' && !r.out.keyboard.flat().some(b => /^wz:ac:/.test(b.c || '')), r.S);
+r = step('wz:ac:7691331863249256500', null); ok('non-meta callback id is not treated as wz entry', r.S.via === '', r.S);
+// نفس العميل بحسابين بدون wz: السلوك القديم
+r = step(null, null); r = step('fm:o:awareness', r.S); ok('plain /fbobj with 2 accounts still asks the account', r.S.st === 'acct' && r.S.via === '', r.S);
+// الإطلاق من مسار wz يحمل الحساب الصحيح
+let w = step('wz:ac:act_555555555', null).S; w = step('fm:o:awareness', w).S; w = text(POST, w).S; w = step('fm:bu:25000', w).S; w = step('fm:du:3', w).S; w = step('fm:aa', w).S; w = step('fm:g:a', w).S; w = step('fm:nt', w).S;
+r = step('fm:go', w, null); ok('launch from wz path uses the chosen account + IQD→USD', r.plan[0].ad_account === 'act_555555555' && Math.abs(r.plan[0].params.budget_usd - 16.0772) < 0.001, r.plan[0]);
 console.log('PASS', pass, 'FAIL', fail); process.exit(fail ? 1 : 0);
