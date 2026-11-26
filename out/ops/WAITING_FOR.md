@@ -113,3 +113,5 @@
 - 26-11 p287 run: PATCH FAIL (nothing written) — live ingress has `numberOutputs` 38 (another module already uses index 37 after p209), so the p287 anchors (37/36) don't match. Step: `out/fbi1.txt` (read-only grep of outputs/anchors) → p287b with the next free index + tolerant anchors.
 
 - 26-11 p287 rebuilt (same file `out/p287s.txt`): output index now computed from the live `numberOutputs` (38 live → new module at 38, outputs 39); mount anchor = last module build (radar `_crm` at 37); map anchor `snapwiz: 35`. Fail-closed; prints anchor lines on failure.
+
+- 26-11 owner wants the objective list to appear INSIDE the main creation wizard right after choosing the Facebook ad account (screenshot: «إنشاء حملة — الخطوة 2/14 اختر الحساب الإعلاني»). Plan: legacy wizard gets one new Meta step `aw_obj` after account choice: buttons [💬 رسائل واتساب → legacy flow continues] [📣 وعي / 🔗 زيارات / 💬 تفاعل → hand over to `meta_wizard` via `fm:q:<key>:<act digits>` (new quick-start callback, account preselected)]. Needs exact legacy lines: `out/fbw1.txt` (read-only grep of wizard_pages.py).

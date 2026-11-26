@@ -1,0 +1,1 @@
+cd /opt/central && (grep -n "k1 === 'ac'\|k1 === 'p' \|const STEPS\|aw_acct\|aw_fblink\|aw_pg\|'aw_'" n8n/wizard_pages.py | cut -c1-330 | head -40) 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
