@@ -111,3 +111,5 @@
 - 26-11 p287 (Facebook objectives wizard `/fbobj`) delivered: `out/p287s.txt` (update.sh). Needs a linked ACTIVE Meta ad account to complete a launch (omar-iyad after link). Next: live paused test via the bot or `out/p286t.txt`; then report labels per objective, provinces/interests/placements, home button, leads/sales/app.
 
 - 26-11 p287 run: PATCH FAIL (nothing written) — live ingress has `numberOutputs` 38 (another module already uses index 37 after p209), so the p287 anchors (37/36) don't match. Step: `out/fbi1.txt` (read-only grep of outputs/anchors) → p287b with the next free index + tolerant anchors.
+
+- 26-11 p287 rebuilt (same file `out/p287s.txt`): output index now computed from the live `numberOutputs` (38 live → new module at 38, outputs 39); mount anchor = last module build (radar `_crm` at 37); map anchor `snapwiz: 35`. Fail-closed; prints anchor lines on failure.

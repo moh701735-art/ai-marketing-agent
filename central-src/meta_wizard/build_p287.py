@@ -15,12 +15,16 @@ def lines_with(t, k): return ' | '.join(ascii(l.strip()[:230]) for l in t.split(
 fails = []
 mA = list(re.finditer(r"else if \(ck === 'gd'\) \{ cmd = 'guide'; uiv = String\(d\.cb\); \}", s))
 if len(mA) != 1: fails.append("callback anchor (ck === 'gd', needs p209) count=%d; lines: %s" % (len(mA), lines_with(s, "ck ===")))
-mB = list(re.finditer(r"guide\s*:\s*36\s*,\s*'[^'\n]*'\s*:\s*36", s))
-if len(mB) != 1: fails.append("cmd map anchor (guide: 36, ...: 36) count=%d" % len(mB))
-mC = list(re.finditer(r'("Command",\s*"n8n-nodes-base\.switch",\s*[\d.]+,\s*\{[^}\n]*"numberOutputs":\s*)37\b', s))
-if len(mC) != 1: fails.append('Command numberOutputs=37 anchor count=%d; lines: %s' % (len(mC), lines_with(s, '"Command"')))
-mD = list(re.finditer(r'(?m)^([ \t]*)_gdm\.build\(b, w, sw, 36, (\w+), CRT\)[ \t]*$', s))
-if len(mD) != 1: fails.append('guide build anchor (needs p209) count=%d' % len(mD))
+mB = list(re.finditer(r"\bsnapwiz\s*:\s*35\b", s))
+if len(mB) != 1: fails.append("cmd map anchor (snapwiz: 35) count=%d" % len(mB))
+mC = list(re.finditer(r'("Command",\s*"n8n-nodes-base\.switch",\s*[\d.]+,\s*\{[^}\n]*"numberOutputs":\s*)(\d+)\b', s))
+if len(mC) != 1: fails.append('Command numberOutputs anchor count=%d; lines: %s' % (len(mC), lines_with(s, '"Command"')))
+K = int(mC[0].group(2)) if len(mC) == 1 else 0
+if len(mC) == 1 and K < 37: fails.append('Command numberOutputs=%d is below 37 (needs p209 guide at 36)' % K)
+IDX = K
+if len(mC) == 1 and re.search(r'\.build\(b, w, sw, %d,' % IDX, s): fails.append('output index %d is already used by another module build' % IDX)
+mD = list(re.finditer(r'(?m)^([ \t]*)(\w+)\.build\(b, w, sw, %d, (\w+), CRT\)[ \t]*$' % (K - 1), s)) if K else []
+if len(mD) != 1: fails.append('last module build anchor (index %d) count=%d; lines: %s' % (K - 1, len(mD), lines_with(s, '.build(b, w, sw,')))
 OLD_SQL = "SELECT 'sn_' || (data::jsonb->>'st'), 3 FROM api.ui_get($1, 'sn:' || $2) WHERE (data::jsonb->>'st') IN ('url', 'vid', 'txt') AND age_s < 1800"
 if s.count(OLD_SQL) != 1: fails.append('wzs SQL anchor (needs p197d) count=%d; lines: %s' % (s.count(OLD_SQL), lines_with(s, "'sn_'")))
 mE = list(re.finditer(r"(?m)^([ \t]*)const SNV = [^\n]*$", s))
@@ -28,16 +32,16 @@ if len(mE) != 1: fails.append('SNV definition anchor count=%d' % len(mE))
 mF = list(re.finditer(r"(?m)^([ \t]*)if \(SNV && !SAN && cmd !== 'wiz' && d\.fileId\) \{ cmd = 'snapin'; \}[^\n]*$", s))
 if len(mF) != 1: fails.append('SNV file routing rule anchor count=%d' % len(mF))
 if fails: die(' || '.join(fails))
-I = mD[0].group(1); rep = mD[0].group(2)
+I = mD[0].group(1); rep = mD[0].group(3)
 block = ('\n' + I + "_fmp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'meta_wizard', 'wizard.py')   # p287: معالج فيسبوك بالأهداف\n"
          + I + 'if os.path.exists(_fmp):\n'
          + I + "    _fms = importlib.util.spec_from_file_location('meta_wizard', _fmp); _fmm = importlib.util.module_from_spec(_fms); _fms.loader.exec_module(_fmm)\n"
-         + I + '    _fmm.build(b, w, sw, 37, ' + rep + ', CRT)')
+         + I + '    _fmm.build(b, w, sw, ' + str(IDX) + ', ' + rep + ', CRT)')
 DEF = "\n" + mE[0].group(1) + "const FMI = (!d.cb && $input.all().some(i => i.json && /^fm_/.test(String(i.json.step))));   // p287: معالج فيسبوك ينتظر رابط/اسم"
 RULE = mF[0].group(1) + "if (FMI && cmd !== 'snapin' && !SAN && cmd !== 'wiz' && !d.fileId && String(d.text || '').trim() && !String(d.text || '').trim().startsWith('/')) { cmd = 'fmin'; args = String(d.text || '').trim(); }   // p287: نص بخطوة المنشور/الموقع/الاسم\n"
 SQL_ADD = " UNION ALL SELECT 'fm_' || (data::jsonb->>'st'), 3 FROM api.ui_get($1, 'fm:' || $2) WHERE (data::jsonb->>'st') IN ('post', 'url', 'nm') AND age_s < 1800"
 edits = [(mD[0].end(), mD[0].end(), block), (mF[0].start(), mF[0].start(), RULE), (mE[0].end(), mE[0].end(), DEF), (mA[0].end(), mA[0].end(), " else if (ck === 'fm') { cmd = 'fmwiz'; uiv = String(d.cb); }"),
-         (mB[0].end(), mB[0].end(), ", fmwiz: 37, fmin: 37, fbobj: 37"), (s.index(OLD_SQL) + len(OLD_SQL), s.index(OLD_SQL) + len(OLD_SQL), SQL_ADD), (mC[0].end(1), mC[0].end(1) + 2, '38')]
+         (mB[0].end(), mB[0].end(), ", fmwiz: %d, fmin: %d, fbobj: %d" % (IDX, IDX, IDX)), (s.index(OLD_SQL) + len(OLD_SQL), s.index(OLD_SQL) + len(OLD_SQL), SQL_ADD), (mC[0].end(1), mC[0].end(2), str(K + 1))]
 new = s
 for a0, b0, txt in sorted(edits, key=lambda x: -x[0]): new = new[:a0] + txt + new[b0:]
 try: compile(new, pi, 'exec')
@@ -51,7 +55,7 @@ if os.path.exists(BASE + 'n8n/build.py'):
     r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
     if r.returncode:
         shutil.copy(BASE + pi + '.pre287', BASE + pi); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
-print('APPLY287_OK Facebook objectives wizard: /fbobj + callbacks fm: (cmd fmwiz/fmin -> output 37, Command outputs 38)')
+print('APPLY287_OK Facebook objectives wizard: /fbobj + callbacks fm: (cmd fmwiz/fmin -> output ' + str(IDX) + ', Command outputs ' + str(K + 1) + ')')
 '''
 body = T.replace("@@WIZ@@", json.dumps(WIZ, ensure_ascii=False))
 open(os.path.join(H, "..", "ops", "p287-meta-wizard.py.txt"), "w", encoding="utf-8").write(body)

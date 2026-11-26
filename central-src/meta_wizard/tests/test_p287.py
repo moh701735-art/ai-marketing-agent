@@ -13,13 +13,17 @@ def make(b, w, sw, reply, CRT):
       if (SNV && !SAN && cmd !== 'wiz' && d.fileId) { cmd = 'snapin'; }   // p197d
       else if ((SNV || SNT) && !SAN && cmd !== 'wiz' && !d.fileId && String(d.text || '').trim() && !String(d.text || '').trim().startsWith('/')) { cmd = 'snapin'; args = String(d.text || '').trim(); }   // p197d
       if (false) { }
-      const map = { snapwiz: 35, snapin: 35, guide: 36, 'دليل': 36, other: 3 };
+      const map = { snapwiz: 35, snapin: 35, guide: 36, 'دليل': 36, radar: 37, other: 3 };
     """)
-    sw = w.add("Command", "n8n-nodes-base.switch", 3.5, {"mode": "expression", "numberOutputs": 37, "output": "x"})
+    sw = w.add("Command", "n8n-nodes-base.switch", 3.5, {"mode": "expression", "numberOutputs": 38, "output": "x"})
     _gdp = os.path.join('guide', 'pages.py')
     if os.path.exists(_gdp):
         _gds = importlib.util.spec_from_file_location('guide_pages', _gdp); _gdm = importlib.util.module_from_spec(_gds); _gds.loader.exec_module(_gdm)
         _gdm.build(b, w, sw, 36, reply, CRT)
+        _crp = os.path.join('radar', 'pages.py')
+        if os.path.exists(_crp):
+            _crm = importlib.util.module_from_spec(importlib.util.spec_from_file_location('r', _crp))
+            _crm.build(b, w, sw, 37, reply, CRT)
 '''
 def tree(ing=ING):
     d = tempfile.mkdtemp(); os.makedirs(d + "/n8n"); open(d + "/n8n/wf_ingress.py", "w", encoding="utf-8").write(ing); return d
@@ -29,18 +33,25 @@ def apply(d): return subprocess.run([sys.executable, P], env={**os.environ, "P28
 class Patch(unittest.TestCase):
     def test_apply_all_edits(self):
         d = tree(); r = apply(d); self.assertIn("APPLY287_OK", r.stdout, r.stdout + r.stderr); s = rd(d + "/n8n/wf_ingress.py"); compile(s, "x", "exec")
-        self.assertIn("ck === 'fm'", s); self.assertIn("fmwiz: 37, fmin: 37, fbobj: 37", s); self.assertIn('"numberOutputs": 38', s); self.assertNotIn('"numberOutputs": 37', s)
-        self.assertIn("_fmm.build(b, w, sw, 37, reply, CRT)", s); self.assertIn("const FMI =", s); self.assertIn("'fm:' || $2", s)
+        self.assertIn("ck === 'fm'", s); self.assertIn("fmwiz: 38, fmin: 38, fbobj: 38", s); self.assertIn('"numberOutputs": 39', s); self.assertNotIn('"numberOutputs": 38', s)
+        self.assertIn("_fmm.build(b, w, sw, 38, reply, CRT)", s); self.assertLess(s.index("_crm.build(b, w, sw, 37"), s.index("_fmm.build")); self.assertIn("const FMI =", s); self.assertIn("'fm:' || $2", s)
         self.assertLess(s.index("UNION ALL SELECT 'fm_'"), s.index("ORDER BY 2"))                         # الاتحاد قبل الترتيب
         self.assertLess(s.index("const SNV"), s.index("const FMI")); self.assertLess(s.index("cmd = 'fmin'"), s.index("if (SNV && !SAN"))
         self.assertTrue(os.path.exists(d + "/n8n/wf_ingress.py.pre287")); self.assertEqual(rd(d + "/n8n/wf_ingress.py.pre287"), ING); self.assertIn("PROBE" if False else "FM2: plan", rd(d + "/meta_wizard/wizard.py"))
         self.assertIn("changed=0", apply(d).stdout)
 
     def test_fail_closed_each_anchor(self):
-        for old, new in (("ck === 'gd'", "ck === 'gx'"), ("guide: 36", "guid: 36"), ('"numberOutputs": 37', '"numberOutputs": 36'), ("_gdm.build(b, w, sw, 36", "_gdm.build(b, w, sw, 35"),
+        for old, new in (("ck === 'gd'", "ck === 'gx'"), ("snapwiz: 35", "snapw: 35"), ('"numberOutputs": 38', '"numberOutputs": 36'), ("_crm.build(b, w, sw, 37", "_crm.build(b, w, sw, 35"),
                          ("IN ('url', 'vid', 'txt')", "IN ('url')"), ("const SNV =", "const SNX ="), ("if (SNV && !SAN", "if (SNX && !SAN")):
             d = tree(ING.replace(old, new)); before = rd(d + "/n8n/wf_ingress.py"); r = apply(d)
             self.assertIn("PATCH FAIL (nothing written)", r.stdout + r.stderr, old); self.assertEqual(rd(d + "/n8n/wf_ingress.py"), before); self.assertFalse(os.path.exists(d + "/meta_wizard"))
+
+    def test_index_already_used_refused(self):
+        d = tree(ING.replace('"numberOutputs": 38', '"numberOutputs": 38') + "\n        other.build(b, w, sw, 38, reply, CRT)\n"); r = apply(d); self.assertIn("already used", r.stdout + r.stderr)
+
+    def test_adapts_to_future_output_count(self):
+        d = tree(ING.replace('"numberOutputs": 38', '"numberOutputs": 40').replace("_crm.build(b, w, sw, 37", "_crm.build(b, w, sw, 39")); r = apply(d); self.assertIn("APPLY287_OK", r.stdout, r.stdout + r.stderr)
+        s = rd(d + "/n8n/wf_ingress.py"); self.assertIn("fmwiz: 40", s); self.assertIn('"numberOutputs": 41', s); self.assertIn("_fmm.build(b, w, sw, 40, reply, CRT)", s)
 
     def test_duplicate_anchor_refused(self):
         d = tree(ING + "\n# ck === 'gd' else if (ck === 'gd') { cmd = 'guide'; uiv = String(d.cb); }\n"); self.assertIn("count=2", apply(d).stdout + apply(d).stderr)
