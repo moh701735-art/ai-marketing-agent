@@ -19,6 +19,7 @@ def fake(pages_accts, perms=None, page_list=None, me_ok=True):
             if "after=2" in url: return {"data": pages_accts[100:]}
             nxt = {"paging": {"next": url + "&after=2"}} if len(pages_accts) > 100 else {}
             return dict({"data": pages_accts[:100]}, **nxt)
+        if "me/businesses" in url: return {"data": []}
         raise AssertionError(url)
     return get
 

@@ -4,6 +4,7 @@
 التوكن يُكتب مخفياً بالطرفية (لا ينطبع ولا ينحفظ). ما يكتب بأي قاعدة ولا يغيّر شي بميتا.
 آخر سطر = معرّفات الحسابات الفعّالة (ACTIVE) بعملة USD/IQD مفصولة بمسافة، جاهزة للصق بنموذج ops/link-meta-web.py.
 """
+# p291: reads me/adaccounts AND every business (owned/client ad accounts)
 import getpass, json, os, re, sys, urllib.error, urllib.parse, urllib.request
 
 GRAPH = os.environ.get("META_GRAPH", "https://graph.facebook.com/v21.0").rstrip("/")
@@ -88,9 +89,32 @@ def run(tok, get=http_get, out=print):
     else:
         for n in NEED:
             out("  %s %s" % ("OK  " if n in granted else "MISSING", n))
-    raw, aerr = fetch_all("me/adaccounts", "account_id,name,currency,account_status,business{name}", tok, get)
+    FIELDS = "account_id,name,currency,account_status,business{name}"
+    raw, aerr = fetch_all("me/adaccounts", FIELDS, tok, get)
     if aerr:
-        out("ad accounts: read error after %d rows: %s" % (len(raw), aerr))
+        out("ad accounts (me/adaccounts): read error after %d rows: %s" % (len(raw), aerr))
+    for r in raw:
+        r["_via"] = "me"
+    # p291: accounts reached through business roles are NOT in me/adaccounts: read every portfolio the token sees
+    bizs, berr = fetch_all("me/businesses", "id,name", tok, get)
+    out("businesses seen by this token: %d%s" % (len(bizs), "" if not berr else " (read error: %s)" % berr))
+    for b in bizs:
+        bid = re.sub(r"\D", "", str(b.get("id") or ""))
+        bname = str(b.get("name") or "")[:30]
+        if not bid:
+            continue
+        got = 0
+        for edge in ("owned_ad_accounts", "client_ad_accounts"):
+            rows, e = fetch_all("%s/%s" % (bid, edge), FIELDS, tok, get)
+            for r in rows:
+                if not isinstance(r.get("business"), dict) or not r["business"].get("name"):
+                    r["business"] = {"name": bname}
+                r["_via"] = edge
+            raw.extend(rows)
+            got += len(rows)
+            if e:
+                out("  business %s (%s) %s: %s" % (bid, bname, edge, e))
+        out("  business %s  %s: %d ad accounts" % (bid, bname, got))
     accts, seen = [], set()
     for a in raw:
         n = norm_account(a)
@@ -100,10 +124,10 @@ def run(tok, get=http_get, out=print):
     accts.sort(key=lambda x: (x["biz"].lower(), x["name"].lower()))
     out("")
     out("ad accounts seen by this token: %d" % len(accts))
-    out("%-3s %-17s %-10s %-4s %-10s %s" % ("#", "id", "status", "cur", "business", "name"))
+    out("%-3s %-17s %-10s %-4s %-14s %s" % ("#", "id", "status", "cur", "business", "name"))
     for i, a in enumerate(accts, 1):
         flag = "" if usable(a) else "  <-- NOT usable (%s)" % (a["stname"] if a["st"] != 1 else "currency %s" % (a["cur"] or "?"))
-        out("%-3d %-17s %-10s %-4s %-10s %s%s" % (i, a["id"], a["stname"][:10], a["cur"] or "-", a["biz"][:10] or "-", a["name"], flag))
+        out("%-3d %-17s %-10s %-4s %-14s %s%s" % (i, a["id"], a["stname"][:10], a["cur"] or "-", a["biz"][:14] or "-", a["name"], flag))
     pages, perr2 = fetch_all("me/accounts", "id,name", tok, get)
     out("")
     out("pages seen by this token: %d%s" % (len(pages), "" if not perr2 else " (read error: %s)" % perr2))
