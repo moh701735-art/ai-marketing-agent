@@ -119,3 +119,5 @@
 - 26-11 owner: «كمل كلشي… ورسله الي مره وحده». Needs ONE combined read (`out/fball.txt`: legacy wizard account step + launch item + Meta report result code) because the code exists only on the VPS; then ONE final patch p288: objective list after account choice (legacy wizard) + `fm:q` quick-start + per-objective report labels for Meta.
 
 - 26-11 p288 delivered (`out/p288s.txt`, needs p287): objective list after Meta account choice. Next: report labels per objective for Meta — needs `out/fbr1.txt` output (loop code of hourly report + /fbreport).
+
+- 26-11 p289 delivered (`out/p289s.txt`): hourly Meta report labels per objective (independent of p287/p288; needs p173). Order for the owner: p288s then p289s. Still open: /fbreport labels, provinces/interests in the new wizard, leads/sales/app objectives, real Meta test (needs ACTIVE account), omar-iyad Meta link (hub app + token), bot new/old question.

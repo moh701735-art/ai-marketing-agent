@@ -1,0 +1,11 @@
+        const _ob = String(c.objective || ''), _m0 = getA(c.actions, 'onsite_conversion.messaging_conversation_started_7d'), _pe = getA(c.actions, 'post_engagement');   // p289: تسمية النتيجة حسب هدف الحملة
+        const _rc = n2(c.reach), _lk = n2(c.inline_link_clicks);
+        const _k = _ob === 'OUTCOME_AWARENESS' ? 'R' : _ob === 'OUTCOME_TRAFFIC' ? 'C' : (_ob === 'OUTCOME_ENGAGEMENT' && _m0 === 0 && _pe > 0) ? 'E' : '';
+        if (_k) {
+          const _n = _k === 'R' ? _rc : _k === 'C' ? _lk : _pe;
+          const _pr = _n > 0 ? (_k === 'R' ? sp / _n * 1000 : sp / _n) : null;
+          const _lb = _k === 'R' ? ['👥 الوصول: ', '💵 سعر الألف وصول: '] : _k === 'C' ? ['🖱 نقرات الرابط: ', '💵 سعر النقرة: '] : ['👍 التفاعلات: ', '💵 سعر التفاعل: '];
+          const _LL = ['👤 ' + p.label, '📣 حملة: ' + String(c.campaign_name || c.campaign_id).slice(0, 40) + ' (فيسبوك)', '💰 الإنفاق: ' + mny(sp), '👁 الظهور: ' + Math.round(n2(c.impressions)).toLocaleString('en-US'),
+            _lb[0] + Math.round(_n).toLocaleString('en-US'), _lb[1] + (_pr !== null ? mny(_pr) : '-'), '📈 CTR: ' + n2(c.ctr).toFixed(2) + '%', '📊 الحكم: ➖ بدون حكم (النتيجة مو رسائل)'];
+          g.fb.push({ sp, t: _LL.join('\n') }); continue;
+        }

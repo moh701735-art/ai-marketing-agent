@@ -1,0 +1,27 @@
+import os, re, shutil, subprocess, sys
+BASE = os.environ.get('P289_BASE', '/opt/central/')
+PRE = "        const _ob = String(c.objective || ''), _m0 = getA(c.actions, 'onsite_conversion.messaging_conversation_started_7d'), _pe = getA(c.actions, 'post_engagement');   // p289: تسمية النتيجة حسب هدف الحملة\n        const _rc = n2(c.reach), _lk = n2(c.inline_link_clicks);\n        const _k = _ob === 'OUTCOME_AWARENESS' ? 'R' : _ob === 'OUTCOME_TRAFFIC' ? 'C' : (_ob === 'OUTCOME_ENGAGEMENT' && _m0 === 0 && _pe > 0) ? 'E' : '';\n        if (_k) {\n          const _n = _k === 'R' ? _rc : _k === 'C' ? _lk : _pe;\n          const _pr = _n > 0 ? (_k === 'R' ? sp / _n * 1000 : sp / _n) : null;\n          const _lb = _k === 'R' ? ['👥 الوصول: ', '💵 سعر الألف وصول: '] : _k === 'C' ? ['🖱 نقرات الرابط: ', '💵 سعر النقرة: '] : ['👍 التفاعلات: ', '💵 سعر التفاعل: '];\n          const _LL = ['👤 ' + p.label, '📣 حملة: ' + String(c.campaign_name || c.campaign_id).slice(0, 40) + ' (فيسبوك)', '💰 الإنفاق: ' + mny(sp), '👁 الظهور: ' + Math.round(n2(c.impressions)).toLocaleString('en-US'),\n            _lb[0] + Math.round(_n).toLocaleString('en-US'), _lb[1] + (_pr !== null ? mny(_pr) : '-'), '📈 CTR: ' + n2(c.ctr).toFixed(2) + '%', '📊 الحكم: ➖ بدون حكم (النتيجة مو رسائل)'];\n          g.fb.push({ sp, t: _LL.join('\\n') }); continue;\n        }\n"
+pj = 'n8n/wf_job_report.py'
+def die(m): sys.exit('PATCH FAIL (nothing written): ' + m)
+s = open(BASE + pj, encoding='utf-8').read()
+if 'p289' in s: print('APPLY289_OK changed=0 (already applied)'); sys.exit(0)
+if 'metacamp-block' not in s: die('p173 (metacamp-block) is not in wf_job_report.py')
+def lines_with(t, k): return ' | '.join(ascii(l.strip()[:230]) for l in t.split('\n') if k in l)[:600]
+fails = []
+mF = list(re.finditer(r"campaign_id,campaign_name,spend,impressions,reach,clicks,inline_link_clicks,ctr,actions,account_currency,account_name(?=['\"])", s))
+if len(mF) != 1: fails.append('insights fields literal count=%d; lines: %s' % (len(mF), lines_with(s, 'inline_link_clicks')))
+mM = list(re.finditer(r"(?m)^([ \t]*)const msg = getA\(c\.actions, 'onsite_conversion\.messaging_conversation_started_7d'\);[ \t]*$", s))
+if len(mM) != 1: fails.append('message line anchor count=%d; lines: %s' % (len(mM), lines_with(s, 'messaging_conversation_started_7d')))
+if fails: die(' || '.join(fails))
+ind = mM[0].group(1)
+blk = ''.join((ind + ln[8:] if ln.startswith('        ') else ln) + '\n' for ln in PRE.splitlines())
+new = s[:mM[0].start()] + blk + s[mM[0].start():]
+new = new.replace(mF[0].group(0), mF[0].group(0) + ',objective', 1)
+try: compile(new, pj, 'exec')
+except SyntaxError as e: die('syntax %s' % e)
+shutil.copy(BASE + pj, BASE + pj + '.pre289'); open(BASE + pj, 'w', encoding='utf-8').write(new)
+if os.path.exists(BASE + 'n8n/build.py'):
+    r = subprocess.run(['python3', 'n8n/build.py'], cwd=BASE, capture_output=True, text=True)
+    if r.returncode:
+        shutil.copy(BASE + pj + '.pre289', BASE + pj); sys.exit('PATCH FAIL: build failed, restored: ' + (r.stderr or r.stdout)[-400:])
+print('APPLY289_OK hourly Meta report: result label by objective (reach / link clicks / engagement); WhatsApp message logic unchanged')
