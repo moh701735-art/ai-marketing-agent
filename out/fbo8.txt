@@ -1,0 +1,1 @@
+cd /opt/central && sed -n '138,205p' broker/app/service.py | cut -c1-185 | LC_ALL=C sed -E 's/[^ -~]/?/g'
