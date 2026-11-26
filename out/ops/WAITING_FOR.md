@@ -107,3 +107,5 @@
 - 26-11 p286 (Meta objectives batch 1, Broker) delivered: `out/p286s.txt` (update.sh rebuild). Test = `out/p286t.txt` (fill SLUG/act_/post/link; needs an ACTIVE Meta ad account: omar-iyad after link, mohm is UNSETTLED). Then batch 2 (wizard + report labels): needs `sed -n 71,140p /tmp/fbo9.out` (wizard flow) from the owner.
 
 - 26-11 p286 APPLIED (markers ≥1 each; test tool installed and answers its usage line). Next: batch 2 needs `out/fbo10.txt` (wizard flow lines of /tmp/fbo9.out) from the owner; live test of the objectives waits for an ACTIVE Meta ad account (omar-iyad link).
+
+- 26-11 p287 (Facebook objectives wizard `/fbobj`) delivered: `out/p287s.txt` (update.sh). Needs a linked ACTIVE Meta ad account to complete a launch (omar-iyad after link). Next: live paused test via the bot or `out/p286t.txt`; then report labels per objective, provinces/interests/placements, home button, leads/sales/app.
