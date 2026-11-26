@@ -1,0 +1,1 @@
+cd /opt/central && (echo ---CATSPEC; sed -n '224,240p;300,312p' broker/app/catalog.py | cut -c1-330) 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
