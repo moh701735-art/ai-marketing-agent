@@ -7,8 +7,9 @@ function run(code, nodes, input) {
   return new Function('$', '$input', code)($, { all: () => J(input), first: () => ({ json: input[0] }) }).map(x => x.json);
 }
 for (const k of ['plan', 'render', 'reply']) { try { new Function('$', '$input', D[k]); pass++; } catch (e) { fail++; console.log('SYNTAX', k, e.message); } }
+let PAGES = [];
 let ACCTS = [{ kind: 'acct', a: 'act_123456789', b: 'حساب عمر', c: 'USD' }];
-const rows = (state, linked = true) => [].concat(linked ? ACCTS : [], state ? [{ kind: 'state', a: JSON.stringify(state), b: '5' }] : []);
+const rows = (state, linked = true) => [].concat(linked ? ACCTS : [], PAGES, state ? [{ kind: 'state', a: JSON.stringify(state), b: '5' }] : []);
 const route = (cb, extra) => ({ ctx: 'CTX', chatId: 77, cmd: cb ? 'fmwiz' : 'fbobj', cb, ...extra });
 function step(cb, state, goResult, extra, linked = true) {
   const plan = run(D.plan, { Route: route(cb, extra) }, rows(state, linked));
@@ -99,4 +100,44 @@ let dq = step('fm:o:awareness', r.S).S; dq = text(POST, dq).S; dq = step('fm:bu:
 r = step('fm:go', dq, null); ok('launch uses normalized act_ account for the Broker', r.plan[0].ad_account === 'act_1143673748321865', r.plan[0]);
 r = step(null, null); ok('plain /fbobj lists digits account (normalized)', r.S.st === 'obj' && r.plan[0].accts[0].id === 'act_1143673748321865', r.plan[0].accts);
 r = step('wz:ac:7593807340588253185', null); ok('19-digit TikTok id is not treated as a Meta wz entry', r.S.via === '', r.S);
+
+// 15) p292: خطوة الصفحة بأسماء كاملة
+const LONGN = 'مركز الارتقاء الطبي للتجميل والليزر والأسنان فرع بغداد الجديدة';
+PAGES = Array.from({ length: 13 }, (_, i) => ({ kind: 'page', a: String(100000 + i), b: i === 2 ? LONGN : 'صفحة رقم ' + (i + 1) }));
+ACCTS = [{ kind: 'acct', a: 'act_123456789', b: 'حساب نور', c: 'USD' }];
+r = step('fm:o:awareness', step(null, null).S); checkKb('page1', r.out);
+ok('13 pages: objective → page step (not post)', r.S.st === 'page' && !r.S.page, r.S);
+ok('page list shows numbered FULL names (no truncation), 5 per page, counter', /1\) صفحة رقم 1/.test(r.out.text) && r.out.text.includes('3) ' + LONGN) && /5\) صفحة رقم 5/.test(r.out.text) && !/6\) /.test(r.out.text) && /13/.test(r.out.text) && /صفحة 1 من 3/.test(r.out.text), r.out.text);
+ok('page buttons are numbers with fm:pg:<id> + next only', r.out.keyboard.flat().filter(b => /^fm:pg:/.test(b.c)).length === 5 && r.out.keyboard.flat().some(b => b.c === 'fm:pp:5') && !r.out.keyboard.flat().some(b => /السابق/.test(b.t)), r.out.keyboard);
+let pr = step('fm:pp:5', r.S); checkKb('page2', pr.out); ok('page 2: prev+next, items 6..10', /6\) صفحة رقم 6/.test(pr.out.text) && /10\) صفحة رقم 10/.test(pr.out.text) && pr.out.keyboard.flat().some(b => b.c === 'fm:pp:0') && pr.out.keyboard.flat().some(b => b.c === 'fm:pp:10'), pr.out.text);
+pr = step('fm:pp:10', pr.S); checkKb('page3', pr.out); ok('last page: 3 items, no next', /13\) صفحة رقم 13/.test(pr.out.text) && !/14\) /.test(pr.out.text) && !pr.out.keyboard.flat().some(b => /التالي/.test(b.t)), pr.out.text);
+pr = step('fm:pp:999', pr.S); ok('offset beyond end is clamped', /13\) صفحة رقم 13/.test(pr.out.text), pr.out.text);
+pr = step('fm:pg:999999', r.S); ok('unknown page id ignored (stays on page step)', pr.S.st === 'page' && !pr.S.page, pr.S);
+pr = step('fm:pg:100002', r.S); ok('choose page 3 → post step, full name stored', pr.S.st === 'post' && pr.S.page === '100002' && pr.S.pname === LONGN, pr.S);
+let ps = pr.S; ps = text(POST, ps).S; ps = step('fm:bu:5', ps).S; ps = step('fm:du:1', ps).S; ps = step('fm:aa', ps).S; ps = step('fm:g:a', ps).S; ps = step('fm:nt', ps).S;
+r = step(null, ps); r = step('fm:b:sum', ps); checkKb('sum with page', r.out); ok('summary shows the page full name + page button', r.out.text.includes('📄 الصفحة: ' + LONGN) && r.out.keyboard.flat().some(b => b.c === 'fm:b:page'), r.out.text);
+r = step('fm:go', ps, null); ok('launch carries page_id and stays paused-only', r.plan[0].need && r.plan[0].params.page_id === '100002' && !('activate_now' in r.plan[0].params), r.plan[0]);
+r = step('fm:go', ps, { ok: true, data: { campaign_id: '900', adset_id: '901', ad_id: '903', currency: 'USD' } }); ok('success card names the page', r.out.text.includes('📄 الصفحة: ' + LONGN), r.out.text);
+r = step('fm:go', ps, { ok: false, error: { class: 'upstream', message: 'post_not_from_selected_page' }, data: { stage: 'post' } }); ok('post_not_from_selected_page → clear Arabic explanation', /المنشور مو من الصفحة اللي اخترتها/.test(r.out.text) && r.out.text.includes(LONGN), r.out.text);
+r = step('fm:go', { ...ps, page: '' }, null); ok('go without page (≥2 pages) → forced back to page step, no broker', !r.plan[0].need && r.S.st === 'page', r.S);
+r = step('fm:b:post', { ...ps, st: 'sum' }); r = step('fm:b:page', ps); ok('back to page step from summary', r.S.st === 'page', r.S);
+r = step('fm:b:bud', { st: 'bud', obj: 'awareness', acct: 'act_123456789', page: '', post: POST }); ok('stale state without page (13 pages) → page step', r.S.st === 'page', r.S);
+r = step('fm:b:sum', { st: 'sum', obj: 'awareness', acct: 'act_123456789', page: '777777', pname: 'ملغاة', post: POST, bud: 5, days: 1 }); ok('page no longer linked → cleared and re-asked', r.S.st === 'page' && r.S.page === '', r.S);
+ps2 = { ...ps, st: 'post' }; r = step('fm:b:page', ps2); r = step('fm:b:obj', step('fm:o:awareness', step(null, null).S).S); ok('back from page step goes to objective (account auto)', r.S.st === 'obj', r.S);
+// صفحة وحدة: تُختار تلقائياً ولا تُعرض
+PAGES = [{ kind: 'page', a: '555551', b: 'صفحتي الوحيدة' }];
+r = step('fm:o:awareness', step(null, null).S); ok('single page auto-selected → post step', r.S.st === 'post' && r.S.page === '555551' && r.S.pname === 'صفحتي الوحيدة', r.S);
+r = step('fm:b:post', r.S); r = step('fm:b:obj', r.S); ok('back from post skips the auto page step', r.S.st === 'obj', r.S);
+let o1 = step('fm:o:awareness', step(null, null).S).S; o1 = text(POST, o1).S; o1 = step('fm:bu:5', o1).S; o1 = step('fm:du:1', o1).S; o1 = step('fm:aa', o1).S; o1 = step('fm:g:a', o1).S; o1 = step('fm:nt', o1).S;
+r = step('fm:go', o1, null); ok('single page: page_id sent + summary has page, no page button', r.plan[0].params.page_id === '555551', r.plan[0].params);
+r = step('fm:b:sum', o1); ok('summary single page line without change button', r.out.text.includes('📄 الصفحة: صفحتي الوحيدة') && !r.out.keyboard.flat().some(b => b.c === 'fm:b:page'), r.out.text);
+// بدون صفحات: السلوك القديم
+PAGES = [];
+r = step('fm:o:awareness', step(null, null).S); ok('no linked pages: skip page step (old behaviour)', r.S.st === 'post' && !r.S.page, r.S);
+o1 = r.S; o1 = text(POST, o1).S; o1 = step('fm:bu:5', o1).S; o1 = step('fm:du:1', o1).S; o1 = step('fm:aa', o1).S; o1 = step('fm:g:a', o1).S; o1 = step('fm:nt', o1).S;
+r = step('fm:go', o1, null); ok('no pages: no page_id param, summary without page line', !('page_id' in r.plan[0].params) && !/📄/.test(step('fm:b:sum', o1).out.text), r.plan[0].params);
+// أسماء بأحرف خاصة/طويلة جداً: تنقّى وتُقصّ 120
+PAGES = [{ kind: 'page', a: '100001', b: 'اسم <b>خطر</b>\n' + 'ص'.repeat(200) }, { kind: 'page', a: '100002', b: 'ثانية' }];
+r = step('fm:o:awareness', step(null, null).S); ok('page names sanitized (<>, control chars) and capped at 120', !/[<>]/.test(r.out.text.split('اختر الصفحة')[1] || '') && r.out.text.length < 3800, r.out.text.slice(0, 300));
+PAGES = [];
 console.log('PASS', pass, 'FAIL', fail); process.exit(fail ? 1 : 0);
