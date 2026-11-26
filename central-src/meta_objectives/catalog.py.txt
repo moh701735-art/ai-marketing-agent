@@ -1,0 +1,28 @@
+
+
+# p286: عمليتا إنشاء لأهداف فيسبوك الإضافية. PAUSED بالقوة. الحقول المشتقة (optimization_goal/destination_type/promoted_object/targeting/object_story_spec) تُبنى بـ_build حسب objective_key.
+def _p286_register():
+    import copy, dataclasses
+    base = OPS.get("meta.create_adset")
+    if base is None: return
+    params = {k: v for k, v in dict(base.params).items() if k != "whatsapp_phone_number"}
+    params["objective_key"] = P("enum", values=("awareness", "traffic", "engagement"), required=True)
+    forced = {"status": "PAUSED", "billing_event": "IMPRESSIONS", "bid_strategy": "LOWEST_COST_WITHOUT_CAP"}
+    try: op = dataclasses.replace(base, name="meta.create_adset_obj", params=params, forced=forced)
+    except Exception:
+        op = copy.copy(base)
+        object.__setattr__(op, "name", "meta.create_adset_obj"); object.__setattr__(op, "params", params); object.__setattr__(op, "forced", forced)
+    OPS["meta.create_adset_obj"] = op
+    cbase = OPS.get("meta.create_adcreative")
+    if cbase is None: return
+    cparams = dict(cbase.params)
+    cparams["objective_key"] = P("enum", values=("awareness", "traffic", "engagement"), required=True)
+    cparams["link_url"] = P("text", max_len=1000)
+    cparams["cta"] = P("enum", values=("LEARN_MORE", "SHOP_NOW", "SIGN_UP", "CONTACT_US", "GET_QUOTE", "BOOK_TRAVEL", "WATCH_MORE", "NO_BUTTON"))
+    try: cop = dataclasses.replace(cbase, name="meta.create_adcreative_obj", params=cparams)
+    except Exception:
+        cop = copy.copy(cbase)
+        object.__setattr__(cop, "name", "meta.create_adcreative_obj"); object.__setattr__(cop, "params", cparams)
+    OPS["meta.create_adcreative_obj"] = cop
+try: _p286_register()
+except Exception: pass

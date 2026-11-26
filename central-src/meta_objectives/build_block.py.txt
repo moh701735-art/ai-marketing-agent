@@ -1,0 +1,42 @@
+        if op.name == "meta.create_adset_obj":        # p286: مجموعة لأهداف وعي/زيارات/تفاعل (واتساب ما تغيّر)
+            okey = str(p.pop("objective_key"))
+            _g = {"awareness": ("REACH", None), "traffic": ("LINK_CLICKS", "WEBSITE"), "engagement": ("POST_ENGAGEMENT", "ON_POST")}[okey]
+            pid = p.pop("page_id", None)
+            tg = {"geo_locations": {}}
+            _cs = [str(x).upper() for x in (p.pop("countries", None) or [])]
+            _rg = [str(x) for x in (p.pop("regions", None) or [])]
+            if _cs: tg["geo_locations"]["countries"] = _cs
+            if _rg: tg["geo_locations"]["regions"] = [{"key": x} for x in _rg]
+            if not tg["geo_locations"]: tg["geo_locations"] = {"countries": ["IQ"]}
+            for _k in ("age_min", "age_max"):
+                if p.get(_k) is not None: tg[_k] = int(p.pop(_k))
+            _gd = p.pop("genders", None) or []
+            if _gd: tg["genders"] = [int(x) for x in _gd]
+            _ints = p.pop("interests", None) or []
+            if _ints: tg["flexible_spec"] = [{"interests": [{"id": str(i)} for i in _ints]}]
+            _pl = p.pop("placements", None) or []
+            if _pl:
+                _fbm = {"facebook_feed": "feed", "facebook_reels": "facebook_reels", "facebook_stories": "story", "facebook_marketplace": "marketplace", "facebook_video_feeds": "video_feeds", "facebook_search": "search"}
+                _igm = {"instagram_feed": "stream", "instagram_reels": "reels", "instagram_stories": "story", "instagram_explore": "explore"}
+                _msm = {"messenger_inbox": "messenger_home"}
+                _f = [_fbm[x] for x in _pl if x in _fbm]; _i = [_igm[x] for x in _pl if x in _igm]; _m = [_msm[x] for x in _pl if x in _msm]
+                tg["publisher_platforms"] = (["facebook"] if _f else []) + (["instagram"] if _i else []) + (["messenger"] if _m else [])
+                if _f: tg["facebook_positions"] = _f
+                if _i: tg["instagram_positions"] = _i
+                if _m: tg["messenger_positions"] = _m
+            tg["targeting_automation"] = {"advantage_audience": 0}
+            p["targeting"] = tg
+            p["optimization_goal"] = _g[0]
+            if _g[1]: p["destination_type"] = _g[1]
+            if okey == "engagement": p["promoted_object"] = {"page_id": str(pid)}
+        if op.name == "meta.create_adcreative_obj":   # p286: كريتيف فيديو لأهداف وعي/زيارات/تفاعل
+            okey = str(p.pop("objective_key"))
+            vd = {"video_id": str(p.pop("video_id"))}
+            if p.get("message"): vd["message"] = p.pop("message")
+            if p.get("image_url"): vd["image_url"] = p.pop("image_url")
+            _lk = p.pop("link_url", None); _cta = p.pop("cta", None)
+            if okey == "traffic" and _lk:
+                vd["call_to_action"] = {"type": _cta or "LEARN_MORE", "value": {"link": str(_lk)}}
+            elif _cta and _cta != "NO_BUTTON" and _lk:
+                vd["call_to_action"] = {"type": _cta, "value": {"link": str(_lk)}}
+            p["object_story_spec"] = {"page_id": str(p.pop("page_id")), "video_data": vd}

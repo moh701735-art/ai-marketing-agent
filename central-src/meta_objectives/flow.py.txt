@@ -1,0 +1,120 @@
+
+
+# p286: أهداف فيسبوك الإضافية (وعي/زيارات/تفاعل) — عملية مركّبة جديدة بجانب launch_whatsapp (لا تلمسها). كل شيء يُنشأ PAUSED (forced بالكتالوج). تُستدعى بنفس الاسم meta.launch_whatsapp لما يوجد objective_key.
+_OBJ_META = {
+    "awareness": {"campaign": "OUTCOME_AWARENESS", "goal": "REACH", "dest": None, "label": "وعي (وصول)", "metric": "reach"},
+    "traffic": {"campaign": "OUTCOME_TRAFFIC", "goal": "LINK_CLICKS", "dest": "WEBSITE", "label": "زيارات (نقرات على الرابط)", "metric": "link_clicks"},
+    "engagement": {"campaign": "OUTCOME_ENGAGEMENT", "goal": "POST_ENGAGEMENT", "dest": "ON_POST", "label": "تفاعل مع المنشور", "metric": "post_engagement"},
+}
+_OBJ_FX = 1555
+_OBJ_MAX_USD = 1000
+
+
+def _obj_clean(params):
+    """يتحقق من مدخلات الأهداف الجديدة. يرجع (p, خطأ). لا يخترع قيم: الناقص = خطأ."""
+    import re as _re
+    q = dict(params or {})
+    key = str(q.get("objective_key") or "")
+    if key not in _OBJ_META: return None, "objective_key غير معروف: " + key
+    try: usd = float(q.get("budget_usd"))
+    except Exception: return None, "budget_usd مطلوب (رقم)"
+    if not (0.5 <= usd <= _OBJ_MAX_USD): return None, "budget_usd لازم بين 0.5 و %d" % _OBJ_MAX_USD
+    try: days = int(q.get("days"))
+    except Exception: return None, "days مطلوب (1..30)"
+    if not (1 <= days <= 30): return None, "days لازم بين 1 و 30"
+    post = str(q.get("post_url") or "").strip()
+    if not post.startswith("https://"): return None, "post_url (رابط منشور https) مطلوب"
+    link = str(q.get("link_url") or "").strip()
+    if key == "traffic" and not _re.match(r"^https://[^\s]{4,900}$", link): return None, "link_url (رابط الموقع https) مطلوب لهدف الزيارات"
+    name = _re.sub(r"[\x00-\x1f\x7f]+", " ", str(q.get("name") or "")).strip()[:120]
+    if not name: return None, "name مطلوب"
+    out = {"objective_key": key, "budget_usd": usd, "days": days, "post_url": post, "link_url": link, "name": name,
+           "budget_mode": "daily" if str(q.get("budget_mode") or "total") == "daily" else "total", "activate_now": q.get("activate_now") is True}
+    for k in ("countries", "regions", "interests", "genders", "placements"):
+        v = q.get(k)
+        if v is not None:
+            if not isinstance(v, list) or len(v) > 200: return None, k + " لازم قائمة"
+            out[k] = [str(x)[:64] for x in v]
+    for k in ("age_min", "age_max"):
+        if q.get(k) is not None:
+            try: out[k] = int(q[k])
+            except Exception: return None, k + " لازم رقم"
+    if out.get("age_min") is not None and not (18 <= out["age_min"] <= 65): return None, "age_min بين 18 و 65"
+    if out.get("age_max") is not None and not (18 <= out["age_max"] <= 65): return None, "age_max بين 18 و 65"
+    if q.get("start_at"): out["start_at"] = str(q["start_at"])[:40]
+    if q.get("ad_text"): out["ad_text"] = _re.sub(r"[\x00-\x1f\x7f]+", " ", str(q["ad_text"])).strip()[:2000]
+    if q.get("cta"): out["cta"] = str(q["cta"])[:30]
+    return out, None
+
+
+async def launch_objective(svc, ctx, ad_account, params, idem=None):
+    import re as _re, datetime as _dt
+    if not (ad_account and ACCT_RE.fullmatch(ad_account)): return _bad("ad_account act_<digits> مطلوب")
+    if not idem or not (16 <= len(idem) <= 100): return _bad("idempotency_key (16..100 أحرف) مطلوب")
+    p, err = _obj_clean(params)
+    if err: return _bad(err)
+    spec = _OBJ_META[p["objective_key"]]; made = {"objective": p["objective_key"], "campaign_objective": spec["campaign"], "optimization_goal": spec["goal"], "result_metric": spec["metric"]}
+    acc, f = await _call(svc, ctx, "meta.read_account", ad_account, {"fields": "currency,account_status,name"})
+    if f: return f
+    cur = str(acc.get("currency") or "").upper()
+    if str(acc.get("account_status")) != "1": return _fail("account", "account_not_active")
+    if cur not in ("USD", "IQD"): return _fail("account", "currency_not_supported:" + cur)
+    minor = round(p["budget_usd"] * 100) if cur == "USD" else round(p["budget_usd"] * _OBJ_FX)
+    made["currency"], made["budget_minor"] = cur, minor
+    post, f = await resolve_post(svc, ctx, p["post_url"])
+    if f: return f
+    # 1) حملة (PAUSED بالكتالوج)
+    camp, f = await _call(svc, ctx, "meta.create_campaign", ad_account, {"name": p["name"], "objective": spec["campaign"], "special_ad_categories": ["NONE"]}, idem + "-c")
+    if f: return f
+    cid = str(camp.get("id") or "")
+    if not cid: return _fail("campaign", "no_campaign_id_returned", "bad_response")
+    made["campaign_id"] = cid
+    # 2) مجموعة إعلانية
+    start = None
+    if p.get("start_at"): start = p["start_at"]
+    else: start = (_dt.datetime.utcnow() + _dt.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S+0000")
+    end = (_dt.datetime.strptime(start[:19], "%Y-%m-%dT%H:%M:%S") + _dt.timedelta(days=p["days"])).strftime("%Y-%m-%dT%H:%M:%S+0000")
+    ap = {"name": p["name"] + " - adset", "campaign_id": cid, "page_id": post["page_id"], "objective_key": p["objective_key"],
+          "start_time": start, "end_time": end, ("daily_budget" if p["budget_mode"] == "daily" else "lifetime_budget"): minor}
+    for k in ("countries", "regions", "interests", "genders", "placements", "age_min", "age_max"):
+        if p.get(k) is not None: ap[k] = p[k]
+    adset, f = await _call(svc, ctx, "meta.create_adset_obj", ad_account, ap, idem + "-a")
+    if f: return _partial(f, made)
+    sid = str(adset.get("id") or "")
+    if not sid: return _fail("adset", "no_adset_id_returned", "bad_response")
+    made["adset_id"] = sid
+    # 3) كريتيف
+    cp = {"name": p["name"] + " - creative", "page_id": post["page_id"], "video_id": post["video_id"], "objective_key": p["objective_key"]}
+    msg = p.get("ad_text") or post.get("message")
+    if msg: cp["message"] = _re.sub(r"[\x00-\x1f\x7f]+", " ", str(msg)).strip()[:2000]
+    if str(post.get("picture") or "").startswith("https://"): cp["image_url"] = post["picture"][:2000]
+    if p["objective_key"] == "traffic": cp["link_url"] = p["link_url"]; cp["cta"] = p.get("cta") or "LEARN_MORE"
+    cre, f = await _call(svc, ctx, "meta.create_adcreative_obj", ad_account, cp, idem + "-r")
+    if f: return _partial(f, made)
+    crid = str(cre.get("id") or "")
+    if not crid: return _fail("creative", "no_creative_id_returned", "bad_response")
+    made["creative_id"] = crid
+    # 4) إعلان (PAUSED بالكتالوج)
+    ad, f = await _call(svc, ctx, "meta.create_ad", ad_account, {"name": p["name"] + " - ad", "adset_id": sid, "creative_id": crid}, idem + "-d")
+    if f: return _partial(f, made)
+    adid = str(ad.get("id") or "")
+    if not adid: return _fail("ad", "no_ad_id_returned", "bad_response")
+    made["ad_id"] = adid
+    # 5) قراءة راجعة: الحالة الحقيقية
+    back, f = await _call(svc, ctx, "meta.get_object", ad_account, {"oid": cid, "fields": "id,name,objective,effective_status,configured_status"})
+    if not f and isinstance(back, dict): made["readback"] = {k: back.get(k) for k in ("objective", "effective_status", "configured_status")}
+    made["status"] = "PAUSED"
+    if p["activate_now"]:
+        for n, oid in enumerate((adid, sid, cid)):
+            _, f = await _call(svc, ctx, "meta.set_status", ad_account, {"oid": oid, "status": "ACTIVE"}, "%s-s%d" % (idem, n))
+            if f: made["activation_error"] = f[1]["error"].get("message", "")[:200]; break
+        else: made["status"] = "ACTIVE"
+    return 200, {"ok": True, "data": made}
+
+
+def _partial(f, made):
+    """فشل بعد إنشاء الحملة: نرجع الفشل نفسه + ما انخلق (حملة بلا إعلان تبقى متوقفة، لا حذف تلقائي)"""
+    try:
+        f[1].setdefault("data", {}); f[1]["data"]["created_before_failure"] = dict(made)
+    except Exception: pass
+    return f

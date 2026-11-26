@@ -1,0 +1,1 @@
+cd /opt/central && MO_SLUG=SLUG MO_ACCT=act_XXXXXXXX MO_OBJ=traffic MO_POST="https://www.facebook.com/PAGE/videos/VIDEOID" MO_LINK="https://example.com" python3 ops/meta-obj-test.py 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
