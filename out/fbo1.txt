@@ -1,0 +1,1 @@
+cd /opt/central && (echo ---CAT; grep -n 'Op("meta\.' broker/app/catalog.py | cut -c1-210 | head -45; echo ---FLOW; sed -n '616,700p' broker/app/metaflow.py | cut -c1-175) 2>&1 | LC_ALL=C sed -E 's/[^ -~]/?/g'
