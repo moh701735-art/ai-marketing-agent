@@ -1,0 +1,1 @@
+cd /opt/central && sed -n '84,103p' n8n/wf_ingress.py | cut -c1-210 | LC_ALL=C sed -E 's/[^ -~]/?/g'
