@@ -123,9 +123,12 @@ if R0 >= 0 and R1 > R0:
 # ---------- broker (launch_whatsapp القديم) ----------
 al = [l for l in mf.split('\n') if '"start_at"' in l and '"post_url"' in l]
 if len(al) != 1: fails.append('broker: allowed-params line count=%d' % len(al))
-mv = list(re.finditer(r'(?m)^([ \t]*)pv = params\.get\("provinces", \[\]\)[ \t]*$', mf))
-if len(mv) != 1: fails.append('broker: validation anchor (pv = params.get("provinces")) count=%d' % len(mv))
-elif 'days=60' not in mf[max(0, mv[0].start() - 900):mv[0].start()] or 'sdt' not in mf[max(0, mv[0].start() - 900):mv[0].start()]: fails.append('broker: start_at validation block not right before the anchor')
+mv_all = list(re.finditer(r'(?m)^([ \t]*)pv = params\.get\("provinces", \[\]\)[ \t]*$', mf))
+def _seg(m):
+    t = mf[:m.start()]; k = max(t.rfind('\ndef '), t.rfind('\n    def '), t.rfind('async def '), t.rfind('\nclass '))
+    return t[k:] if k >= 0 else t
+mv = [m for m in mv_all if 'days=60' in _seg(m)[-900:] and 'sdt' in _seg(m)[-900:]]   # المسار القديم فقط (قبله فحص start_at)
+if len(mv) != 1: fails.append('broker: validation anchor (pv = params.get("provinces") right after the start_at check) count=%d of %d' % (len(mv), len(mv_all)))
 mo2 = list(re.finditer(r'"start_at": sa(?![A-Za-z0-9_])', mf))
 if len(mo2) != 1: fails.append('broker: output dict "start_at": sa count=%d' % len(mo2))
 me = list(re.finditer(r'(?m)^([ \t]*)end = \(base \+ datetime\.timedelta\(days=p\["days"\]\)\)\.strftime\("%Y-%m-%dT%H:%M:%S\+0000"\)[ \t]*$', mf))

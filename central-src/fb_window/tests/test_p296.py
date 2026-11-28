@@ -57,6 +57,12 @@ def validate_wa(params):
     out = {"days": int(params.get("days") or 1), "budget_mode": params.get("budget_mode") or "total", "start_at": sa, "advantage_audience": False}
     return out, None
 
+def validate_obj(q):
+    out = {}
+    if q.get("start_at"): out["start_at"] = str(q["start_at"])[:40]
+    pv = params.get("provinces", [])
+    return out, None
+
 def launch(p):
     base = datetime.datetime.strptime(p["start_at"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=datetime.timezone.utc) if p["start_at"] else datetime.datetime.now(datetime.timezone.utc)
     end = (base + datetime.timedelta(days=p["days"])).strftime("%Y-%m-%dT%H:%M:%S+0000")
