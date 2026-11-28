@@ -445,3 +445,11 @@ Ingress intercepts the legacy callback `wz:ac:act_<digits>` (Meta account) and r
 - ملاحظة: محلل تيك توك p230 يحسب «1 بالليل» = 13:00 (خطأ) — يحتاج باتش صغير p230e.
 - التسليم: `out/p296s.txt` (+ `.pre296` لملفين، update.sh).
 - p230e (28-11): تصحيح محلل تيك توك: «1–5 بالليل» = 01:00–05:00 بعد منتصف الليل، «6–11 بالليل» = مساءً (كان «1 بالليل» = 13:00). `out/p230es.txt`، استبدال سطر `to24` فقط (`.pre230e`)؛ نفس القاعدة بفيسبوك p296. p296 مطبّق (علامات 2/2).
+
+## بوابة الزبائن على الويب — نسخة 1 (28-11) — `app.mohammedai.tech`
+- السبب: تليجرام محجوب بالعراق؛ الموقع فرع ثاني، المشتركين وبوتات تليجرام ما تتغيّر. DNS: سجل A `app` → 72.60.81.190 (أضفته بـAPI هوستنجر، بقية السجلات ما انلمست).
+- التصميم (نسخة رادار المنافسين): حاوية `central-stg-web-portal` مستقلة (read-only، cap-drop، 256MB)، مخطط `web` + دور `web_rt` (بدون صلاحية أي جدول؛ دوال SECURITY DEFINER فقط + EXECUTE على `api.list_ad_accounts/list_campaigns/list_pages`)، بلوك Caddy محدّد (BEGIN/END web-portal) مع validate+reload ورجوع تلقائي.
+- الدخول: بدعوة من المدير فقط (`ops/web-portal.py invite --slug S --email E` يطبع رابط لمرة وحدة؛ ينخزّن هاشه فقط). كلمة السر scrypt، قفل 15 دقيقة بعد 5 محاولات، جلسات sha256 (حد 5)، CSRF (cookie+حقل)، كوكي HttpOnly/Secure/SameSite=Lax، رؤوس أمان (CSP/HSTS/…).
+- ctx: `web.ctx(user)` يوقّع ctx دور viewer لمدة 5 دقائق لعميل المستخدم فقط (نفس شكل api.job_context_for_slug؛ k=system). غير مثبت حياً — `install` يفحصه (يقرأ list_ad_accounts بنفس الـctx على أول عميل READY).
+- النسخة 1 قراءة فقط (حسابات + حملات). ربط تيك توك/فيسبوك من الزبون + رفع الحملات = مراحل لاحقة؛ ربط تيك توك يحتاج مسار آمن لكتابة الخزنة (`/v1/admin/secrets` مفتاحه ops-admin — ما نعطيه للموقع؛ نصمم مفتاح/عملية Broker ضيقة).
+- التسليم: `out/p305s.txt` (يكتب الملفات فقط) ثم `python3 ops/web-portal.py install`. الاختبارات: DB (Postgres مؤقت) 11، خدمة 15، أداة 9، مثبّت 5.
