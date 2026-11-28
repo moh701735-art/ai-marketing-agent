@@ -8,6 +8,8 @@
   down               : يوقف ويحذف الحاوية ويشيل بلوك Caddy (البيانات تبقى؛ التراجع الكامل بـ81_web_portal_down.sql يدوياً)"""
 import argparse, hashlib, os, re, secrets, socket, subprocess, sys, time
 
+ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"   # بدون i,l,o,u (نفس أبجدية الموقع)
+
 ROOT = os.environ.get("WEB_ROOT", "/opt/central/web_portal")
 CF = os.environ.get("WEB_CADDYFILE", "/opt/central/deploy/Caddyfile")
 PG = os.environ.get("WEB_PG_CONTAINER", "central-stg-pg")
@@ -153,10 +155,10 @@ def cmd_invite(a, out=print):
     if not SLUG_RE.fullmatch(a.slug or ""): raise Fail("FAIL: bad slug")
     if not EMAIL_RE.fullmatch(a.email or ""): raise Fail("FAIL: bad email")
     if not 1 <= a.hours <= 168: raise Fail("FAIL: hours must be 1..168")
-    tok = secrets.token_hex(16); h = hashlib.sha256(tok.encode()).hexdigest()   # أرقام وحروف إنكليزية صغيرة فقط: أسهل بالنسخ
+    tok = "".join(secrets.choice(ALPHABET) for _ in range(12)); h = hashlib.sha256(tok.encode()).hexdigest()   # رمز قصير 12 خانة، يُكتب بسهولة
     rc, o, e = psql("SELECT web.invite_create(:'slug', :'email', :'h', :hours);", {"slug": a.slug, "email": a.email, "h": h, "hours": str(a.hours)}, check=False)
     if rc: raise Fail("FAIL: " + (e or o).strip()[-250:])
-    out("✅ الدعوة جاهزة لمدة %d ساعة، لمرة وحدة. ابعثها للزبون (واتساب) ولا تنشرها:" % a.hours); out("https://%s/invite/%s" % (HOST, tok)); out("مرجع الدعوة (للتشخيص فقط، مو سر): %s" % h[:8])
+    out("✅ الدعوة جاهزة لمدة %d ساعة، لمرة وحدة. ابعثها للزبون (واتساب) ولا تنشرها:" % a.hours); out("رمز الدعوة (اكتبه بالصفحة): %s" % "-".join(tok[i:i + 4] for i in range(0, 12, 4))); out("الصفحة: https://%s/invite" % HOST); out("أو الرابط المباشر: https://%s/invite/%s" % (HOST, tok)); out("مرجع الدعوة (للتشخيص فقط، مو سر): %s" % h[:8])
 
 
 def cmd_down(a, out=print):

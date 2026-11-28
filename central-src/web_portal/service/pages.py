@@ -35,6 +35,11 @@ def invite_page(csrf, token, email, error=""):
                 "<label>أعد كتابتها</label><input name=\"confirm\" type=\"password\" required minlength=\"10\" autocomplete=\"new-password\"><button>حفظ</button></form></div>" % (esc(email), msg("e", error), esc(token), esc(csrf)))
 
 
+def invite_code_page(error=""):
+    return page("رمز الدعوة", "<div class=\"c\"><h1>رمز الدعوة</h1>%s<form method=\"get\" action=\"/invite\"><label>اكتب الرمز (12 خانة، مثل 7k3m-q9xp-4tn2)</label>"
+                "<input name=\"code\" required maxlength=\"40\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\" dir=\"ltr\"><button>متابعة</button></form></div>" % msg("e", error))
+
+
 def message_page(title, text):
     return page(title, "<div class=\"c\"><h1>%s</h1><p>%s</p><p><a href=\"/login\">تسجيل الدخول</a></p></div>" % (esc(title), esc(text)))
 

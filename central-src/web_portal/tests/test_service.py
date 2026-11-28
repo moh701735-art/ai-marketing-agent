@@ -127,6 +127,19 @@ class T(unittest.TestCase):
         tok = __import__("secrets").token_hex(16); self.assertTrue(sec.valid_token(tok)); self.st.add_user("hex@acme.com", None, False); self.st.invites[sec.token_hash(tok)] = {"email": "hex@acme.com"}
         s, b, _ = self.cl.req("GET", "/invite/" + tok); self.assertEqual(s, 200); self.assertIn("hex@acme.com", b)
 
+    def test_09d_short_codes_page_redirect_and_flow(self):
+        code = sec.new_invite_code(); self.assertEqual(len(code), 12); self.st.add_user("code@acme.com", None, False); self.st.invites[sec.invite_hash(code)] = {"email": "code@acme.com"}
+        s, b, _ = self.cl.req("GET", "/invite"); self.assertEqual(s, 200); self.assertIn('name="code"', b)
+        s, b, h = self.cl.req("GET", "/invite?code=" + urllib.parse.quote(sec.fmt_invite(code).upper())); self.assertEqual((s, h["location"]), (302, "/invite/" + code))
+        s, b, _ = self.cl.req("GET", "/invite/" + code); self.assertEqual(s, 200); self.assertIn("code@acme.com", b)
+        t = self.cl.csrf("/invite/" + code); s, b, _ = self.cl.req("POST", "/invite/" + code, {"csrf": t, "password": "long-enough-pass", "confirm": "long-enough-pass"}); self.assertEqual(s, 200); self.assertIn("انحفظت", b)
+        self.assertEqual(self.login(email="code@acme.com", pwd="long-enough-pass")[0], 302); self.assertEqual(self.cl.req("GET", "/invite/" + code)[0], 404)
+        s, b, _ = self.cl.req("GET", "/invite?code=abc"); self.assertEqual(s, 400); self.assertIn("12", b); self.assertEqual(self.cl.req("GET", "/invite/")[0], 404)
+    def test_09e_ambiguous_characters_normalized(self):
+        raw = "7k3m-q9xp-4tn2"; self.assertEqual(sec.norm_invite(raw), "7k3mq9xp4tn2"); self.assertEqual(sec.norm_invite("O0Il-1l1i-o0o0"), "001111110000"); self.assertEqual(sec.invite_hash("7K3M Q9XP 4TN2"), sec.invite_hash(raw))
+        self.assertIsNone(sec.norm_invite("short")); self.assertIsNone(sec.norm_invite("7k3m-q9xp-4tnu")); self.assertIsNone(sec.invite_hash("x" * 70))
+        self.assertEqual(sec.invite_hash("a" * 43), sec.token_hash("a" * 43)); self.assertNotIn(sec.new_invite_code()[0], "ilou")
+
     def test_10_body_limit_and_unknown_paths(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5); c.request("POST", "/login", "x" * 20000, {"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "20000"}); self.assertEqual(c.getresponse().status, 413)
         self.assertEqual(self.cl.req("GET", "/admin")[0], 404); self.assertEqual(self.cl.req("GET", "/etc/passwd")[0], 404)

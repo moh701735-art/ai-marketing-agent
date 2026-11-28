@@ -56,3 +56,31 @@ def password_problem(pwd: str, confirm: str):
     if pwd != confirm: return "كلمتا السر غير متطابقتين."
     if pwd.lower() in ("password123", "1234567890", "qwertyuiop") or len(set(pwd)) < 4: return "كلمة السر ضعيفة، اختر كلمة أصعب."
     return None
+
+
+# ---- رموز الدعوة القصيرة: 12 خانة من أبجدية بدون حروف متشابهة (Crockford: بدون i,l,o,u)، تُكتب بسهولة من صورة. 60 بت عشوائية ----
+INVITE_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz"
+INVITE_LEN = 12
+
+
+def new_invite_code() -> str:
+    return "".join(secrets.choice(INVITE_ALPHABET) for _ in range(INVITE_LEN))
+
+
+def norm_invite(raw):
+    """يقبل الرمز بشرطات/مسافات/حروف كبيرة؛ يحوّل o→0 وi,l→1 (مثل Crockford). يرجع الرمز النظيف أو None."""
+    if not isinstance(raw, str): return None
+    t = re.sub(r"[\s\-_]", "", raw.strip().lower()).replace("o", "0").replace("i", "1").replace("l", "1")
+    return t if len(t) == INVITE_LEN and all(c in INVITE_ALPHABET for c in t) else None
+
+
+def invite_hash(raw):
+    """هاش الدعوة: رمز قصير (يُنظَّف أولاً) أو رمز طويل قديم (32-64). None لو شكله غلط."""
+    n = norm_invite(raw)
+    if n: return hashlib.sha256(n.encode("utf-8")).hexdigest()
+    if valid_token(raw): return token_hash(raw)
+    return None
+
+
+def fmt_invite(code: str) -> str:
+    return "-".join(code[i:i + 4] for i in range(0, len(code), 4))
