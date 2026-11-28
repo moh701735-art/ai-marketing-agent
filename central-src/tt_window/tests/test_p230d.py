@@ -40,7 +40,7 @@ class T(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0); self.assertIn("restored", r.stdout + r.stderr); self.assertEqual(rd(p), before)
 
     def test_05_embedded_blocks_match_files(self):
-        t = rd(PATCH_D); self.assertIn("OLD = r'''" + rd(os.path.join(ROOT, "block_v2.js")).rstrip("\n") + "'''", t); self.assertIn("NEW = r'''" + rd(os.path.join(ROOT, "block.js")).rstrip("\n") + "'''", t)
+        t = rd(PATCH_D); self.assertIn("OLD = r'''" + rd(os.path.join(ROOT, "block_v2.js")).rstrip("\n") + "'''", t); self.assertIn("NEW = r'''" + rd(os.path.join(ROOT, "block_v3.js")).rstrip("\n") + "'''", t)
 
     def test_06_v2_equals_what_p230c_installs(self):
         self.assertIn("NEW = r'''" + rd(os.path.join(ROOT, "block_v2.js")).rstrip("\n") + "'''", rd(os.path.join(ROOT, "..", "ops", "p230c-tt-window-days.py.txt")))

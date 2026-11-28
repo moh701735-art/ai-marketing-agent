@@ -59,4 +59,10 @@ T('41 p230d: noun words between the verb and the clock («روج الحملة ب
 T('42 p230d: end only (no start clock) still halts with the format hint (no guessing)', () => { HALT(run('ارفع حمله وقفها الساعة 8 مساء'), /روّج الساعة 22:00/); });
 T('43 p230d: phone, handle digits and budget words are never read as the start clock', () => { const l = OK(run('ارفع حمله عميل محتمل واتساب 07829503973 بحساب boostpro13 ميزانيه 20 الف', { budget: 20000 })); assert(!('start_at' in l)); });
 T('44 p230d: ambiguous start in the no-verb form still asks (ساعه 10 وقفها ساعه 7 صبح)', () => { HALT(run('ارفع حمله ساعه 10 وقفها ساعه 7 صبح'), /مو واضحة/); });
+
+T('46 p230e: «بالليل» hours — 1..5 = after midnight, 6..11 = evening, 12 = midnight', () => {
+  const e = (t) => OK(run('ابدأ بكرة الساعة 6 مساء وقف ' + t)).end_at;
+  assert.strictEqual(OK(run('ارفعها بكرة الساعة 7 الصبح وقفها الساعة 1 بالليل')).end_at, '2026-11-23 22:00:00');   // 01:00 بغداد اليوم التالي = 22:00Z
+  assert.strictEqual(e('الساعة 5 ليلا'), '2026-11-24 02:00:00'); assert.strictEqual(e('الساعة 11 ليلا'), '2026-11-23 20:00:00'); assert.strictEqual(e('الساعة 12 ليلا'), '2026-11-23 21:00:00');
+});
 console.log(n + ' passed');

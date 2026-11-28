@@ -20,7 +20,7 @@
     if (!day) { const mt = DTAIL.exec(str.slice(len, len + 20)); if (mt) { day = DAYS(mt[0]); len += mt[0].length; } }
     return { h: +(m[1] || m[3] || m[5]), mi: +(m[2] || m[4] || 0), mk: m[6] || '', len, raw: m[0], day };
   };
-  const to24 = (t) => { if (!t.mk) return t.h; if (/صب|فجر/.test(t.mk)) return t.h === 12 ? 0 : t.h; if (/ظهر/.test(t.mk)) return t.h < 7 ? t.h + 12 : t.h; return t.h < 12 ? t.h + 12 : (/ليل/.test(t.mk) && t.h === 12 ? 0 : t.h); };
+  const to24 = (t) => { if (!t.mk) return t.h; if (/صب|فجر/.test(t.mk)) return t.h === 12 ? 0 : t.h; if (/ظهر/.test(t.mk)) return t.h < 7 ? t.h + 12 : t.h; if (/ليل/.test(t.mk)) return t.h === 12 ? 0 : (t.h <= 5 ? t.h : (t.h < 12 ? t.h + 12 : t.h)); return t.h < 12 ? t.h + 12 : t.h; };   // p230e: «1 بالليل» = 01:00، «6 بالليل» = 18:00
   const amb = (t) => !t.mk && t.h >= 1 && t.h <= 12 && !/(?:^|\D)0\d:/.test(t.raw);
   const fmtB = (ms) => new Date(ms + BG).toISOString().slice(0, 16).replace('T', ' ');
   const fmtU = (ms) => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
