@@ -163,6 +163,7 @@ class T(unittest.TestCase):
     def test_09g_link_flow_state_callback_and_status(self):
         self.assertEqual(self.cl.req("GET", "/link")[:1], (302,)); self.assertEqual(self.cl.req("GET", "/link/tiktok")[:1], (302,)); self.assertEqual(self.cl.req("GET", "/tiktok/callback?auth_code=AAAAAAAAAA&state=" + "a" * 43)[:1], (302,))
         self.st.dash_platform = "meta"; self.login(); s, b, _ = self.cl.req("GET", "/link"); self.assertEqual(s, 200); self.assertIn("اربط تيك توك", b)
+        self.assertIn('href="/link/tiktok"', b); self.assertNotIn('<form method="get" action="/link/tiktok"', b)   # رابط عادي: CSP form-action يمنع تحويل الفورم لتيك توك
         s, b, h = self.cl.req("GET", "/link/tiktok"); self.assertEqual(s, 302); loc = h["location"]; q = urllib.parse.parse_qs(urllib.parse.urlsplit(loc).query)
         self.assertTrue(loc.startswith("https://business-api.tiktok.com/portal/auth?")); self.assertEqual(q["app_id"], [APPCFG["app_id"]]); self.assertEqual(q["redirect_uri"], ["https://app.example.test/tiktok/callback"]); state = q["state"][0]
         self.assertIn(sec.token_hash(state), self.st.states); self.assertNotIn(state, self.st.states)                       # يُخزَّن الهاش فقط

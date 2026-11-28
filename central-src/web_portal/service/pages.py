@@ -8,7 +8,7 @@ CSS = ("body{font-family:system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;ba
        "h1{font-size:1.3rem;margin:.2rem 0 .8rem}h2{font-size:1.05rem;margin:0 0 .6rem}label{display:block;margin:.7rem 0 .25rem;font-weight:600}"
        "input{width:100%;box-sizing:border-box;padding:11px;border:1px solid #c9d1d9;border-radius:8px;font-size:1rem}"
        "button{background:#0b7a75;color:#fff;border:0;border-radius:8px;padding:11px 18px;font-size:1rem;margin-top:14px;cursor:pointer}"
-       "button.g{background:#e6eaee;color:#1b2430}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:8px;border-bottom:1px solid #eef1f4;text-align:right}"
+       "a.b{display:inline-block;background:#0b7a75;color:#fff;border-radius:8px;padding:11px 18px;font-size:1rem;margin-top:14px;text-decoration:none}button.g{background:#e6eaee;color:#1b2430}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:8px;border-bottom:1px solid #eef1f4;text-align:right}"
        ".e{background:#fdecea;color:#8a1f17;padding:10px;border-radius:8px}.o{background:#e7f6ee;color:#14532d;padding:10px;border-radius:8px}.m{color:#5b6775;font-size:.85rem}"
        ".t{display:inline-block;padding:2px 8px;border-radius:99px;background:#eef1f4;font-size:.8rem}")
 
@@ -57,7 +57,7 @@ def link_page(csrf, last, can_start, enabled, note=""):
         if rows: body += "<table><tr><th>الرقم</th><th>الاسم</th><th>العملة</th></tr>%s</table>" % rows
     if can_start and enabled:
         body += ("<p class=\"m\">راح تروح لصفحة تيك توك الرسمية، وتختار حساباتك الإعلانية وتوافق، ونرجع بك. ما نشوف كلمة سرك ولا نخزنها.</p>"
-                 "<form method=\"get\" action=\"/link/tiktok\"><button>اربط تيك توك</button></form>")
+                 "<a class=\"b\" href=\"/link/tiktok\">اربط تيك توك</a>")
     elif not enabled:
         body += "<p class=\"m\">الربط من الموقع غير مفعّل بعد. تواصل مع الإدارة.</p>"
     body += "<p><a href=\"/\">رجوع للوحة</a></p></div>"
