@@ -31,8 +31,8 @@ def login_page(csrf, error="", ok=""):
 
 def invite_page(csrf, token, email, error=""):
     return page("تعيين كلمة السر", "<div class=\"c\"><h1>أهلاً بك</h1><p>حسابك: <b dir=\"ltr\">%s</b></p>%s<form method=\"post\" action=\"/invite/%s\">"
-                "<input type=\"hidden\" name=\"csrf\" value=\"%s\"><label>كلمة السر الجديدة (10 أحرف على الأقل)</label><input name=\"password\" type=\"password\" required minlength=\"10\" autocomplete=\"new-password\">"
-                "<label>أعد كتابتها</label><input name=\"confirm\" type=\"password\" required minlength=\"10\" autocomplete=\"new-password\"><button>حفظ</button></form></div>" % (esc(email), msg("e", error), esc(token), esc(csrf)))
+                "<input type=\"hidden\" name=\"csrf\" value=\"%s\"><label>كلمة السر الجديدة (6 خانات فأكثر، أرقام وحروف إنكليزية، لازم فيها حرف ورقم)</label><input name=\"password\" type=\"password\" required minlength=\"6\" maxlength=\"64\" autocomplete=\"new-password\" dir=\"ltr\">"
+                "<label>أعد كتابتها</label><input name=\"confirm\" type=\"password\" required minlength=\"6\" maxlength=\"64\" autocomplete=\"new-password\" dir=\"ltr\"><button>حفظ</button></form></div>" % (esc(email), msg("e", error), esc(token), esc(csrf)))
 
 
 def invite_code_page(error=""):

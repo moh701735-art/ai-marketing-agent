@@ -102,11 +102,11 @@ class T(unittest.TestCase):
         tok = sec.new_token(); self.st.add_user("new@acme.com", None, False); self.st.invites[sec.token_hash(tok)] = {"email": "new@acme.com"}
         s, b, _ = self.cl.req("GET", "/invite/" + tok); self.assertEqual(s, 200); self.assertIn("new@acme.com", b)
         t = self.cl.csrf("/invite/" + tok)
-        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "short", "confirm": "short"}); self.assertEqual(s, 400); self.assertIn("10 أحرف", b)
-        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "long-enough-pass", "confirm": "different-pass-x"}); self.assertEqual(s, 400); self.assertIn("غير متطابقتين", b)
-        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "long-enough-pass", "confirm": "long-enough-pass"}); self.assertEqual(s, 200); self.assertIn("انحفظت", b)
-        self.assertTrue(sec.verify_password("long-enough-pass", self.st.users["new@acme.com"]["pwd"])); self.assertEqual(self.cl.req("GET", "/invite/" + tok)[0], 404)
-        self.assertEqual(self.login(email="new@acme.com", pwd="long-enough-pass")[0], 302)
+        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "short", "confirm": "short"}); self.assertEqual(s, 400); self.assertIn("6 خانات", b)
+        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "longpass99", "confirm": "otherpass88"}); self.assertEqual(s, 400); self.assertIn("غير متطابقتين", b)
+        s, b, _ = self.cl.req("POST", "/invite/" + tok, {"csrf": t, "password": "longpass99", "confirm": "longpass99"}); self.assertEqual(s, 200); self.assertIn("انحفظت", b)
+        self.assertTrue(sec.verify_password("longpass99", self.st.users["new@acme.com"]["pwd"])); self.assertEqual(self.cl.req("GET", "/invite/" + tok)[0], 404)
+        self.assertEqual(self.login(email="new@acme.com", pwd="longpass99")[0], 302)
 
     def test_09_bad_invite_tokens(self):
         for t in ("short", "x" * 70, "a" * 43 + "!", "../../etc"): self.assertEqual(self.cl.req("GET", "/invite/" + t)[0], 404)
@@ -132,8 +132,8 @@ class T(unittest.TestCase):
         s, b, _ = self.cl.req("GET", "/invite"); self.assertEqual(s, 200); self.assertIn('name="code"', b)
         s, b, h = self.cl.req("GET", "/invite?code=" + urllib.parse.quote(sec.fmt_invite(code).upper())); self.assertEqual((s, h["location"]), (302, "/invite/" + code))
         s, b, _ = self.cl.req("GET", "/invite/" + code); self.assertEqual(s, 200); self.assertIn("code@acme.com", b)
-        t = self.cl.csrf("/invite/" + code); s, b, _ = self.cl.req("POST", "/invite/" + code, {"csrf": t, "password": "long-enough-pass", "confirm": "long-enough-pass"}); self.assertEqual(s, 200); self.assertIn("انحفظت", b)
-        self.assertEqual(self.login(email="code@acme.com", pwd="long-enough-pass")[0], 302); self.assertEqual(self.cl.req("GET", "/invite/" + code)[0], 404)
+        t = self.cl.csrf("/invite/" + code); s, b, _ = self.cl.req("POST", "/invite/" + code, {"csrf": t, "password": "longpass99", "confirm": "longpass99"}); self.assertEqual(s, 200); self.assertIn("انحفظت", b)
+        self.assertEqual(self.login(email="code@acme.com", pwd="longpass99")[0], 302); self.assertEqual(self.cl.req("GET", "/invite/" + code)[0], 404)
         s, b, _ = self.cl.req("GET", "/invite?code=abc"); self.assertEqual(s, 400); self.assertIn("12", b); self.assertEqual(self.cl.req("GET", "/invite/")[0], 404)
     def test_09e_ambiguous_characters_normalized(self):
         raw = "7k3m-q9xp-4tn2"; self.assertEqual(sec.norm_invite(raw), "7k3mq9xp4tn2"); self.assertEqual(sec.norm_invite("O0Il-1l1i-o0o0"), "001111110000"); self.assertEqual(sec.invite_hash("7K3M Q9XP 4TN2"), sec.invite_hash(raw))
@@ -151,13 +151,15 @@ class T(unittest.TestCase):
 
 class Sec(unittest.TestCase):
     def test_hash_verify(self):
-        h = sec.hash_password("a-long-password-1"); self.assertTrue(h.startswith("scrypt$15$8$1$")); self.assertTrue(sec.verify_password("a-long-password-1", h)); self.assertFalse(sec.verify_password("a-long-password-2", h))
-        self.assertNotEqual(h, sec.hash_password("a-long-password-1")); self.assertFalse(sec.verify_password("x", None)); self.assertFalse(sec.verify_password("x", "scrypt$99$8$1$aa$bb")); self.assertFalse(sec.verify_password("x", "garbage"))
+        h = sec.hash_password("Longpass1"); self.assertTrue(h.startswith("scrypt$15$8$1$")); self.assertTrue(sec.verify_password("Longpass1", h)); self.assertFalse(sec.verify_password("Longpass2", h))
+        self.assertNotEqual(h, sec.hash_password("Longpass1")); self.assertFalse(sec.verify_password("x", None)); self.assertFalse(sec.verify_password("x", "scrypt$99$8$1$aa$bb")); self.assertFalse(sec.verify_password("x", "garbage"))
     def test_db_regex_accepts_our_hash(self):
-        self.assertTrue(re.fullmatch(r"scrypt[$][0-9]{1,2}[$][0-9]{1,2}[$][0-9]{1,2}[$][A-Za-z0-9+/=_-]{8,64}[$][A-Za-z0-9+/=_-]{32,128}", sec.hash_password("a-long-password-1")))
+        self.assertTrue(re.fullmatch(r"scrypt[$][0-9]{1,2}[$][0-9]{1,2}[$][0-9]{1,2}[$][A-Za-z0-9+/=_-]{8,64}[$][A-Za-z0-9+/=_-]{32,128}", sec.hash_password("Longpass1")))
     def test_tokens_and_policy(self):
         t = sec.new_token(); self.assertTrue(sec.valid_token(t)); self.assertEqual(len(sec.token_hash(t)), 64); self.assertFalse(sec.valid_token("short")); self.assertTrue(sec.csrf_ok(t, t)); self.assertFalse(sec.csrf_ok(t, t[::-1])); self.assertFalse(sec.csrf_ok(None, t))
-        self.assertIsNone(sec.password_problem("long-enough-pass", "long-enough-pass")); self.assertIsNotNone(sec.password_problem("short", "short")); self.assertIsNotNone(sec.password_problem("aaaaaaaaaaaa", "aaaaaaaaaaaa"))
+        self.assertIsNone(sec.password_problem("gm2026x", "gm2026x")); self.assertIsNone(sec.password_problem("abc123x", "abc123x")); self.assertIsNone(sec.password_problem("Ab1234", "Ab1234"))
+        for bad, frag in (("ab1", "6 خانات"), ("abcdef", "حرف ورقم"), ("123456", "حرف ورقم"), ("abc123", "شائعة"), ("aaaaa1", "شائعة"), ("ab 123x", "إنكليزية"), ("pass-123", "إنكليزية"), ("كلمةسر1", "إنكليزية"), ("x" * 70 + "1", "طويلة")): self.assertIn(frag, sec.password_problem(bad, bad) or "", bad)
+        self.assertIn("غير متطابقتين", sec.password_problem("gm2026x", "gm2026y"))
 
 class Pages(unittest.TestCase):
     def test_escape_everywhere(self):
