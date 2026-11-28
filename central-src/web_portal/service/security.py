@@ -50,6 +50,17 @@ def valid_token(tok) -> bool:
     return isinstance(tok, str) and bool(TOKEN_RE.fullmatch(tok))
 
 
+STATE_PREFIX = "w-"   # حالة ربط تيك توك: الجسر (Caddy) يحوّل للبوابة فقط الطلبات اللي state فيها يبدأ بهذا؛ غيرها يبقى للصفحة القديمة
+
+
+def new_state() -> str:
+    return STATE_PREFIX + new_token()
+
+
+def valid_state(s) -> bool:
+    return isinstance(s, str) and valid_token(s[len(STATE_PREFIX):] if s.startswith(STATE_PREFIX) else s)
+
+
 def csrf_ok(cookie_val, form_val) -> bool:
     return isinstance(cookie_val, str) and isinstance(form_val, str) and valid_token(cookie_val) and hmac.compare_digest(cookie_val, form_val)
 

@@ -95,16 +95,17 @@ def make_handler(store, cookie_secure=True, cfg=None):
                 return self.send(200, pages.link_page(csrf, last, not linked and not busy, enabled, note), cookies=ck)
             if not enabled: return self.send(503, pages.message_page("غير مفعّل", "الربط من الموقع غير مفعّل بعد."))
             if path == "/link/tiktok":
-                state = sec.new_token()
+                state = sec.new_state()
                 try: store.link_state_new(uid, sec.token_hash(state))
                 except Exception as e:
                     log("link_state_error %s" % type(e).__name__); return self.send(503, pages.message_page("خطأ مؤقت", "حاول بعد قليل."))
-                url = "https://business-api.tiktok.com/portal/auth?" + urllib.parse.urlencode({"app_id": app_id, "state": state, "redirect_uri": base + "/tiktok/callback"}, quote_via=urllib.parse.quote)
+                redirect = cfg.get("redirect_uri") or (base + "/tiktok/callback")   # مع الجسر: الرابط المسجّل عند تيك توك (agent…/tiktok-code)
+                url = "https://business-api.tiktok.com/portal/auth?" + urllib.parse.urlencode({"app_id": app_id, "state": state, "redirect_uri": redirect}, quote_via=urllib.parse.quote)
                 return self.send(302, "", location=url)
             qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, max_num_fields=12)
             code = (qs.get("auth_code") or qs.get("code") or [""])[0]; state = (qs.get("state") or [""])[0]
-            if not sec.valid_token(state) or not sec.AUTH_CODE_RE.fullmatch(code):
-                log("link_callback_bad state=%s code=%s" % (bool(sec.valid_token(state)), bool(sec.AUTH_CODE_RE.fullmatch(code))))
+            if not sec.valid_state(state) or not sec.AUTH_CODE_RE.fullmatch(code):
+                log("link_callback_bad state=%s code=%s" % (bool(sec.valid_state(state)), bool(sec.AUTH_CODE_RE.fullmatch(code))))
                 return self.send(400, pages.message_page("ما اكتمل الربط", "ما وصل رمز تفويض صالح من تيك توك (أو الرابط انتهى). ارجع وابدأ الربط من جديد."))
             try: store.link_begin(uid, sec.token_hash(state), code)
             except Exception as e:
@@ -212,7 +213,7 @@ def main():
     if not dsn: sys.exit("WEB_DB_DSN missing")
     from .store import Store
     port = int(os.environ.get("WEB_PORT", "8090"))
-    cfg = {"app_id": os.environ.get("TIKTOK_APP_ID", ""), "base_url": os.environ.get("WEB_BASE_URL", "")}
+    cfg = {"app_id": os.environ.get("TIKTOK_APP_ID", ""), "base_url": os.environ.get("WEB_BASE_URL", ""), "redirect_uri": os.environ.get("TIKTOK_REDIRECT", "")}
     srv = ThreadingHTTPServer(("0.0.0.0", port), make_handler(Store(dsn), os.environ.get("WEB_COOKIE_SECURE", "1") != "0", cfg))
     srv.daemon_threads = True
     srv.serve_forever()

@@ -191,6 +191,14 @@ class T(unittest.TestCase):
             c2 = Client(srv.server_address[1]); self.login(c2); s, b, _ = c2.req("GET", "/link"); self.assertIn("غير مفعّل", b); self.assertEqual(c2.req("GET", "/link/tiktok")[0], 503)
         finally: srv.shutdown(); srv.server_close()
 
+    def test_09j_bridge_redirect_uri_and_state_prefix(self):
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), app.make_handler(self.st, cookie_secure=True, cfg={**APPCFG, "redirect_uri": "https://agent.example.test/tiktok-code"})); srv.daemon_threads = True; threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            c2 = Client(srv.server_address[1]); self.login(c2); s, _, h = c2.req("GET", "/link/tiktok"); self.assertEqual(s, 302)
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(h["location"]).query); self.assertEqual(q["redirect_uri"], ["https://agent.example.test/tiktok-code"]); self.assertTrue(q["state"][0].startswith("w-"))
+            s, _, h = c2.req("GET", "/tiktok/callback?auth_code=AAAAAAAAAA&state=" + q["state"][0]); self.assertEqual((s, h["location"]), (302, "/link"))   # الحالة بالبادئة تُقبل بالـcallback
+        finally: srv.shutdown(); srv.server_close()
+
     def test_10_body_limit_and_unknown_paths(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5); c.request("POST", "/login", "x" * 20000, {"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "20000"}); self.assertEqual(c.getresponse().status, 413)
         self.assertEqual(self.cl.req("GET", "/admin")[0], 404); self.assertEqual(self.cl.req("GET", "/etc/passwd")[0], 404)
