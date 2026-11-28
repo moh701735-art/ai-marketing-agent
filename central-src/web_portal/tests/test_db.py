@@ -109,6 +109,12 @@ class WebDB(unittest.TestCase):
         self.raises("SELECT web.invite_accept('%s','%s')" % ("c" * 64, PWD), "user_disabled")
         self.raises("SELECT web.invite_create('acme','x@y.co','%s',0)" % ("d" * 64), "bad_ttl", None); self.raises("SELECT web.invite_create('nope','x@y.co','%s',5)" % ("d" * 64), "tenant_not_found", None)
 
+    def test_04b_invite_state(self):
+        self.invite(email="st@acme.com", h="7a" * 32); st = lambda h: self.sql("SELECT web.invite_state('%s')" % h, "web_rt")
+        self.assertEqual((st("7a" * 32), st("00" * 32)), ("ok", "none")); self.sql("UPDATE web.invites SET expires_at = now() - interval '1 second' WHERE token_hash = '%s'" % ("7a" * 32)); self.assertEqual(st("7a" * 32), "expired")
+        self.sql("UPDATE web.invites SET expires_at = now() + interval '1 hour', used_at = now() WHERE token_hash = '%s'" % ("7a" * 32)); self.assertEqual(st("7a" * 32), "used")
+        self.sql("UPDATE web.invites SET used_at = NULL WHERE token_hash = '%s'" % ("7a" * 32)); self.sql("UPDATE web.users SET status='disabled' WHERE lower(email)='st@acme.com'"); self.assertEqual(st("7a" * 32), "disabled")
+
     def test_05_email_unique_per_tenant_case_insensitive(self):
         self.invite(email="same@acme.com", h="e" * 64); u2 = self.invite(email="SAME@acme.com", h="f" * 64); self.assertEqual(self.sql("SELECT count(*) FROM web.users WHERE lower(email)='same@acme.com'"), "1"); self.assertTrue(u2["user_id"])
         self.raises("SELECT web.invite_create('beta','same@acme.com','%s',24)" % ("0" * 64), "email_belongs_to_other_tenant", None)

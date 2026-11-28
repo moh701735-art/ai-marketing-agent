@@ -68,7 +68,7 @@ class T(unittest.TestCase):
 
     def test_07_invite_hash_only_and_validation(self):
         a = type("A", (), {"slug": "acme", "email": "c@acme.com", "hours": 72})(); ctl.cmd_invite(a, self.p)
-        link = [o for o in self.out if o.startswith("https://")][0]; tok = link.rsplit("/", 1)[1]; self.assertEqual(len(tok), 43)
+        link = [o for o in self.out if o.startswith("https://")][0]; tok = link.rsplit("/", 1)[1]; self.assertRegex(tok, r"^[0-9a-f]{32}$"); self.assertTrue(any(o.endswith(hashlib.sha256(tok.encode()).hexdigest()[:8]) and "مرجع" in o for o in self.out))
         cmd = [c for c in self.cmds if "psql" in c][-1]; self.assertIn("h=" + hashlib.sha256(tok.encode()).hexdigest(), cmd); self.assertNotIn(tok, " ".join(" ".join(c) for c in self.cmds))
         for bad in ({"slug": "Bad Slug", "email": "c@acme.com", "hours": 72}, {"slug": "acme", "email": "x';drop--@a.co", "hours": 72}, {"slug": "acme", "email": "c@acme.com", "hours": 0}, {"slug": "acme", "email": "c@acme.com", "hours": 999}):
             with self.assertRaises(SystemExit): ctl.cmd_invite(type("A", (), bad)(), self.p)

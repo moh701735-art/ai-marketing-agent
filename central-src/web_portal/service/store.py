@@ -19,6 +19,7 @@ class Store:
 
     def ping(self): return self._one("SELECT 1") == 1
     def invite_peek(self, h): return self._one("SELECT web.invite_peek(%s)", (h,))
+    def invite_state(self, h): return self._one("SELECT web.invite_state(%s)", (h,))
     def invite_accept(self, h, pwd): return self._one("SELECT web.invite_accept(%s, %s)", (h, pwd))
     def login_lookup(self, email): return self._one("SELECT web.login_lookup(%s)", (email,))
     def login_fail(self, uid): self._one("SELECT web.login_fail(%s::uuid)", (uid,))

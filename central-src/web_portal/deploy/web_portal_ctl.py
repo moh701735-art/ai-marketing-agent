@@ -153,10 +153,10 @@ def cmd_invite(a, out=print):
     if not SLUG_RE.fullmatch(a.slug or ""): raise Fail("FAIL: bad slug")
     if not EMAIL_RE.fullmatch(a.email or ""): raise Fail("FAIL: bad email")
     if not 1 <= a.hours <= 168: raise Fail("FAIL: hours must be 1..168")
-    tok = secrets.token_urlsafe(32); h = hashlib.sha256(tok.encode()).hexdigest()
+    tok = secrets.token_hex(16); h = hashlib.sha256(tok.encode()).hexdigest()   # أرقام وحروف إنكليزية صغيرة فقط: أسهل بالنسخ
     rc, o, e = psql("SELECT web.invite_create(:'slug', :'email', :'h', :hours);", {"slug": a.slug, "email": a.email, "h": h, "hours": str(a.hours)}, check=False)
     if rc: raise Fail("FAIL: " + (e or o).strip()[-250:])
-    out("✅ الدعوة جاهزة لمدة %d ساعة، لمرة وحدة. ابعثها للزبون (واتساب) ولا تنشرها:" % a.hours); out("https://%s/invite/%s" % (HOST, tok))
+    out("✅ الدعوة جاهزة لمدة %d ساعة، لمرة وحدة. ابعثها للزبون (واتساب) ولا تنشرها:" % a.hours); out("https://%s/invite/%s" % (HOST, tok)); out("مرجع الدعوة (للتشخيص فقط، مو سر): %s" % h[:8])
 
 
 def cmd_down(a, out=print):

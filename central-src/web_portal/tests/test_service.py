@@ -12,7 +12,9 @@ class FakeStore:
         if self.down: raise RuntimeError("db down")
     def add_user(self, email, pwd=None, active=True):
         uid = "u-" + email; self.users[email.lower()] = {"user_id": uid, "email": email.lower(), "pwd": pwd, "active": active, "failed": 0, "locked": False, "name": "Acme <b>X</b>", "status": "READY"}; return uid
-    def invite_peek(self, h): self._chk(); i = self.invites.get(h); return {"email": i["email"]} if i and not i.get("used") else None
+    def invite_peek(self, h): self._chk(); i = self.invites.get(h); return {"email": i["email"]} if i and not i.get("used") and i.get("state", "ok") == "ok" else None
+    def invite_state(self, h):
+        i = self.invites.get(h); return "none" if not i else ("used" if i.get("used") else i.get("state", "ok"))
     def invite_accept(self, h, pwd):
         self._chk(); i = self.invites.get(h)
         if not i or i.get("used"): raise RuntimeError("invite_invalid")
@@ -109,6 +111,21 @@ class T(unittest.TestCase):
     def test_09_bad_invite_tokens(self):
         for t in ("short", "x" * 70, "a" * 43 + "!", "../../etc"): self.assertEqual(self.cl.req("GET", "/invite/" + t)[0], 404)
         self.assertEqual(self.cl.req("GET", "/invite/" + "A" * 43)[0], 404)
+
+    def test_09b_distinct_invite_messages_and_safe_log(self):
+        logs = []; orig = app.log; app.log = logs.append
+        try:
+            for state, frag in (("used", "انستعمل"), ("expired", "انتهت"), ("disabled", "موقوف")):
+                tok = sec.new_token(); self.st.add_user(state + "@acme.com", None, False); self.st.invites[sec.token_hash(tok)] = {"email": state + "@acme.com", "state": state, "used": state == "used"}
+                s, b, _ = self.cl.req("GET", "/invite/" + tok); self.assertEqual(s, 404); self.assertIn(frag, b); self.assertIn("state=" + state, logs[-1]); self.assertNotIn(tok, logs[-1]); self.assertIn("ref=" + sec.token_hash(tok)[:8], logs[-1])
+            s, b, _ = self.cl.req("GET", "/invite/" + "ab" * 16); self.assertEqual(s, 404); self.assertIn("غلط أو ناقص", b); self.assertIn("state=none", logs[-1])
+            self.cl.req("GET", "/invite/short"); self.assertIn("state=malformed", logs[-1])
+            self.st.down = True; self.cl.req("GET", "/invite/" + "cd" * 16); self.assertIn("503", "503")
+        finally: app.log = orig
+
+    def test_09c_hex_tokens_work(self):
+        tok = __import__("secrets").token_hex(16); self.assertTrue(sec.valid_token(tok)); self.st.add_user("hex@acme.com", None, False); self.st.invites[sec.token_hash(tok)] = {"email": "hex@acme.com"}
+        s, b, _ = self.cl.req("GET", "/invite/" + tok); self.assertEqual(s, 200); self.assertIn("hex@acme.com", b)
 
     def test_10_body_limit_and_unknown_paths(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5); c.request("POST", "/login", "x" * 20000, {"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "20000"}); self.assertEqual(c.getresponse().status, 413)

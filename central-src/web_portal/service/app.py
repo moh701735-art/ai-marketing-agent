@@ -8,6 +8,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import pages, security as sec
 
 MAX_BODY = 8192
+BAD_INVITE = {
+    "used": ("الرابط انستعمل", "هذا الرابط انستعمل قبل. إذا نسيت كلمة السر اطلب دعوة جديدة."),
+    "expired": ("الرابط انتهت صلاحيته", "اطلب دعوة جديدة من الإدارة."),
+    "disabled": ("الحساب موقوف", "تواصل مع الإدارة."),
+}
+
+
+def log(msg):
+    sys.stderr.write(msg + "\n"); sys.stderr.flush()   # بدون رموز ولا كلمات سر: فقط مرجع الهاش (أول 8 خانات) والحالة
 SESSION_HOURS = 72
 HEADERS = {
     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
@@ -61,6 +70,14 @@ def make_handler(store, cookie_secure=True):
             try: return store.session_get(sec.token_hash(sid))
             except Exception: return None
 
+
+        def bad_invite(self, h):
+            try: state = store.invite_state(h)
+            except Exception: state = "error"
+            log("invite_miss ref=%s state=%s" % (h[:8], state))
+            title, text = BAD_INVITE.get(state, ("الرابط غير صالح", "الرابط غلط أو ناقص (انسخه كامل من الإدارة). اطلب دعوة جديدة."))
+            return self.send(404, pages.message_page(title, text))
+
         # ---- GET ----
         def do_GET(self):
             path = urllib.parse.urlsplit(self.path).path
@@ -72,10 +89,11 @@ def make_handler(store, cookie_secure=True):
                 csrf, ck = self.csrf_cookie(); return self.send(200, pages.login_page(csrf), cookies=ck)
             if path.startswith("/invite/"):
                 tok = path[len("/invite/"):]
-                if not sec.valid_token(tok): return self.send(404, pages.message_page("الرابط غير صالح", "الرابط غلط أو انتهت صلاحيته. اطلب دعوة جديدة."))
+                if not sec.valid_token(tok):
+                    log("invite_miss ref=- state=malformed len=%d" % len(tok)); return self.send(404, pages.message_page("الرابط غير صالح", "الرابط غلط أو ناقص (انسخه كامل من الإدارة). اطلب دعوة جديدة."))
                 try: info = store.invite_peek(sec.token_hash(tok))
                 except Exception: return self.send(503, pages.message_page("خطأ مؤقت", "حاول بعد قليل."))
-                if not info: return self.send(404, pages.message_page("الرابط غير صالح", "الرابط غلط أو انتهت صلاحيته. اطلب دعوة جديدة."))
+                if not info: return self.bad_invite(sec.token_hash(tok))
                 csrf, ck = self.csrf_cookie(); return self.send(200, pages.invite_page(csrf, tok, info.get("email"), ""), cookies=ck)
             if path == "/":
                 who = self.session()
@@ -129,7 +147,7 @@ def make_handler(store, cookie_secure=True):
             h = sec.token_hash(tok)
             try: info = store.invite_peek(h)
             except Exception: return self.send(503, pages.message_page("خطأ مؤقت", "حاول بعد قليل."))
-            if not info: return self.send(404, pages.message_page("الرابط غير صالح", "الرابط غلط أو انتهت صلاحيته. اطلب دعوة جديدة."))
+            if not info: return self.bad_invite(h)
             pwd, conf = str(f.get("password", "")), str(f.get("confirm", ""))
             problem = sec.password_problem(pwd, conf)
             if problem: return self.send(400, pages.invite_page(csrf, tok, info.get("email"), problem))

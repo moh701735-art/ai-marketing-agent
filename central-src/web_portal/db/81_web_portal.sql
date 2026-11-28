@@ -73,6 +73,12 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$
   SELECT jsonb_build_object('email', u.email) FROM web.invites i JOIN web.users u ON u.user_id = i.user_id
   WHERE i.token_hash = p_hash AND i.used_at IS NULL AND i.expires_at > now() AND u.status <> 'disabled' $$;
 
+-- حالة الرمز لعرض رسالة صحيحة وللتشخيص: ok | used | expired | disabled | none (بدون أي بيانات حساسة)
+CREATE OR REPLACE FUNCTION web.invite_state(p_hash text) RETURNS text
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$
+  SELECT coalesce((SELECT CASE WHEN u.status = 'disabled' THEN 'disabled' WHEN i.used_at IS NOT NULL THEN 'used' WHEN i.expires_at <= now() THEN 'expired' ELSE 'ok' END
+                   FROM web.invites i JOIN web.users u ON u.user_id = i.user_id WHERE i.token_hash = p_hash), 'none') $$;
+
 CREATE OR REPLACE FUNCTION web.login_lookup(p_email text) RETURNS jsonb
 LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$
   SELECT jsonb_build_object('user_id', u.user_id, 'pwd', u.pwd, 'locked', (u.locked_until IS NOT NULL AND u.locked_until > now()), 'active', u.status = 'active')
@@ -134,6 +140,7 @@ END $$;
 ALTER FUNCTION web.invite_create(text, text, text, int) OWNER TO app_owner;
 ALTER FUNCTION web.invite_accept(text, text) OWNER TO app_owner;
 ALTER FUNCTION web.invite_peek(text) OWNER TO app_owner;
+ALTER FUNCTION web.invite_state(text) OWNER TO app_owner;
 ALTER FUNCTION web.login_lookup(text) OWNER TO app_owner;
 ALTER FUNCTION web.login_fail(uuid) OWNER TO app_owner;
 ALTER FUNCTION web.login_ok(uuid) OWNER TO app_owner;
@@ -142,13 +149,13 @@ ALTER FUNCTION web.session_get(text) OWNER TO app_owner;
 ALTER FUNCTION web.session_delete(text) OWNER TO app_owner;
 ALTER FUNCTION web.accounts(uuid) OWNER TO app_owner;
 ALTER FUNCTION web.campaigns(uuid) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION web.invite_create(text, text, text, int), web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
+REVOKE ALL ON FUNCTION web.invite_create(text, text, text, int), web.invite_accept(text, text), web.invite_peek(text), web.invite_state(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
   web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) FROM PUBLIC;
 RESET ROLE;
 -- الدور الجديد يحتاج صلاحية الاتصال بقاعدة central (الحية تمنعها عن PUBLIC): خطأ حي: «permission denied for database»
 DO $$ BEGIN EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_rt', current_database()); END $$;
 GRANT USAGE ON SCHEMA web TO web_rt;
-GRANT EXECUTE ON FUNCTION web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
+GRANT EXECUTE ON FUNCTION web.invite_accept(text, text), web.invite_peek(text), web.invite_state(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
   web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) TO web_rt;
 -- web.invite_create = إدارة فقط (يُنفَّذ بـpostgres من ops/web-portal.py)؛ لا صلاحية لـ web_rt.
 -- نسخة سابقة (قبل هذا التعديل) منحت web_rt صلاحيات مباشرة على api.list_*؛ نسحبها (آمن لو ما كانت موجودة)
