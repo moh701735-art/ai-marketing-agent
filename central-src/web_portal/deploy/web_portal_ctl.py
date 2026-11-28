@@ -5,6 +5,8 @@
   install            : هجرة 81 + دور web_rt + بناء الصورة + تشغيل الحاوية + بلوك Caddy (validate+reload مع رجوع تلقائي) + فحوصات
   status             : الحاوية، /healthz، بلوك Caddy، عدد المستخدمين
   invite --slug S --email E [--hours 72] : يطبع رابط دعوة لمرة وحدة (الرمز ما ينخزّن، فقط هاشه)
+  enable-web-tenants [--yes] : هجرة 82 (تغيير ضيّق بحارس الجاهزية: R02/R03/R04 للتليجرام فقط + R01 لزبون الويب). تقارن فحوصات كل زبون حالي قبل/بعد وترجّع تلقائياً لو اختلفت
+  create-tenant --slug S --name N [--currency IQD|USD] [--days 30] [--tz Asia/Baghdad] [--plan standard] : زبون ويب جديد بدون تليجرام (يتفعّل READY بعد ربط حساب إعلاني ونجاح الفحوصات؛ ما نفرضه يدوياً)
   down               : يوقف ويحذف الحاوية ويشيل بلوك Caddy (البيانات تبقى؛ التراجع الكامل بـ81_web_portal_down.sql يدوياً)"""
 import argparse, hashlib, os, re, secrets, socket, subprocess, sys, time
 
@@ -165,11 +167,61 @@ def cmd_down(a, out=print):
     run(["docker", "rm", "-f", NAME], check=False); apply_caddy(True, out); out("الحاوية والبلوك انحذفوا. البيانات بقت بالقاعدة.")
 
 
+APPLICABLE_SQL = ("SELECT t.slug || ':' || coalesce((SELECT string_agg(d.check_code, ',' ORDER BY d.check_code) FROM core.readiness_check_defs d WHERE d.mandatory AND "
+                  "(d.applies_when = 'always' OR coalesce((t.features->>d.applies_when)::boolean, false))), '') FROM core.tenants t WHERE NOT coalesce((t.features->>'web_only')::boolean, false) ORDER BY t.slug;")
+
+
+def applicable_map():
+    _, o, _ = psql(APPLICABLE_SQL); return o.strip()
+
+
+def cmd_enable(a, out=print):
+    mig, down = os.path.join(ROOT, "db/82_web_only_tenants.sql"), os.path.join(ROOT, "db/82_web_only_tenants_down.sql")
+    for f in (mig, down):
+        if not os.path.exists(f): raise Fail("FAIL: missing " + f)
+    before = applicable_map(); n = len([l for l in before.splitlines() if l.strip()])
+    out("هذي الهجرة تغيّر حارس الجاهزية المركزي (R02/R03/R04 تنطبق فقط على زبائن تليجرام + R01 لزبون الويب). زبائن حاليين: %d. بعد التطبيق أقارن الفحوصات الإلزامية لكل زبون: لازم تبقى مطابقة، وإلا أرجّع تلقائياً." % n)
+    if not getattr(a, "yes", False): raise Fail("أضف --yes للتنفيذ.")
+    rc, _, err = psql(open(mig, encoding="utf-8").read(), check=False)
+    if rc: raise Fail("FAIL (الهجرة ما انطبّقت وما تغيّر شي): " + " ".join(err.strip().splitlines()[:2])[:300])
+    after = applicable_map()
+    if after != before:
+        psql(open(down, encoding="utf-8").read(), check=False); raise Fail("FAIL: فحوصات بعض الزبائن الحاليين تغيّرت بعد الهجرة؛ رجّعتها تلقائياً. لا تكمل وصوّر لي النتيجة.")
+    out("✅ الهجرة 82 انطبّقت: فحوصات كل الزبائن الحاليين (%d) مطابقة تماماً قبل/بعد. جرّب: bash deploy/run-readiness.sh وتأكد إن الكل بنفس حالته." % n)
+
+
+def cmd_create_tenant(a, out=print):
+    if not SLUG_RE.fullmatch(a.slug or ""): raise Fail("FAIL: bad slug (lowercase letters, digits, dashes)")
+    name = (a.name or "").strip()
+    if not 2 <= len(name) <= 60 or re.search(r"[\x00-\x1f]", name): raise Fail("FAIL: bad name (2..60 chars)")
+    if a.currency not in ("IQD", "USD"): raise Fail("FAIL: currency must be IQD or USD")
+    if not 1 <= a.days <= 366: raise Fail("FAIL: days must be 1..366")
+    if not re.fullmatch(r"[A-Za-z]+/[A-Za-z_]+", a.tz or ""): raise Fail("FAIL: bad timezone")
+    if not re.fullmatch(r"[a-z0-9_-]{2,30}", a.plan or ""): raise Fail("FAIL: bad plan")
+    rc, o, _ = psql("SELECT string_agg(applies_when, ',' ORDER BY check_code) FROM core.readiness_check_defs WHERE check_code IN ('R02','R03','R04');", check=False)
+    if rc or o.strip() != "telegram,telegram,telegram": raise Fail("FAIL: شغّل أول: python3 ops/web-portal.py enable-web-tenants --yes (الفحوصات لسا تفترض تليجرام لكل الزبائن)")
+    rc, o, _ = psql("SELECT count(*) FROM core.tenants WHERE slug = :'slug';", {"slug": a.slug}, check=False)
+    if rc or o.strip() != "0": raise Fail("FAIL: slug مستعمل أو تعذّر الفحص")
+    sql = ("SELECT gen_random_uuid()::text AS tid \\gset\nBEGIN;\n"
+           "INSERT INTO core.tenants (tenant_id, slug, display_name, status, timezone, currency, features) VALUES (:'tid', :'slug', :'name', 'CONFIGURATION_REQUIRED', :'tz', :'cur', "
+           "'{\"web_only\": true, \"telegram\": false, \"tiktok\": true, \"schedule\": true}'::jsonb);\n"
+           "INSERT INTO core.config_versions (tenant_id, version, config, author, reason) VALUES (:'tid', 1, jsonb_build_object('lang', 'ar'), 'web-portal', 'initial');\n"
+           "UPDATE core.tenants SET active_config_version = 1, status = 'TESTING' WHERE tenant_id = :'tid';\n"
+           "SELECT api_admin.set_subscription(:'tid'::uuid, :'plan', 'active', now() + (:'days' || ' days')::interval, 3, '{}'::jsonb);\nCOMMIT;\n")
+    rc, o, e = psql(sql, {"slug": a.slug, "name": name, "tz": a.tz, "cur": a.currency, "plan": a.plan, "days": str(a.days)}, check=False)
+    if rc: raise Fail("FAIL (ما انكتب شي): " + " ".join((e or o).strip().splitlines()[:2])[:300])
+    out("✅ زبون الويب انولد: %s (%s) | عملة %s | اشتراك %d يوم | حالته TESTING (يصير READY بعد ربط حساب إعلاني ونجاح الفحوصات)." % (a.slug, name, a.currency, a.days))
+    out("الخطوة الجاية: python3 ops/web-portal.py invite --slug %s --email <بريد الزبون>" % a.slug)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter); s = p.add_subparsers(dest="cmd", required=True)
     s.add_parser("install"); s.add_parser("status"); s.add_parser("down")
+    e = s.add_parser("enable-web-tenants"); e.add_argument("--yes", action="store_true")
+    ct = s.add_parser("create-tenant"); ct.add_argument("--slug", required=True); ct.add_argument("--name", required=True); ct.add_argument("--currency", default="IQD"); ct.add_argument("--days", type=int, default=30)
+    ct.add_argument("--tz", default="Asia/Baghdad"); ct.add_argument("--plan", default="standard")
     i = s.add_parser("invite"); i.add_argument("--slug", required=True); i.add_argument("--email", required=True); i.add_argument("--hours", type=int, default=72)
-    a = p.parse_args(argv); {"install": cmd_install, "status": cmd_status, "invite": cmd_invite, "down": cmd_down}[a.cmd](a)
+    a = p.parse_args(argv); {"install": cmd_install, "status": cmd_status, "invite": cmd_invite, "down": cmd_down, "enable-web-tenants": cmd_enable, "create-tenant": cmd_create_tenant}[a.cmd](a)
 
 
 if __name__ == "__main__":

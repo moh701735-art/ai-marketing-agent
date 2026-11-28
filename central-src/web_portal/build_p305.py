@@ -2,7 +2,7 @@ import json, os, base64, lzma
 H = os.path.dirname(os.path.abspath(__file__))
 FILES = {"web_portal/Dockerfile": "Dockerfile", "web_portal/service/__init__.py": "service/__init__.py", "web_portal/service/app.py": "service/app.py", "web_portal/service/security.py": "service/security.py",
          "web_portal/service/pages.py": "service/pages.py", "web_portal/service/store.py": "service/store.py", "web_portal/db/81_web_portal.sql": "db/81_web_portal.sql",
-         "web_portal/db/81_web_portal_down.sql": "db/81_web_portal_down.sql", "ops/web-portal.py": "deploy/web_portal_ctl.py"}
+         "web_portal/db/81_web_portal_down.sql": "db/81_web_portal_down.sql", "web_portal/db/82_web_only_tenants.sql": "db/82_web_only_tenants.sql", "web_portal/db/82_web_only_tenants_down.sql": "db/82_web_only_tenants_down.sql", "ops/web-portal.py": "deploy/web_portal_ctl.py"}
 data = {dst: open(os.path.join(H, src), encoding="utf-8").read() for dst, src in FILES.items()}
 T = r'''import os, shutil, sys
 BASE = os.environ.get('P305_BASE', '/opt/central/')
