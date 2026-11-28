@@ -330,7 +330,7 @@ def cmd_install_linker(a, out=print, hidden=getpass.getpass):
     unit = ("[Unit]\nDescription=Central web portal TikTok linker (reads web.link_requests; uses ops/link-tiktok-agency.py helpers)\nAfter=docker.service network-online.target\n\n[Service]\nType=simple\n"
             "WorkingDirectory=%s\nEnvironment=WEB_LINKER_ROOT=%s\nExecStart=%s %s\nRestart=always\nRestartSec=5\nNoNewPrivileges=true\n\n[Install]\nWantedBy=multi-user.target\n" % (os.path.dirname(ROOT), os.path.dirname(ROOT), py, ops))
     open(UNIT, "w", encoding="utf-8").write(unit)
-    sysctl("daemon-reload"); sysctl("enable", "--now", "web-linker.service"); time.sleep(2)
+    sysctl("daemon-reload"); sysctl("enable", "--now", "web-linker.service"); sysctl("restart", "web-linker.service"); time.sleep(2)   # restart: العامل يقرأ linker.env عند التشغيل فقط
     rc, o, _ = sysctl("is-active", "web-linker.service", check=False)
     out("✅ عامل الربط: %s (App ID %s، السر بملف 600 ما انطبع)." % (o.strip() or "?", TIKTOK_APP_ID) if rc == 0 else "❌ العامل ما اشتغل: شوف journalctl -u web-linker -n 20")
 
