@@ -11,6 +11,7 @@ CREATE ROLE app_owner NOLOGIN; CREATE ROLE app_runtime NOLOGIN; CREATE ROLE app_
 CREATE SCHEMA core; CREATE TABLE core.tenants (tenant_id uuid PRIMARY KEY, slug text UNIQUE, display_name text, status text NOT NULL DEFAULT 'READY');
 CREATE TABLE core.ad_accounts (tenant_id uuid, platform text, external_id text, name text, currency text, status text, enabled boolean, unlinked_at timestamptz);
 CREATE TABLE core.campaigns (tenant_id uuid, name text, external_id text, status text, created_at timestamptz DEFAULT now());
+ALTER TABLE core.tenants ENABLE ROW LEVEL SECURITY; CREATE POLICY only_cur ON core.tenants USING (tenant_id = nullif(current_setting('t.tenant', true), '')::uuid);   -- مثل الحي: app_owner ما يشوف core.tenants بدون سياق
 INSERT INTO core.tenants VALUES ('%(a)s','acme','Acme','READY'), ('%(b)s','beta','Beta','NEEDS_REVIEW'), ('%(c)s','gone','Gone','CANCELLED');
 INSERT INTO core.campaigns (tenant_id, name, external_id, status) VALUES ('%(a)s','Camp A','9001','ACTIVE'), ('%(b)s','Camp B','9002','PAUSED');
 INSERT INTO core.ad_accounts VALUES ('%(a)s','tiktok','111','A1','USD','ENABLE',true,NULL), ('%(b)s','tiktok','222','B1','IQD','ENABLE',true,NULL);
@@ -83,6 +84,9 @@ class WebDB(unittest.TestCase):
     def test_01_nothing_outside_web_changed_and_idempotent(self):
         self.assertEqual(self.sql(SNAP), self.base); self.file("81_web_portal.sql"); self.assertEqual(self.sql(SNAP), self.base)
 
+    def test_01b_harness_really_hides_tenants_from_app_owner(self):
+        self.assertEqual(self.sql("SELECT count(*) FROM core.tenants", "app_owner"), "0"); self.assertEqual(self.sql("SELECT count(*) FROM core.tenants"), "3")
+
     def test_02_admin_only_invite_create(self):
         self.raises("SELECT web.invite_create('acme','a@b.co','%s',24)" % H1, "permission denied")
         self.raises("SELECT * FROM web.users", "permission denied"); self.raises("SELECT * FROM core.tenants", "permission denied"); self.raises("SELECT * FROM web.sessions", "permission denied")
@@ -119,7 +123,7 @@ class WebDB(unittest.TestCase):
     def test_07_sessions(self):
         u = self.invite(email="sess@acme.com", h="2b" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("2b" * 32, PWD), "web_rt")
         self.sql("SELECT web.session_create('%s','%s',24)" % (u["user_id"], H2), "web_rt")
-        s = json.loads(self.sql("SELECT web.session_get('%s')" % H2, "web_rt")); self.assertEqual((s["slug"], s["email"], s["tenant_id"]), ("acme", "sess@acme.com", TA))
+        s = json.loads(self.sql("SELECT web.session_get('%s')" % H2, "web_rt")); self.assertEqual((s["slug"], s["email"], s["tenant_id"], s["name"]), ("acme", "sess@acme.com", TA, "Acme"))
         self.assertEqual(self.sql("SELECT web.session_get('%s')" % H3, "web_rt"), "")
         self.sql("UPDATE web.sessions SET expires_at = now() - interval '1 second' WHERE session_hash = '%s'" % H2); self.assertEqual(self.sql("SELECT web.session_get('%s')" % H2, "web_rt"), "")
         for i in range(7): self.sql("SELECT web.session_create('%s','%s',24)" % (u["user_id"], ("%02d" % (10 + i)) * 32), "web_rt")
@@ -136,7 +140,7 @@ class WebDB(unittest.TestCase):
         self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('00000000-0000-0000-0000-000000000000')", "web_rt"), "0"); self.assertEqual(json.loads(self.sql("SELECT web.campaigns('00000000-0000-0000-0000-000000000000')", "web_rt")), [])
         self.sql("UPDATE web.users SET status='disabled' WHERE user_id='%s'" % ua["user_id"]); self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('%s')" % ua["user_id"], "web_rt"), "0")
 
-    def test_09_cancelled_tenant_gets_no_ctx(self):
+    def test_09_tenant_without_data_gets_empty_lists(self):
         u = self.invite("gone", "g@gone.com", "5e" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("5e" * 32, PWD), "web_rt"); self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('%s')" % u["user_id"], "web_rt"), "0"); self.assertEqual(json.loads(self.sql("SELECT web.campaigns('%s')" % u["user_id"], "web_rt")), [])
 
     def test_10b_connect_privilege_granted_even_if_public_revoked(self):

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS web.users (
   locked_until timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   last_login_at timestamptz);
+ALTER TABLE web.users ADD COLUMN IF NOT EXISTS tenant_slug text, ADD COLUMN IF NOT EXISTS tenant_name text;
 CREATE UNIQUE INDEX IF NOT EXISTS web_users_email_uq ON web.users (lower(email));
 CREATE INDEX IF NOT EXISTS web_users_tenant_idx ON web.users (tenant_id);
 
@@ -40,15 +41,16 @@ REVOKE ALL ON web.users, web.invites, web.sessions FROM PUBLIC;
 
 -- (إدارة فقط، بدون صلاحية لـ web_rt) دعوة/إعادة تعيين كلمة سر: الرمز يُولَّد بالأداة ويُخزَّن هاشه فقط
 CREATE OR REPLACE FUNCTION web.invite_create(p_slug text, p_email text, p_hash text, p_ttl_h int) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, web AS $$
-DECLARE v_tid uuid; v_uid uuid; v_email text := lower(btrim(p_email));
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, core, web AS $$
+DECLARE v_tid uuid; v_name text; v_uid uuid; v_email text := lower(btrim(p_email));
 BEGIN
-  SELECT tenant_id INTO v_tid FROM core.tenants WHERE slug = p_slug;
+  SELECT tenant_id, display_name INTO v_tid, v_name FROM core.tenants WHERE slug = p_slug;
   IF v_tid IS NULL THEN RAISE EXCEPTION 'tenant_not_found' USING ERRCODE = '22023'; END IF;
   IF p_ttl_h IS NULL OR p_ttl_h NOT BETWEEN 1 AND 168 THEN RAISE EXCEPTION 'bad_ttl' USING ERRCODE = '22023'; END IF;
   SELECT user_id INTO v_uid FROM web.users WHERE lower(email) = v_email;
   IF v_uid IS NOT NULL AND (SELECT tenant_id FROM web.users WHERE user_id = v_uid) <> v_tid THEN RAISE EXCEPTION 'email_belongs_to_other_tenant' USING ERRCODE = '23505'; END IF;
-  IF v_uid IS NULL THEN INSERT INTO web.users (tenant_id, email) VALUES (v_tid, v_email) RETURNING user_id INTO v_uid; END IF;
+  IF v_uid IS NULL THEN INSERT INTO web.users (tenant_id, email, tenant_slug, tenant_name) VALUES (v_tid, v_email, p_slug, v_name) RETURNING user_id INTO v_uid;
+  ELSE UPDATE web.users SET tenant_slug = p_slug, tenant_name = v_name WHERE user_id = v_uid; END IF;
   INSERT INTO web.invites (token_hash, user_id, expires_at) VALUES (p_hash, v_uid, now() + make_interval(hours => p_ttl_h));
   RETURN jsonb_build_object('user_id', v_uid, 'email', v_email);
 END $$;
@@ -96,9 +98,9 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION web.session_get(p_hash text) RETURNS jsonb
-LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, core, web AS $$
-  SELECT jsonb_build_object('user_id', u.user_id, 'email', u.email, 'tenant_id', t.tenant_id, 'slug', t.slug, 'name', t.display_name, 'status', t.status::text)
-  FROM web.sessions s JOIN web.users u ON u.user_id = s.user_id AND u.status = 'active' JOIN core.tenants t ON t.tenant_id = u.tenant_id
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$
+  SELECT jsonb_build_object('user_id', u.user_id, 'email', u.email, 'tenant_id', u.tenant_id, 'slug', coalesce(u.tenant_slug, ''), 'name', coalesce(u.tenant_name, u.tenant_slug, ''))
+  FROM web.sessions s JOIN web.users u ON u.user_id = s.user_id AND u.status = 'active'
   WHERE s.session_hash = p_hash AND s.expires_at > now() $$;
 
 CREATE OR REPLACE FUNCTION web.session_delete(p_hash text) RETURNS void
@@ -108,20 +110,20 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$ DELETE FRO
 -- فنستعمل نفس شكل ctx اللي توقّعه api.job_context_for_slug (r=system,k=system) لكن بصلاحية ضيّقة: الدالتان أدناه فقط (قراءة)، لعميل المستخدم فقط، 5 دقائق.
 DROP FUNCTION IF EXISTS web.ctx(uuid);
 CREATE OR REPLACE FUNCTION web.accounts(p_user uuid) RETURNS TABLE (platform text, external_id text, name text, currency text, status text, enabled boolean)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private, web AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, private, web AS $$
 DECLARE v_tid uuid; v_ctx text;
 BEGIN
-  SELECT t.tenant_id INTO v_tid FROM web.users u JOIN core.tenants t ON t.tenant_id = u.tenant_id WHERE u.user_id = p_user AND u.status = 'active' AND t.status::text <> 'CANCELLED';
+  SELECT u.tenant_id INTO v_tid FROM web.users u WHERE u.user_id = p_user AND u.status = 'active';
   IF v_tid IS NULL THEN RETURN; END IF;
   v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
   RETURN QUERY SELECT a.platform, a.external_id, a.name, a.currency, a.status, a.enabled FROM api.list_ad_accounts(v_ctx) a;
 END $$;
 
 CREATE OR REPLACE FUNCTION web.campaigns(p_user uuid) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private, web AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, private, web AS $$
 DECLARE v_tid uuid; v_ctx text; v_out jsonb;
 BEGIN
-  SELECT t.tenant_id INTO v_tid FROM web.users u JOIN core.tenants t ON t.tenant_id = u.tenant_id WHERE u.user_id = p_user AND u.status = 'active' AND t.status::text <> 'CANCELLED';
+  SELECT u.tenant_id INTO v_tid FROM web.users u WHERE u.user_id = p_user AND u.status = 'active';
   IF v_tid IS NULL THEN RETURN '[]'::jsonb; END IF;
   v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
   SELECT coalesce(jsonb_agg(jsonb_build_object('name', coalesce(j->>'name', j->>'campaign_name'), 'external_id', j->>'external_id', 'status', j->>'status', 'created_at', j->>'created_at')), '[]'::jsonb)
