@@ -28,6 +28,10 @@ class Store:
     def session_get(self, h): return self._one("SELECT web.session_get(%s)", (h,))
     def session_delete(self, h): self._one("SELECT web.session_delete(%s)", (h,))
 
+    def link_state_new(self, uid, h): self._one("SELECT web.link_state_new(%s::uuid, %s)", (uid, h))
+    def link_begin(self, uid, h, code): return self._one("SELECT web.link_begin(%s::uuid, %s, %s)", (uid, h, code))
+    def link_status(self, uid): return self._one("SELECT web.link_status(%s::uuid)", (uid,))
+
     def dashboard(self, uid):
         """{'status','accounts','campaigns'} لعميل المستخدم فقط (الـctx يُحسب داخل القاعدة)، أو None لو المستخدم غير فعّال."""
         with psycopg.connect(self.dsn, connect_timeout=5, autocommit=True) as c:

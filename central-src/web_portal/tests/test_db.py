@@ -36,6 +36,7 @@ BEGIN PERFORM private.enter_ctx(p_ctx, 'viewer'); RETURN QUERY SELECT * FROM cor
 CREATE FUNCTION api.list_pages(p_ctx text) RETURNS TABLE (x text) LANGUAGE plpgsql SECURITY DEFINER AS $f$ BEGIN RETURN; END $f$;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA api, private FROM PUBLIC; REVOKE ALL ON SCHEMA api, private FROM PUBLIC;
 GRANT USAGE ON SCHEMA core, private, api TO app_owner; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA api TO app_owner; GRANT SELECT ON core.campaigns TO app_owner; GRANT SELECT ON core.tenants TO app_owner; GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA private TO app_owner;
+ALTER TABLE core.tenants ADD COLUMN currency text; UPDATE core.tenants SET currency = 'IQD';
 CREATE TABLE core.old_data (x int); INSERT INTO core.old_data VALUES (1);
 """ % {"a": TA, "b": TB, "c": TC}
 SNAP = """SELECT md5(coalesce(string_agg(n.nspname || '.' || c.relname || ':' || c.relkind::text, ',' ORDER BY n.nspname, c.relname), '')) || '/' ||
@@ -169,6 +170,38 @@ class WebDB(unittest.TestCase):
         self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','web.invite_create(text,text,text,integer)','EXECUTE')"), "f")
         for f in ("web.overview(uuid)", "web.session_get(text)"): self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','%s','EXECUTE')" % f), "t", f)
         self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'web' AND p.proname IN ('ctx','accounts','campaigns')"), "0")   # الـctx ما يطلع من القاعدة
+
+    def psql_vars(self, sql, v):
+        cmd = [PGBIN + "/psql", "-h", self.sock, "-p", "54331", "-U", "postgres", "-X", "-q", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-d", "postgres"]
+        for k, val in v.items(): cmd += ["-v", "%s=%s" % (k, val)]
+        r = subprocess.run(["runuser", "-u", "postgres", "--"] + cmd + ["-f", "-"], input=sql, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr); return r.stdout.strip()
+
+    def test_20_link_requests_flow_and_worker_sql(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("wl", os.path.join(HERE, "..", "linker", "web_linker.py")); wl = importlib.util.module_from_spec(spec); spec.loader.exec_module(wl)
+        self.file("83_web_links.sql"); self.file("83_web_links.sql")                                  # idempotent
+        u = self.invite("acme", "link@acme.com", "6f" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("6f" * 32, PWD), "web_rt"); uid = u["user_id"]
+        u2 = self.invite("beta", "link@beta.com", "7e" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("7e" * 32, PWD), "web_rt"); uid2 = u2["user_id"]
+        st = lambda uu, h: self.sql("SELECT web.link_state_new('%s','%s')" % (uu, h), "web_rt")
+        st(uid, "a1" * 32); self.raises("SELECT web.link_begin('%s','%s','AUTHcode12345')" % (uid2, "a1" * 32), "state_invalid")      # state ما يصلح لمستخدم ثاني
+        r = json.loads(self.sql("SELECT web.link_begin('%s','%s','AUTHcode12345')" % (uid, "a1" * 32), "web_rt")); self.assertTrue(r["req_id"])
+        self.raises("SELECT web.link_begin('%s','%s','AUTHcode12345')" % (uid, "a1" * 32), "state_invalid")                           # state لمرة وحدة
+        st(uid, "b2" * 32); self.raises("SELECT web.link_begin('%s','%s','AUTHcode67890')" % (uid, "b2" * 32), "request_in_progress")   # طلب جاري
+        self.raises("SELECT web.link_begin('%s','%s','x')" % (uid2, "c3" * 32), "state_invalid")
+        st(uid2, "c3" * 32); self.raises("SELECT web.link_begin('%s','%s','bad code!')" % (uid2, "c3" * 32), "violates check constraint")
+        s = json.loads(self.sql("SELECT web.link_status('%s')" % uid, "web_rt")); self.assertEqual((s["status"], s["message"]), ("pending", None)); self.assertNotIn("auth_code", s)
+        self.raises("SELECT * FROM web.link_requests", "permission denied"); self.raises("SELECT * FROM web.link_states", "permission denied"); self.assertEqual(self.sql("SELECT web.link_status('%s')" % uid2, "web_rt"), "")
+        self.assertEqual(self.sql("SELECT tenant_id FROM web.link_requests WHERE req_id = '%s'" % r["req_id"]), TA)
+        # عامل: claim → finish (نفس استعلامات العامل الحقيقية)
+        row = self.psql_vars(wl.CLAIM_SQL, {}).splitlines()[0]; parts = row.split("|"); self.assertEqual(parts[1:], [TA, "AUTHcode12345", "acme", "IQD"]); self.assertEqual(parts[0], r["req_id"])
+        self.assertEqual(self.sql("SELECT status FROM web.link_requests WHERE req_id = '%s'" % r["req_id"]), "processing"); self.assertEqual(self.psql_vars(wl.CLAIM_SQL, {}), "")     # لا يُعالَج مرتين
+        self.psql_vars(wl.FINISH_SQL, {"st": "done", "msg": "انربط 1 حساب.", "res": json.dumps({"linked": [{"id": "1", "name": "A", "currency": "IQD"}]}, ensure_ascii=False), "rid": r["req_id"]})
+        self.assertEqual(self.sql("SELECT status || '|' || coalesce(auth_code, 'NULL') FROM web.link_requests WHERE req_id = '%s'" % r["req_id"]), "done|NULL")      # الرمز انمسح
+        s = json.loads(self.sql("SELECT web.link_status('%s')" % uid, "web_rt")); self.assertEqual((s["status"], s["result"]["linked"][0]["id"]), ("done", "1"))
+        # الكنس: pending قديم يصير expired، processing عالق يصير failed، والرمز يُمسح
+        self.sql("INSERT INTO web.link_requests (user_id, tenant_id, status, auth_code, created_at, updated_at) VALUES ('%s','%s','pending','OLDcode12345', now() - interval '20 minutes', now() - interval '20 minutes'), ('%s','%s','processing','STUCKcode1234', now(), now() - interval '10 minutes')" % (uid2, TB, uid2, TB))
+        self.psql_vars(wl.SWEEP_SQL, {}); self.assertEqual(self.sql("SELECT string_agg(status || ':' || coalesce(auth_code, 'NULL'), ',' ORDER BY status) FROM web.link_requests WHERE user_id = '%s'" % uid2), "expired:NULL,failed:NULL")
 
     def test_98_upgrade_from_previous_live_version(self):
         # حالة السيرفر الحالية: النسخة الأولى كانت منشأة web.ctx ومانحة web_rt صلاحيات مباشرة على api.list_*

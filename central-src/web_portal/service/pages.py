@@ -40,6 +40,30 @@ def invite_code_page(error=""):
                 "<input name=\"code\" required maxlength=\"40\" autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\" dir=\"ltr\"><button>متابعة</button></form></div>" % msg("e", error))
 
 
+LINK_STATUS = {"pending": "بالانتظار", "processing": "جاري الربط", "done": "تم الربط", "failed": "فشل الربط", "expired": "انتهت المحاولة"}
+
+
+def link_page(csrf, last, can_start, enabled, note=""):
+    """last: آخر طلب ربط {status,message,result} أو None. can_start: يقدر يبدأ ربطاً جديداً. enabled: الربط مفعّل بالإعدادات."""
+    body = "<div class=\"c\"><h1>ربط حساب تيك توك</h1>%s" % msg("e", note)
+    refresh = ""
+    if last:
+        stt = last.get("status")
+        refresh = "<meta http-equiv=\"refresh\" content=\"4\">" if stt in ("pending", "processing") else ""
+        body += "<p>آخر محاولة: <span class=\"t\">%s</span></p>" % esc(LINK_STATUS.get(stt, stt))
+        if last.get("message"): body += "<p class=\"%s\">%s</p>" % ("o" if stt == "done" else "m", esc(last.get("message")))
+        res = last.get("result") or {}
+        rows = "".join("<tr><td dir=\"ltr\">%s</td><td>%s</td><td>%s</td></tr>" % (esc(a.get("id")), esc(a.get("name") or "-"), esc(a.get("currency") or "-")) for a in (res.get("linked") or []))
+        if rows: body += "<table><tr><th>الرقم</th><th>الاسم</th><th>العملة</th></tr>%s</table>" % rows
+    if can_start and enabled:
+        body += ("<p class=\"m\">راح تروح لصفحة تيك توك الرسمية، وتختار حساباتك الإعلانية وتوافق، ونرجع بك. ما نشوف كلمة سرك ولا نخزنها.</p>"
+                 "<form method=\"get\" action=\"/link/tiktok\"><button>اربط تيك توك</button></form>")
+    elif not enabled:
+        body += "<p class=\"m\">الربط من الموقع غير مفعّل بعد. تواصل مع الإدارة.</p>"
+    body += "<p><a href=\"/\">رجوع للوحة</a></p></div>"
+    return page("ربط تيك توك", body).replace("<title>", refresh + "<title>", 1)
+
+
 def message_page(title, text):
     return page(title, "<div class=\"c\"><h1>%s</h1><p>%s</p><p><a href=\"/login\">تسجيل الدخول</a></p></div>" % (esc(title), esc(text)))
 
@@ -56,12 +80,13 @@ def dashboard_page(csrf, who, accounts, campaigns, note=""):
     if st:
         hint = "" if st == "READY" else "<p class=\"m\">حسابك قيد الإعداد: يصير جاهزاً بعد ربط حساب إعلاني ونجاح الفحوصات (الربط من الموقع يجي بالمرحلة الجاية).</p>" if st in ("TESTING", "CONFIGURATION_REQUIRED") else "<p class=\"m\">تواصل مع الإدارة.</p>"
         scard = "<div class=\"c\"><h2>حالة الحساب: <span class=\"t\">%s</span></h2>%s</div>" % (esc(STAT.get(st, st)), hint)
+    lcard = "" if any(a.get("platform") == "tiktok" for a in accounts) else "<div class=\"c\"><h2>ربط الحسابات</h2><p class=\"m\">ما عندك حساب تيك توك مربوط.</p><a href=\"/link\"><button>اربط تيك توك</button></a></div>"
     rows = "".join("<tr><td>%s</td><td>%s</td><td dir=\"ltr\">%s</td><td>%s</td><td>%s</td></tr>" % (esc(PLAT.get(a.get("platform"), a.get("platform"))), esc(a.get("name") or "-"), esc(a.get("external_id")), esc(a.get("currency") or "-"),
                    "مفعّل" if a.get("enabled") else "موقوف") for a in accounts) or "<tr><td colspan=\"5\" class=\"m\">ما كو حسابات مربوطة بعد.</td></tr>"
     crow = "".join("<tr><td>%s</td><td dir=\"ltr\">%s</td><td>%s</td><td dir=\"ltr\">%s</td></tr>" % (esc(c.get("name") or "-"), esc(c.get("external_id") or "-"), esc(c.get("status") or "-"), esc(str(c.get("created_at") or "")[:16])) for c in campaigns) \
         or "<tr><td colspan=\"4\" class=\"m\">ما كو حملات بعد.</td></tr>"
-    body = ("%s%s%s"
+    body = ("%s%s%s%s"
             "<div class=\"c\"><h2>الحسابات الإعلانية</h2><table><tr><th>المنصة</th><th>الاسم</th><th>الرقم</th><th>العملة</th><th>الحالة</th></tr>%s</table></div>"
             "<div class=\"c\"><h2>آخر الحملات</h2><table><tr><th>الاسم</th><th>الرقم</th><th>الحالة</th><th>التاريخ</th></tr>%s</table></div>"
-            "<p class=\"m\">هذي نسخة تجريبية للعرض فقط. رفع الحملات وربط الحسابات يجي بالمراحل الجاية.</p>" % (nav, ('<div class="c">%s</div>' % msg("e", note)) if note else '', scard, rows, crow))
+            "<p class=\"m\">هذي نسخة تجريبية للعرض فقط. رفع الحملات وربط الحسابات يجي بالمراحل الجاية.</p>" % (nav, ('<div class="c">%s</div>' % msg("e", note)) if note else '', scard, lcard, rows, crow))
     return page("لوحة التحكم", body)

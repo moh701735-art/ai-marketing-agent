@@ -6,6 +6,8 @@ SCRYPT_LOG_N, SCRYPT_R, SCRYPT_P = 15, 8, 1
 MIN_PWD, MAX_PWD = 6, 64
 PWD_RE = re.compile(r"^[A-Za-z0-9]+$")
 COMMON_PWDS = {"123456", "1234567", "12345678", "123456789", "abc123", "abcd1234", "abc12345", "qwerty", "qwerty123", "password", "password1", "pass123", "admin123", "a12345", "a123456", "aa123456", "1q2w3e", "iloveyou1", "test123", "user123", "welcome1", "asd123", "q12345", "zxc123"}
+APP_ID_RE = re.compile(r"^[0-9]{5,25}$")
+AUTH_CODE_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{8,255}$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{32,64}$")
 _b64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip("=")
 _unb64 = lambda s: base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))

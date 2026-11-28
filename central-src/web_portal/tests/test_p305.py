@@ -7,7 +7,7 @@ def tree():
 def ap(d, body=None): return subprocess.run([sys.executable], input=body or rd(PATCH), env={**os.environ, "P305_BASE": d + "/"}, capture_output=True, text=True)
 class T(unittest.TestCase):
     def test_01_writes_files_idempotent_backup(self):
-        d = tree(); r = ap(d); self.assertIn("APPLY305_OK changed=11", r.stdout, r.stdout + r.stderr)
+        d = tree(); r = ap(d); self.assertIn("APPLY305_OK changed=15", r.stdout, r.stdout + r.stderr)
         for f in ("web_portal/Dockerfile", "web_portal/service/app.py", "web_portal/db/81_web_portal.sql", "ops/web-portal.py"): self.assertTrue(os.path.exists(d + "/" + f), f)
         self.assertTrue(os.access(d + "/ops/web-portal.py", os.X_OK)); self.assertIn("changed=0", ap(d).stdout)
         open(d + "/web_portal/service/app.py", "a").write("# local edit"); r = ap(d); self.assertIn("changed=1", r.stdout); self.assertTrue(os.path.exists(d + "/web_portal/service/app.py.pre305"))

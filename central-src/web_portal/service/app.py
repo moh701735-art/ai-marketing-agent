@@ -25,7 +25,8 @@ HEADERS = {
 }
 
 
-def make_handler(store, cookie_secure=True):
+def make_handler(store, cookie_secure=True, cfg=None):
+    cfg = cfg or {}
     flags = "; Path=/; HttpOnly; SameSite=Lax" + ("; Secure" if cookie_secure else "")
 
     class H(BaseHTTPRequestHandler):
@@ -78,6 +79,41 @@ def make_handler(store, cookie_secure=True):
             title, text = BAD_INVITE.get(state, ("الرابط غير صالح", "الرابط غلط أو ناقص (انسخه كامل من الإدارة). اطلب دعوة جديدة."))
             return self.send(404, pages.message_page(title, text))
 
+        def link_routes(self, path):
+            who = self.session()
+            if not who: return self.send(302, "", location="/login")
+            uid = who["user_id"]; app_id = cfg.get("app_id") or ""; base = (cfg.get("base_url") or "").rstrip("/")
+            enabled = bool(app_id and base and sec.APP_ID_RE.fullmatch(app_id))
+            if path == "/link":
+                csrf, ck = self.csrf_cookie()
+                try: last = store.link_status(uid); dash = store.dashboard(uid)
+                except Exception as e:
+                    log("link_error %s: %s" % (type(e).__name__, str(e).replace("\n", " ")[:200])); return self.send(503, pages.link_page(csrf, None, False, enabled, "خطأ مؤقت، حاول بعد قليل."), cookies=ck)
+                linked = bool(dash and any(a.get("platform") == "tiktok" for a in (dash.get("accounts") or [])))
+                busy = bool(last and last.get("status") in ("pending", "processing"))
+                note = "عندك حساب تيك توك مربوط. لتغييره تواصل مع الإدارة." if linked else ""
+                return self.send(200, pages.link_page(csrf, last, not linked and not busy, enabled, note), cookies=ck)
+            if not enabled: return self.send(503, pages.message_page("غير مفعّل", "الربط من الموقع غير مفعّل بعد."))
+            if path == "/link/tiktok":
+                state = sec.new_token()
+                try: store.link_state_new(uid, sec.token_hash(state))
+                except Exception as e:
+                    log("link_state_error %s" % type(e).__name__); return self.send(503, pages.message_page("خطأ مؤقت", "حاول بعد قليل."))
+                url = "https://business-api.tiktok.com/portal/auth?" + urllib.parse.urlencode({"app_id": app_id, "state": state, "redirect_uri": base + "/tiktok/callback"}, quote_via=urllib.parse.quote)
+                return self.send(302, "", location=url)
+            qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query, max_num_fields=12)
+            code = (qs.get("auth_code") or qs.get("code") or [""])[0]; state = (qs.get("state") or [""])[0]
+            if not sec.valid_token(state) or not sec.AUTH_CODE_RE.fullmatch(code):
+                log("link_callback_bad state=%s code=%s" % (bool(sec.valid_token(state)), bool(sec.AUTH_CODE_RE.fullmatch(code))))
+                return self.send(400, pages.message_page("ما اكتمل الربط", "ما وصل رمز تفويض صالح من تيك توك (أو الرابط انتهى). ارجع وابدأ الربط من جديد."))
+            try: store.link_begin(uid, sec.token_hash(state), code)
+            except Exception as e:
+                msg = str(e)
+                log("link_begin_error %s" % ("state" if "state_invalid" in msg else "busy" if "request_in_progress" in msg else type(e).__name__))
+                if "request_in_progress" in msg: return self.send(302, "", location="/link")
+                return self.send(400, pages.message_page("ما اكتمل الربط", "انتهت صلاحية المحاولة أو انستعملت. ارجع وابدأ الربط من جديد."))
+            return self.send(302, "", location="/link")
+
         # ---- GET ----
         def do_GET(self):
             path = urllib.parse.urlsplit(self.path).path
@@ -104,6 +140,8 @@ def make_handler(store, cookie_secure=True):
                 except Exception: return self.send(503, pages.message_page("خطأ مؤقت", "حاول بعد قليل."))
                 if not info: return self.bad_invite(h)
                 csrf, ck = self.csrf_cookie(); return self.send(200, pages.invite_page(csrf, tok, info.get("email"), ""), cookies=ck)
+            if path in ("/link", "/link/tiktok", "/tiktok/callback"):
+                return self.link_routes(path)
             if path == "/":
                 who = self.session()
                 if not who: return self.send(302, "", location="/login")
@@ -174,7 +212,8 @@ def main():
     if not dsn: sys.exit("WEB_DB_DSN missing")
     from .store import Store
     port = int(os.environ.get("WEB_PORT", "8090"))
-    srv = ThreadingHTTPServer(("0.0.0.0", port), make_handler(Store(dsn), os.environ.get("WEB_COOKIE_SECURE", "1") != "0"))
+    cfg = {"app_id": os.environ.get("TIKTOK_APP_ID", ""), "base_url": os.environ.get("WEB_BASE_URL", "")}
+    srv = ThreadingHTTPServer(("0.0.0.0", port), make_handler(Store(dsn), os.environ.get("WEB_COOKIE_SECURE", "1") != "0", cfg))
     srv.daemon_threads = True
     srv.serve_forever()
 

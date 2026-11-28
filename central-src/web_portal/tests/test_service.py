@@ -30,9 +30,20 @@ class FakeStore:
         if not uid: return None
         u = [x for x in self.users.values() if x["user_id"] == uid][0]; return {"user_id": uid, "email": u["email"], "name": u["name"], "status": u["status"], "slug": "acme", "tenant_id": "t"}
     def session_delete(self, h): self.sessions.pop(h, None)
+    def link_state_new(self, uid, h): self._chk(); self.states = getattr(self, "states", {}); self.states[h] = uid
+    def link_begin(self, uid, h, code):
+        self._chk(); st = getattr(self, "states", {})
+        if st.get(h) != uid: raise RuntimeError("state_invalid")
+        del st[h]
+        if getattr(self, "busy", False): raise RuntimeError("request_in_progress")
+        self.begun = (uid, code); self.last = {"status": "pending", "message": None, "result": None}
+    def link_status(self, uid): return getattr(self, "last", None)
     def dashboard(self, uid):
         if self.down: raise RuntimeError("down")
-        return {"status": getattr(self, "tstatus", "READY"), "accounts": [{"platform": "tiktok", "external_id": "111", "name": "<script>alert(1)</script>", "currency": "USD", "enabled": True}], "campaigns": [{"name": "حملة \"x\"", "external_id": "9", "status": "ACTIVE", "created_at": "2026-11-28T10:00:00"}]}
+        return {"status": getattr(self, "tstatus", "READY"), "accounts": [{"platform": getattr(self, "dash_platform", "tiktok"), "external_id": "111", "name": "<script>alert(1)</script>", "currency": "USD", "enabled": True}], "campaigns": [{"name": "حملة \"x\"", "external_id": "9", "status": "ACTIVE", "created_at": "2026-11-28T10:00:00"}]}
+
+
+APPCFG = {"app_id": "7688235455380193301", "base_url": "https://app.example.test"}
 
 
 class Client:
@@ -55,7 +66,7 @@ class Client:
 
 class T(unittest.TestCase):
     def setUp(self):
-        self.st = FakeStore(); self.srv = ThreadingHTTPServer(("127.0.0.1", 0), app.make_handler(self.st, cookie_secure=True)); self.srv.daemon_threads = True
+        self.st = FakeStore(); self.srv = ThreadingHTTPServer(("127.0.0.1", 0), app.make_handler(self.st, cookie_secure=True, cfg=APPCFG)); self.srv.daemon_threads = True
         threading.Thread(target=self.srv.serve_forever, daemon=True).start(); self.port = self.srv.server_address[1]; self.cl = Client(self.port)
         self.st.add_user("Client@Acme.com", sec.hash_password("correct-horse-9"))
     def tearDown(self): self.srv.shutdown(); self.srv.server_close()
@@ -148,6 +159,36 @@ class T(unittest.TestCase):
             self.st.down = True; s, b, _ = self.cl.req("GET", "/"); self.assertEqual(s, 200)
         finally: app.log = orig
         self.assertTrue(any(l.startswith("dashboard_error RuntimeError") or "session" in l or True for l in logs))
+
+    def test_09g_link_flow_state_callback_and_status(self):
+        self.assertEqual(self.cl.req("GET", "/link")[:1], (302,)); self.assertEqual(self.cl.req("GET", "/link/tiktok")[:1], (302,)); self.assertEqual(self.cl.req("GET", "/tiktok/callback?auth_code=AAAAAAAAAA&state=" + "a" * 43)[:1], (302,))
+        self.st.dash_platform = "meta"; self.login(); s, b, _ = self.cl.req("GET", "/link"); self.assertEqual(s, 200); self.assertIn("اربط تيك توك", b)
+        s, b, h = self.cl.req("GET", "/link/tiktok"); self.assertEqual(s, 302); loc = h["location"]; q = urllib.parse.parse_qs(urllib.parse.urlsplit(loc).query)
+        self.assertTrue(loc.startswith("https://business-api.tiktok.com/portal/auth?")); self.assertEqual(q["app_id"], [APPCFG["app_id"]]); self.assertEqual(q["redirect_uri"], ["https://app.example.test/tiktok/callback"]); state = q["state"][0]
+        self.assertIn(sec.token_hash(state), self.st.states); self.assertNotIn(state, self.st.states)                       # يُخزَّن الهاش فقط
+        s, b, h = self.cl.req("GET", "/tiktok/callback?auth_code=GOODcode12345&state=" + state); self.assertEqual((s, h["location"]), (302, "/link")); self.assertEqual(self.st.begun[1], "GOODcode12345")
+        s, b, _ = self.cl.req("GET", "/link"); self.assertIn("بالانتظار", b); self.assertIn('http-equiv="refresh"', b); self.assertNotIn("<form method=\"get\" action=\"/link/tiktok\">", b)   # جاري: ما يبدأ ثانية
+        s, b, _ = self.cl.req("GET", "/tiktok/callback?auth_code=GOODcode12345&state=" + state); self.assertEqual(s, 400)   # state مستعمل
+        self.st.last = {"status": "done", "message": "انربط 2 حساب.", "result": {"linked": [{"id": "70010000001", "name": "<b>Acme</b>", "currency": "IQD"}]}}
+        s, b, _ = self.cl.req("GET", "/link"); self.assertIn("تم الربط", b); self.assertIn("70010000001", b); self.assertNotIn("<b>Acme</b>", b); self.assertNotIn('http-equiv="refresh"', b)
+
+    def test_09h_callback_validation_and_privacy(self):
+        logs = []; orig = app.log; app.log = logs.append
+        try:
+            self.login()
+            for qs in ("", "?auth_code=short&state=" + "a" * 43, "?auth_code=GOODcode12345&state=bad", "?code=GOODcode12345", "?auth_code=GOOD%20code%3Cscript%3E&state=" + "a" * 43):
+                s, b, _ = self.cl.req("GET", "/tiktok/callback" + qs); self.assertEqual(s, 400, qs); self.assertNotIn("<script>", b)
+            s, b, h = self.cl.req("GET", "/link/tiktok"); state = urllib.parse.parse_qs(urllib.parse.urlsplit(h["location"]).query)["state"][0]
+            self.st.busy = True; s, b, h = self.cl.req("GET", "/tiktok/callback?code=GOODcode12345&state=" + state); self.assertEqual((s, h["location"]), (302, "/link"))      # code= أيضاً مقبول؛ طلب جاري = يرجع للحالة
+            self.assertTrue(all("GOODcode12345" not in l for l in logs))
+        finally: app.log = orig
+
+    def test_09i_link_hidden_when_already_linked_or_disabled(self):
+        self.login(); s, b, _ = self.cl.req("GET", "/link"); self.assertIn("عندك حساب تيك توك مربوط", b); self.assertNotIn("/link/tiktok", b)   # FakeStore.dashboard فيه حساب تيك توك
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), app.make_handler(self.st, cookie_secure=True, cfg={})); srv.daemon_threads = True; threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            c2 = Client(srv.server_address[1]); self.login(c2); s, b, _ = c2.req("GET", "/link"); self.assertIn("غير مفعّل", b); self.assertEqual(c2.req("GET", "/link/tiktok")[0], 503)
+        finally: srv.shutdown(); srv.server_close()
 
     def test_10_body_limit_and_unknown_paths(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5); c.request("POST", "/login", "x" * 20000, {"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "20000"}); self.assertEqual(c.getresponse().status, 413)
