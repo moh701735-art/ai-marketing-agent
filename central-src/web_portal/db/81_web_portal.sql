@@ -124,6 +124,8 @@ ALTER FUNCTION web.ctx(uuid) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION web.invite_create(text, text, text, int), web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
   web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.ctx(uuid) FROM PUBLIC;
 RESET ROLE;
+-- الدور الجديد يحتاج صلاحية الاتصال بقاعدة central (الحية تمنعها عن PUBLIC): خطأ حي: «permission denied for database»
+DO $$ BEGIN EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_rt', current_database()); END $$;
 GRANT USAGE ON SCHEMA web TO web_rt;
 GRANT EXECUTE ON FUNCTION web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
   web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.ctx(uuid) TO web_rt;

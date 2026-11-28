@@ -135,6 +135,11 @@ class WebDB(unittest.TestCase):
     def test_09_cancelled_tenant_gets_no_ctx(self):
         u = self.invite("gone", "g@gone.com", "5e" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("5e" * 32, PWD), "web_rt"); self.assertEqual(self.sql("SELECT web.ctx('%s')" % u["user_id"], "web_rt"), "")
 
+    def test_10b_connect_privilege_granted_even_if_public_revoked(self):
+        self.assertEqual(self.sql("SELECT has_database_privilege('web_rt', current_database(), 'CONNECT')"), "t")
+        self.sql("REVOKE CONNECT ON DATABASE postgres FROM PUBLIC"); self.file("81_web_portal.sql"); self.assertEqual(self.sql("SELECT has_database_privilege('web_rt', current_database(), 'CONNECT')"), "t")
+        self.assertEqual(self.sql("SELECT has_database_privilege('app_jobs', current_database(), 'CONNECT')"), "f")   # الدور الثاني ما يحصل على شي إضافي
+
     def test_10_web_rt_has_no_other_privileges(self):
         self.raises("SELECT * FROM core.ad_accounts", "permission denied"); self.raises("INSERT INTO web.users (tenant_id,email) VALUES ('%s','x@y.co')" % TA, "permission denied")
         self.raises("SELECT private.sign_ctx('{}'::jsonb)", "permission denied")
@@ -143,7 +148,7 @@ class WebDB(unittest.TestCase):
 
     def test_99_down_restores_everything(self):
         self.file("81_web_portal_down.sql"); self.assertEqual(self.sql("SELECT count(*) FROM pg_namespace WHERE nspname='web'"), "0")
-        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p, aclexplode(p.proacl) a WHERE a.grantee = 'web_rt'::regrole"), "0"); self.assertEqual(self.sql(SNAP), self.base)
+        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p, aclexplode(p.proacl) a WHERE a.grantee = 'web_rt'::regrole"), "0"); self.assertEqual(self.sql(SNAP), self.base); self.assertEqual(self.sql("SELECT has_database_privilege('web_rt', current_database(), 'CONNECT')"), "f")
         self.file("81_web_portal.sql"); self.assertEqual(self.sql("SELECT count(*) FROM pg_namespace WHERE nspname='web'"), "1")
 
 
