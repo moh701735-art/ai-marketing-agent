@@ -28,13 +28,9 @@ class Store:
     def session_delete(self, h): self._one("SELECT web.session_delete(%s)", (h,))
 
     def dashboard(self, uid):
-        """(accounts, campaigns) لعميل المستخدم فقط (ctx قراءة فقط مدته 5 دقائق)، أو None لو ما كو ctx."""
+        """(accounts, campaigns) لعميل المستخدم فقط. الدوال web.accounts/web.campaigns تحسب الـctx داخل القاعدة؛ ترجع None لو المستخدم غير فعّال."""
         with psycopg.connect(self.dsn, connect_timeout=5, autocommit=True) as c:
-            ctx = (c.execute("SELECT web.ctx(%s::uuid)", (uid,)).fetchone() or [None])[0]
-            if not ctx: return None
-            accts = [dict(zip(("platform", "external_id", "name", "currency", "status", "enabled"), r)) for r in c.execute("SELECT platform, external_id, name, currency, status, enabled FROM api.list_ad_accounts(%s)", (ctx,)).fetchall()]
-            camps = []
-            for (j,) in c.execute("SELECT to_jsonb(x) FROM api.list_campaigns(%s, NULL) x LIMIT 50", (ctx,)).fetchall():
-                d = j if isinstance(j, dict) else json.loads(j)
-                camps.append({"name": d.get("name") or d.get("campaign_name"), "external_id": d.get("external_id"), "status": d.get("status"), "created_at": d.get("created_at")})
+            accts = [dict(zip(("platform", "external_id", "name", "currency", "status", "enabled"), r)) for r in c.execute("SELECT platform, external_id, name, currency, status, enabled FROM web.accounts(%s::uuid)", (uid,)).fetchall()]
+            camps = c.execute("SELECT web.campaigns(%s::uuid)", (uid,)).fetchone()[0] or []
+            if isinstance(camps, str): camps = json.loads(camps)
             return accts, camps

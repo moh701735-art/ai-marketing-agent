@@ -1,5 +1,5 @@
 -- 81_web_portal.sql : بوابة الزبائن على الويب (web_portal/). مخطط جديد مستقل (web) + دور web_rt؛ لا يغيّر أي جدول/دالة موجودة.
--- الصلاحيات الوحيدة خارج المخطط: EXECUTE (إضافة فقط) على api.list_ad_accounts / api.list_campaigns / api.list_pages للدور الجديد web_rt.
+-- الصلاحية الوحيدة خارج المخطط: CONNECT على قاعدة central للدور الجديد web_rt. الدور ما يملك أي صلاحية على api.* ولا core.*.
 -- يُطبَّق يدوياً (مثل 72/74/80) عبر ops/web-portal.py، مو عبر update.sh. التراجع: 81_web_portal_down.sql.
 -- الدخول بدعوة من المدير فقط (ما فيه تسجيل مفتوح). كلمات السر تُخزَّن scrypt (يحسبها الـservice)، والجلسات تُخزَّن كـsha256 فقط.
 \set ON_ERROR_STOP on
@@ -104,12 +104,30 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, core, web AS $$
 CREATE OR REPLACE FUNCTION web.session_delete(p_hash text) RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$ DELETE FROM web.sessions WHERE session_hash = p_hash $$;
 
--- ctx قراءة فقط (viewer) لعميل المستخدم الحالي، صلاحية 5 دقائق، وللعملاء غير الملغيين فقط. نفس شكل ctx اللي توقّعه api.job_context_for_slug
-CREATE OR REPLACE FUNCTION web.ctx(p_user uuid) RETURNS text
-LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, core, private, web AS $$
-  SELECT private.sign_ctx(jsonb_build_object('t', t.tenant_id, 'r', 'viewer', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'))
-  FROM web.users u JOIN core.tenants t ON t.tenant_id = u.tenant_id
-  WHERE u.user_id = p_user AND u.status = 'active' AND t.status::text <> 'CANCELLED' $$;
+-- الـctx يُوقَّع ويُستعمل داخل القاعدة فقط ولا يرجع للخدمة أبداً. enter_ctx الحي يرفض أي دور غير 'system' ما له سجل بـcore.tenant_users (مستخدمو تليجرام)،
+-- فنستعمل نفس شكل ctx اللي توقّعه api.job_context_for_slug (r=system,k=system) لكن بصلاحية ضيّقة: الدالتان أدناه فقط (قراءة)، لعميل المستخدم فقط، 5 دقائق.
+DROP FUNCTION IF EXISTS web.ctx(uuid);
+CREATE OR REPLACE FUNCTION web.accounts(p_user uuid) RETURNS TABLE (platform text, external_id text, name text, currency text, status text, enabled boolean)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private, web AS $$
+DECLARE v_tid uuid; v_ctx text;
+BEGIN
+  SELECT t.tenant_id INTO v_tid FROM web.users u JOIN core.tenants t ON t.tenant_id = u.tenant_id WHERE u.user_id = p_user AND u.status = 'active' AND t.status::text <> 'CANCELLED';
+  IF v_tid IS NULL THEN RETURN; END IF;
+  v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
+  RETURN QUERY SELECT a.platform, a.external_id, a.name, a.currency, a.status, a.enabled FROM api.list_ad_accounts(v_ctx) a;
+END $$;
+
+CREATE OR REPLACE FUNCTION web.campaigns(p_user uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private, web AS $$
+DECLARE v_tid uuid; v_ctx text; v_out jsonb;
+BEGIN
+  SELECT t.tenant_id INTO v_tid FROM web.users u JOIN core.tenants t ON t.tenant_id = u.tenant_id WHERE u.user_id = p_user AND u.status = 'active' AND t.status::text <> 'CANCELLED';
+  IF v_tid IS NULL THEN RETURN '[]'::jsonb; END IF;
+  v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
+  SELECT coalesce(jsonb_agg(jsonb_build_object('name', coalesce(j->>'name', j->>'campaign_name'), 'external_id', j->>'external_id', 'status', j->>'status', 'created_at', j->>'created_at')), '[]'::jsonb)
+    INTO v_out FROM (SELECT to_jsonb(x) AS j FROM api.list_campaigns(v_ctx, NULL) x LIMIT 50) s;
+  RETURN v_out;
+END $$;
 
 ALTER FUNCTION web.invite_create(text, text, text, int) OWNER TO app_owner;
 ALTER FUNCTION web.invite_accept(text, text) OWNER TO app_owner;
@@ -120,16 +138,17 @@ ALTER FUNCTION web.login_ok(uuid) OWNER TO app_owner;
 ALTER FUNCTION web.session_create(uuid, text, int) OWNER TO app_owner;
 ALTER FUNCTION web.session_get(text) OWNER TO app_owner;
 ALTER FUNCTION web.session_delete(text) OWNER TO app_owner;
-ALTER FUNCTION web.ctx(uuid) OWNER TO app_owner;
+ALTER FUNCTION web.accounts(uuid) OWNER TO app_owner;
+ALTER FUNCTION web.campaigns(uuid) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION web.invite_create(text, text, text, int), web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
-  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.ctx(uuid) FROM PUBLIC;
+  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) FROM PUBLIC;
 RESET ROLE;
 -- الدور الجديد يحتاج صلاحية الاتصال بقاعدة central (الحية تمنعها عن PUBLIC): خطأ حي: «permission denied for database»
 DO $$ BEGIN EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_rt', current_database()); END $$;
 GRANT USAGE ON SCHEMA web TO web_rt;
 GRANT EXECUTE ON FUNCTION web.invite_accept(text, text), web.invite_peek(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
-  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.ctx(uuid) TO web_rt;
+  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) TO web_rt;
 -- web.invite_create = إدارة فقط (يُنفَّذ بـpostgres من ops/web-portal.py)؛ لا صلاحية لـ web_rt.
--- قراءة بيانات العميل بالـctx: نفس دوال البوت (تفرض عزل العميل من الـctx الموقّع)
-GRANT USAGE ON SCHEMA api TO web_rt;
-GRANT EXECUTE ON FUNCTION api.list_ad_accounts(text), api.list_campaigns(text, text), api.list_pages(text) TO web_rt;
+-- نسخة سابقة (قبل هذا التعديل) منحت web_rt صلاحيات مباشرة على api.list_*؛ نسحبها (آمن لو ما كانت موجودة)
+REVOKE EXECUTE ON FUNCTION api.list_ad_accounts(text), api.list_campaigns(text, text), api.list_pages(text) FROM web_rt;
+REVOKE USAGE ON SCHEMA api FROM web_rt;

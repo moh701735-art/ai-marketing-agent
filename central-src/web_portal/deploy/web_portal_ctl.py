@@ -134,9 +134,9 @@ def cmd_install(a, out=print):
     rc, o, _ = psql("SELECT slug FROM core.tenants WHERE status::text = 'READY' ORDER BY slug LIMIT 1;", check=False)
     slug = o.strip().splitlines()[0] if rc == 0 and o.strip() else ""
     if slug:
-        rc, o, e = psql("SELECT count(*) FROM api.list_ad_accounts(private.sign_ctx(jsonb_build_object('t', (SELECT tenant_id FROM core.tenants WHERE slug = :'slug'), 'r', 'viewer', "
+        rc, o, e = psql("SET ROLE app_owner;\nSELECT count(*) FROM api.list_ad_accounts(private.sign_ctx(jsonb_build_object('t', (SELECT tenant_id FROM core.tenants WHERE slug = :'slug'), 'r', 'system', "
                         "'e', extract(epoch FROM now())::bigint + 300, 'k', 'system')));", {"slug": slug}, check=False)
-        out("6) فحص شكل الـctx (قراءة فقط على %s): %s" % (slug, "✅ مقبول (حسابات=%s)" % o.strip() if rc == 0 else "❌ مرفوض: " + (e or o).strip()[-200:]))
+        out("6) فحص شكل الـctx (قراءة فقط على %s، بصلاحية app_owner مثل دوال الموقع): %s" % (slug, "✅ مقبول (حسابات=%s)" % o.strip() if rc == 0 else "❌ مرفوض: " + " ".join((e or o).strip().splitlines()[:2])[:260]))
     out("انتهى. جرّب: https://%s/login (الشهادة قد تحتاج دقيقة). الدعوة: python3 ops/web-portal.py invite --slug <slug> --email <email>" % HOST)
 
 
