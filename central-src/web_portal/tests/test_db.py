@@ -17,12 +17,18 @@ INSERT INTO core.campaigns (tenant_id, name, external_id, status) VALUES ('%(a)s
 INSERT INTO core.ad_accounts VALUES ('%(a)s','tiktok','111','A1','USD','ENABLE',true,NULL), ('%(b)s','tiktok','222','B1','IQD','ENABLE',true,NULL);
 CREATE SCHEMA private;
 CREATE FUNCTION private.sign_ctx(p jsonb) RETURNS text LANGUAGE sql AS $f$ SELECT 'ctx:' || (p->>'t') || ':' || (p->>'r') || ':' || (p->>'e') $f$;
-CREATE FUNCTION private.enter_ctx(p text, r text) RETURNS void LANGUAGE plpgsql AS $f$ BEGIN
+CREATE FUNCTION private.enter_ctx(p text, r text DEFAULT 'viewer', need_ready boolean DEFAULT true) RETURNS void LANGUAGE plpgsql AS $f$ DECLARE v_status text; BEGIN
   IF p !~ '^ctx:[0-9a-f-]{36}:[a-z]+:[0-9]+$' THEN RAISE EXCEPTION 'invalid_ctx' USING ERRCODE = '28000'; END IF;
   IF split_part(p, ':', 3) <> 'system' THEN RAISE EXCEPTION 'user_inactive' USING ERRCODE = '42501'; END IF;   -- مثل enter_ctx الحي: غير system يحتاج سجل tenant_users
   IF split_part(p, ':', 4)::bigint < extract(epoch FROM now()) THEN RAISE EXCEPTION 'expired_ctx' USING ERRCODE = '28000'; END IF;
-  PERFORM set_config('t.tenant', split_part(p, ':', 2), true); END $f$;
+  PERFORM set_config('t.tenant', split_part(p, ':', 2), true);
+  SELECT t.status INTO v_status FROM core.tenants t WHERE t.tenant_id = split_part(p, ':', 2)::uuid;
+  IF need_ready AND v_status IS DISTINCT FROM 'READY' THEN RAISE EXCEPTION 'tenant_not_ready' USING ERRCODE = '42501'; END IF;   -- الافتراضي الحي: need_ready=true
+END $f$;
 CREATE SCHEMA api;
+CREATE FUNCTION api.readiness_facts(p_ctx text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $f$
+BEGIN PERFORM private.enter_ctx(p_ctx, 'system', false); RETURN jsonb_build_object('status', (SELECT t.status FROM core.tenants t WHERE t.tenant_id = current_setting('t.tenant')::uuid),
+  'accounts', coalesce((SELECT jsonb_agg(jsonb_build_object('platform', a.platform, 'external_id', a.external_id)) FROM core.ad_accounts a WHERE a.tenant_id = current_setting('t.tenant')::uuid), '[]'::jsonb)); END $f$;
 CREATE FUNCTION api.list_ad_accounts(p_ctx text) RETURNS TABLE (platform text, external_id text, name text, currency text, status text, enabled boolean) LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $f$
 BEGIN PERFORM private.enter_ctx(p_ctx, 'viewer'); RETURN QUERY SELECT a.platform, a.external_id, a.name, a.currency, a.status, a.enabled FROM core.ad_accounts a WHERE a.tenant_id = current_setting('t.tenant')::uuid; END $f$;
 CREATE FUNCTION api.list_campaigns(p_ctx text, p_status text DEFAULT NULL) RETURNS SETOF core.campaigns LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, core, private AS $f$
@@ -137,17 +143,19 @@ class WebDB(unittest.TestCase):
         self.sql("SELECT web.session_delete('%s')" % ("16" * 32), "web_rt"); self.assertEqual(self.sql("SELECT web.session_get('%s')" % ("16" * 32), "web_rt"), "")
         self.raises("SELECT web.session_create('%s','%s',0)" % (u["user_id"], H3), "bad_ttl")
 
-    def test_08_accounts_and_campaigns_scoped_to_user_tenant(self):
+    def test_08_overview_scoped_to_user_tenant_and_status_aware(self):
         ua = self.invite("acme", "ctxa@acme.com", "3c" * 32); ub = self.invite("beta", "ctxb@beta.com", "4d" * 32)
         for h in ("3c" * 32, "4d" * 32): self.sql("SELECT web.invite_accept('%s','%s')" % (h, PWD), "web_rt")
-        ra = self.sql("SELECT external_id FROM web.accounts('%s')" % ua["user_id"], "web_rt"); rb = self.sql("SELECT external_id FROM web.accounts('%s')" % ub["user_id"], "web_rt"); self.assertEqual((ra, rb), ("111", "222"))
-        ca = json.loads(self.sql("SELECT web.campaigns('%s')" % ua["user_id"], "web_rt")); cb = json.loads(self.sql("SELECT web.campaigns('%s')" % ub["user_id"], "web_rt"))
-        self.assertEqual([c["external_id"] for c in ca], ["9001"]); self.assertEqual([c["external_id"] for c in cb], ["9002"]); self.assertEqual(set(ca[0]), {"name", "external_id", "status", "created_at"})
-        self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('00000000-0000-0000-0000-000000000000')", "web_rt"), "0"); self.assertEqual(json.loads(self.sql("SELECT web.campaigns('00000000-0000-0000-0000-000000000000')", "web_rt")), [])
-        self.sql("UPDATE web.users SET status='disabled' WHERE user_id='%s'" % ua["user_id"]); self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('%s')" % ua["user_id"], "web_rt"), "0")
+        oa = json.loads(self.sql("SELECT web.overview('%s')" % ua["user_id"], "web_rt")); ob = json.loads(self.sql("SELECT web.overview('%s')" % ub["user_id"], "web_rt"))
+        self.assertEqual(oa["status"], "READY"); self.assertEqual([a["external_id"] for a in oa["accounts"]], ["111"]); self.assertEqual(oa["accounts"][0]["name"], "A1"); self.assertEqual(oa["accounts"][0]["currency"], "USD")
+        self.assertEqual([c["external_id"] for c in oa["campaigns"]], ["9001"]); self.assertEqual(set(oa["campaigns"][0]), {"name", "external_id", "status", "created_at"})
+        self.assertEqual(ob["status"], "NEEDS_REVIEW"); self.assertEqual([a["external_id"] for a in ob["accounts"]], ["222"]); self.assertIsNone(ob["accounts"][0]["name"]); self.assertEqual(ob["campaigns"], [])   # غير READY: بدون تفاصيل وبدون حملات
+        self.assertEqual(self.sql("SELECT web.overview('00000000-0000-0000-0000-000000000000')", "web_rt"), "")
+        self.sql("UPDATE web.users SET status='disabled' WHERE user_id='%s'" % ua["user_id"]); self.assertEqual(self.sql("SELECT web.overview('%s')" % ua["user_id"], "web_rt"), "")
 
-    def test_09_tenant_without_data_gets_empty_lists(self):
-        u = self.invite("gone", "g@gone.com", "5e" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("5e" * 32, PWD), "web_rt"); self.assertEqual(self.sql("SELECT count(*) FROM web.accounts('%s')" % u["user_id"], "web_rt"), "0"); self.assertEqual(json.loads(self.sql("SELECT web.campaigns('%s')" % u["user_id"], "web_rt")), [])
+    def test_09_not_ready_tenant_does_not_error(self):
+        u = self.invite("gone", "g@gone.com", "5e" * 32); self.sql("SELECT web.invite_accept('%s','%s')" % ("5e" * 32, PWD), "web_rt")
+        o = json.loads(self.sql("SELECT web.overview('%s')" % u["user_id"], "web_rt")); self.assertEqual((o["status"], o["accounts"], o["campaigns"]), ("CANCELLED", [], []))
 
     def test_10b_connect_privilege_granted_even_if_public_revoked(self):
         self.assertEqual(self.sql("SELECT has_database_privilege('web_rt', current_database(), 'CONNECT')"), "t")
@@ -159,16 +167,16 @@ class WebDB(unittest.TestCase):
         self.raises("SELECT private.sign_ctx('{}'::jsonb)", "permission denied")
         self.raises("SELECT * FROM api.list_ad_accounts('x')", "permission denied"); self.raises("SELECT api.list_campaigns('x', NULL)", "permission denied")
         self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','web.invite_create(text,text,text,integer)','EXECUTE')"), "f")
-        for f in ("web.accounts(uuid)", "web.campaigns(uuid)", "web.session_get(text)"): self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','%s','EXECUTE')" % f), "t", f)
-        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'web' AND p.proname = 'ctx'"), "0")   # الـctx ما يطلع من القاعدة
+        for f in ("web.overview(uuid)", "web.session_get(text)"): self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','%s','EXECUTE')" % f), "t", f)
+        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'web' AND p.proname IN ('ctx','accounts','campaigns')"), "0")   # الـctx ما يطلع من القاعدة
 
     def test_98_upgrade_from_previous_live_version(self):
         # حالة السيرفر الحالية: النسخة الأولى كانت منشأة web.ctx ومانحة web_rt صلاحيات مباشرة على api.list_*
-        self.sql("CREATE FUNCTION web.ctx(p uuid) RETURNS text LANGUAGE sql SECURITY DEFINER AS $f$ SELECT 'x'::text $f$; GRANT EXECUTE ON FUNCTION web.ctx(uuid) TO web_rt; GRANT USAGE ON SCHEMA api TO web_rt; "
+        self.sql("CREATE FUNCTION web.ctx(p uuid) RETURNS text LANGUAGE sql SECURITY DEFINER AS $f$ SELECT 'x'::text $f$; CREATE FUNCTION web.accounts(p uuid) RETURNS text LANGUAGE sql AS $f$ SELECT 'x'::text $f$; GRANT EXECUTE ON FUNCTION web.ctx(uuid) TO web_rt; GRANT USAGE ON SCHEMA api TO web_rt; "
                  "GRANT EXECUTE ON FUNCTION api.list_ad_accounts(text), api.list_campaigns(text, text), api.list_pages(text) TO web_rt")
         self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','api.list_ad_accounts(text)','EXECUTE')"), "t")
         self.file("81_web_portal.sql")
-        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'web' AND p.proname = 'ctx'"), "0")
+        self.assertEqual(self.sql("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'web' AND p.proname IN ('ctx','accounts')"), "0")
         self.assertEqual(self.sql("SELECT has_function_privilege('web_rt','api.list_ad_accounts(text)','EXECUTE')"), "f"); self.assertEqual(self.sql("SELECT has_schema_privilege('web_rt','api','USAGE')"), "f")
 
     def test_99_down_restores_everything(self):

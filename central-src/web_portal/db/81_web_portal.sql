@@ -115,26 +115,29 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, web AS $$ DELETE FRO
 -- الـctx يُوقَّع ويُستعمل داخل القاعدة فقط ولا يرجع للخدمة أبداً. enter_ctx الحي يرفض أي دور غير 'system' ما له سجل بـcore.tenant_users (مستخدمو تليجرام)،
 -- فنستعمل نفس شكل ctx اللي توقّعه api.job_context_for_slug (r=system,k=system) لكن بصلاحية ضيّقة: الدالتان أدناه فقط (قراءة)، لعميل المستخدم فقط، 5 دقائق.
 DROP FUNCTION IF EXISTS web.ctx(uuid);
-CREATE OR REPLACE FUNCTION web.accounts(p_user uuid) RETURNS TABLE (platform text, external_id text, name text, currency text, status text, enabled boolean)
+DROP FUNCTION IF EXISTS web.accounts(uuid);
+DROP FUNCTION IF EXISTS web.campaigns(uuid);
+-- نظرة عامة للوحة: الحالة + الحسابات + الحملات. api.list_* ترفض أي زبون غير READY (tenant_not_ready)، فنقرأ الحالة من api.readiness_facts (تعمل لأي حالة)؛
+-- READY: تفاصيل الحسابات (اسم/عملة) والحملات. غير READY: الحسابات المربوطة (المعرّف فقط) وبدون حملات. الـctx ما يطلع من الدالة أبداً.
+CREATE OR REPLACE FUNCTION web.overview(p_user uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, private, web AS $$
-DECLARE v_tid uuid; v_ctx text;
+DECLARE v_tid uuid; v_ctx text; v_facts jsonb; v_status text; v_acc jsonb; v_camps jsonb := '[]'::jsonb;
 BEGIN
   SELECT u.tenant_id INTO v_tid FROM web.users u WHERE u.user_id = p_user AND u.status = 'active';
-  IF v_tid IS NULL THEN RETURN; END IF;
+  IF v_tid IS NULL THEN RETURN NULL; END IF;
   v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
-  RETURN QUERY SELECT a.platform, a.external_id, a.name, a.currency, a.status, a.enabled FROM api.list_ad_accounts(v_ctx) a;
-END $$;
-
-CREATE OR REPLACE FUNCTION web.campaigns(p_user uuid) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, private, web AS $$
-DECLARE v_tid uuid; v_ctx text; v_out jsonb;
-BEGIN
-  SELECT u.tenant_id INTO v_tid FROM web.users u WHERE u.user_id = p_user AND u.status = 'active';
-  IF v_tid IS NULL THEN RETURN '[]'::jsonb; END IF;
-  v_ctx := private.sign_ctx(jsonb_build_object('t', v_tid, 'r', 'system', 'e', extract(epoch FROM now())::bigint + 300, 'k', 'system'));
-  SELECT coalesce(jsonb_agg(jsonb_build_object('name', coalesce(j->>'name', j->>'campaign_name'), 'external_id', j->>'external_id', 'status', j->>'status', 'created_at', j->>'created_at')), '[]'::jsonb)
-    INTO v_out FROM (SELECT to_jsonb(x) AS j FROM api.list_campaigns(v_ctx, NULL) x LIMIT 50) s;
-  RETURN v_out;
+  v_facts := api.readiness_facts(v_ctx);
+  v_status := v_facts->>'status';
+  IF v_status = 'READY' THEN
+    SELECT coalesce(jsonb_agg(jsonb_build_object('platform', a.platform, 'external_id', a.external_id, 'name', a.name, 'currency', a.currency, 'status', a.status, 'enabled', a.enabled)), '[]'::jsonb)
+      INTO v_acc FROM api.list_ad_accounts(v_ctx) a;
+    SELECT coalesce(jsonb_agg(jsonb_build_object('name', coalesce(j->>'name', j->>'campaign_name'), 'external_id', j->>'external_id', 'status', j->>'status', 'created_at', j->>'created_at')), '[]'::jsonb)
+      INTO v_camps FROM (SELECT to_jsonb(x) AS j FROM api.list_campaigns(v_ctx, NULL) x LIMIT 50) s;
+  ELSE
+    SELECT coalesce(jsonb_agg(jsonb_build_object('platform', x->>'platform', 'external_id', x->>'external_id', 'name', NULL, 'currency', NULL, 'status', NULL, 'enabled', true)), '[]'::jsonb)
+      INTO v_acc FROM jsonb_array_elements(coalesce(v_facts->'accounts', '[]'::jsonb)) x;
+  END IF;
+  RETURN jsonb_build_object('status', v_status, 'accounts', v_acc, 'campaigns', v_camps);
 END $$;
 
 ALTER FUNCTION web.invite_create(text, text, text, int) OWNER TO app_owner;
@@ -147,16 +150,15 @@ ALTER FUNCTION web.login_ok(uuid) OWNER TO app_owner;
 ALTER FUNCTION web.session_create(uuid, text, int) OWNER TO app_owner;
 ALTER FUNCTION web.session_get(text) OWNER TO app_owner;
 ALTER FUNCTION web.session_delete(text) OWNER TO app_owner;
-ALTER FUNCTION web.accounts(uuid) OWNER TO app_owner;
-ALTER FUNCTION web.campaigns(uuid) OWNER TO app_owner;
+ALTER FUNCTION web.overview(uuid) OWNER TO app_owner;
 REVOKE ALL ON FUNCTION web.invite_create(text, text, text, int), web.invite_accept(text, text), web.invite_peek(text), web.invite_state(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
-  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) FROM PUBLIC;
+  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.overview(uuid) FROM PUBLIC;
 RESET ROLE;
 -- الدور الجديد يحتاج صلاحية الاتصال بقاعدة central (الحية تمنعها عن PUBLIC): خطأ حي: «permission denied for database»
 DO $$ BEGIN EXECUTE format('GRANT CONNECT ON DATABASE %I TO web_rt', current_database()); END $$;
 GRANT USAGE ON SCHEMA web TO web_rt;
 GRANT EXECUTE ON FUNCTION web.invite_accept(text, text), web.invite_peek(text), web.invite_state(text), web.login_lookup(text), web.login_fail(uuid), web.login_ok(uuid),
-  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.accounts(uuid), web.campaigns(uuid) TO web_rt;
+  web.session_create(uuid, text, int), web.session_get(text), web.session_delete(text), web.overview(uuid) TO web_rt;
 -- web.invite_create = إدارة فقط (يُنفَّذ بـpostgres من ops/web-portal.py)؛ لا صلاحية لـ web_rt.
 -- نسخة سابقة (قبل هذا التعديل) منحت web_rt صلاحيات مباشرة على api.list_*؛ نسحبها (آمن لو ما كانت موجودة)
 REVOKE EXECUTE ON FUNCTION api.list_ad_accounts(text), api.list_campaigns(text, text), api.list_pages(text) FROM web_rt;

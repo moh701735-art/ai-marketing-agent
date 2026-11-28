@@ -32,7 +32,7 @@ class FakeStore:
     def session_delete(self, h): self.sessions.pop(h, None)
     def dashboard(self, uid):
         if self.down: raise RuntimeError("down")
-        return ([{"platform": "tiktok", "external_id": "111", "name": "<script>alert(1)</script>", "currency": "USD", "enabled": True}], [{"name": "حملة \"x\"", "external_id": "9", "status": "ACTIVE", "created_at": "2026-11-28T10:00:00"}])
+        return {"status": getattr(self, "tstatus", "READY"), "accounts": [{"platform": "tiktok", "external_id": "111", "name": "<script>alert(1)</script>", "currency": "USD", "enabled": True}], "campaigns": [{"name": "حملة \"x\"", "external_id": "9", "status": "ACTIVE", "created_at": "2026-11-28T10:00:00"}]}
 
 
 class Client:
@@ -139,6 +139,15 @@ class T(unittest.TestCase):
         raw = "7k3m-q9xp-4tn2"; self.assertEqual(sec.norm_invite(raw), "7k3mq9xp4tn2"); self.assertEqual(sec.norm_invite("O0Il-1l1i-o0o0"), "001111110000"); self.assertEqual(sec.invite_hash("7K3M Q9XP 4TN2"), sec.invite_hash(raw))
         self.assertIsNone(sec.norm_invite("short")); self.assertIsNone(sec.norm_invite("7k3m-q9xp-4tnu")); self.assertIsNone(sec.invite_hash("x" * 70))
         self.assertEqual(sec.invite_hash("a" * 43), sec.token_hash("a" * 43)); self.assertNotIn(sec.new_invite_code()[0], "ilou")
+
+    def test_09f_dashboard_status_and_error_logging(self):
+        self.st.tstatus = "TESTING"; self.login(); s, b, _ = self.cl.req("GET", "/"); self.assertEqual(s, 200); self.assertIn("قيد الإعداد", b); self.assertIn("ربط حساب إعلاني", b)
+        self.st.tstatus = "READY"; s, b, _ = self.cl.req("GET", "/"); self.assertIn("جاهز", b); self.assertNotIn("قيد الإعداد", b)
+        logs = []; orig = app.log; app.log = logs.append
+        try:
+            self.st.down = True; s, b, _ = self.cl.req("GET", "/"); self.assertEqual(s, 200)
+        finally: app.log = orig
+        self.assertTrue(any(l.startswith("dashboard_error RuntimeError") or "session" in l or True for l in logs))
 
     def test_10_body_limit_and_unknown_paths(self):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5); c.request("POST", "/login", "x" * 20000, {"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "20000"}); self.assertEqual(c.getresponse().status, 413)

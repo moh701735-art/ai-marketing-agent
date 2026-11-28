@@ -109,9 +109,11 @@ def make_handler(store, cookie_secure=True):
                 if not who: return self.send(302, "", location="/login")
                 csrf, ck = self.csrf_cookie()
                 try: dash = store.dashboard(who["user_id"])
-                except Exception: dash = None; note = "تعذّر جلب البيانات حالياً، حاول بعد قليل."
+                except Exception as e:
+                    dash = None; note = "تعذّر جلب البيانات حالياً، حاول بعد قليل."; log("dashboard_error %s: %s" % (type(e).__name__, str(e).replace("\n", " ")[:200]))
                 else: note = "" if dash else "حسابك غير متاح حالياً."
-                accts, camps = dash if dash else ([], [])
+                accts, camps, status = (dash.get("accounts") or [], dash.get("campaigns") or [], dash.get("status")) if dash else ([], [], None)
+                who = {**who, "status": status}
                 return self.send(200, pages.dashboard_page(csrf, who, accts, camps, note), cookies=ck)
             return self.send(404, pages.message_page("غير موجود", "هذي الصفحة غير موجودة."))
 

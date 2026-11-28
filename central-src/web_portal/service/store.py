@@ -29,9 +29,8 @@ class Store:
     def session_delete(self, h): self._one("SELECT web.session_delete(%s)", (h,))
 
     def dashboard(self, uid):
-        """(accounts, campaigns) لعميل المستخدم فقط. الدوال web.accounts/web.campaigns تحسب الـctx داخل القاعدة؛ ترجع None لو المستخدم غير فعّال."""
+        """{'status','accounts','campaigns'} لعميل المستخدم فقط (الـctx يُحسب داخل القاعدة)، أو None لو المستخدم غير فعّال."""
         with psycopg.connect(self.dsn, connect_timeout=5, autocommit=True) as c:
-            accts = [dict(zip(("platform", "external_id", "name", "currency", "status", "enabled"), r)) for r in c.execute("SELECT platform, external_id, name, currency, status, enabled FROM web.accounts(%s::uuid)", (uid,)).fetchall()]
-            camps = c.execute("SELECT web.campaigns(%s::uuid)", (uid,)).fetchone()[0] or []
-            if isinstance(camps, str): camps = json.loads(camps)
-            return accts, camps
+            r = c.execute("SELECT web.overview(%s::uuid)", (uid,)).fetchone()[0]
+            if r is None: return None
+            return json.loads(r) if isinstance(r, str) else r

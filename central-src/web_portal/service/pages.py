@@ -45,18 +45,23 @@ def message_page(title, text):
 
 
 PLAT = {"tiktok": "تيك توك", "meta": "فيسبوك/إنستغرام", "snapchat": "سناب شات"}
-STAT = {"READY": "جاهز", "NEEDS_REVIEW": "يحتاج مراجعة", "TESTING": "تحت الفحص"}
+STAT = {"READY": "جاهز", "NEEDS_REVIEW": "يحتاج مراجعة", "TESTING": "قيد الإعداد", "CONFIGURATION_REQUIRED": "قيد الإعداد", "SUSPENDED": "موقوف"}
 
 
 def dashboard_page(csrf, who, accounts, campaigns, note=""):
     nav = ("<div class=\"c\" style=\"display:flex;justify-content:space-between;align-items:center\"><div><b>%s</b><div class=\"m\" dir=\"ltr\">%s</div></div>"
            "<form method=\"post\" action=\"/logout\"><input type=\"hidden\" name=\"csrf\" value=\"%s\"><button class=\"g\" style=\"margin:0\">خروج</button></form></div>" % (esc(who.get("name")), esc(who.get("email")), esc(csrf)))
+    st = who.get("status")
+    scard = ""
+    if st:
+        hint = "" if st == "READY" else "<p class=\"m\">حسابك قيد الإعداد: يصير جاهزاً بعد ربط حساب إعلاني ونجاح الفحوصات (الربط من الموقع يجي بالمرحلة الجاية).</p>" if st in ("TESTING", "CONFIGURATION_REQUIRED") else "<p class=\"m\">تواصل مع الإدارة.</p>"
+        scard = "<div class=\"c\"><h2>حالة الحساب: <span class=\"t\">%s</span></h2>%s</div>" % (esc(STAT.get(st, st)), hint)
     rows = "".join("<tr><td>%s</td><td>%s</td><td dir=\"ltr\">%s</td><td>%s</td><td>%s</td></tr>" % (esc(PLAT.get(a.get("platform"), a.get("platform"))), esc(a.get("name") or "-"), esc(a.get("external_id")), esc(a.get("currency") or "-"),
                    "مفعّل" if a.get("enabled") else "موقوف") for a in accounts) or "<tr><td colspan=\"5\" class=\"m\">ما كو حسابات مربوطة بعد.</td></tr>"
     crow = "".join("<tr><td>%s</td><td dir=\"ltr\">%s</td><td>%s</td><td dir=\"ltr\">%s</td></tr>" % (esc(c.get("name") or "-"), esc(c.get("external_id") or "-"), esc(c.get("status") or "-"), esc(str(c.get("created_at") or "")[:16])) for c in campaigns) \
         or "<tr><td colspan=\"4\" class=\"m\">ما كو حملات بعد.</td></tr>"
-    body = ("%s%s"
+    body = ("%s%s%s"
             "<div class=\"c\"><h2>الحسابات الإعلانية</h2><table><tr><th>المنصة</th><th>الاسم</th><th>الرقم</th><th>العملة</th><th>الحالة</th></tr>%s</table></div>"
             "<div class=\"c\"><h2>آخر الحملات</h2><table><tr><th>الاسم</th><th>الرقم</th><th>الحالة</th><th>التاريخ</th></tr>%s</table></div>"
-            "<p class=\"m\">هذي نسخة تجريبية للعرض فقط. رفع الحملات وربط الحسابات يجي بالمراحل الجاية.</p>" % (nav, ('<div class="c">%s</div>' % msg("e", note)) if note else '', rows, crow))
+            "<p class=\"m\">هذي نسخة تجريبية للعرض فقط. رفع الحملات وربط الحسابات يجي بالمراحل الجاية.</p>" % (nav, ('<div class="c">%s</div>' % msg("e", note)) if note else '', scard, rows, crow))
     return page("لوحة التحكم", body)
